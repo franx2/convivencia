@@ -282,7 +282,7 @@ export default function ImportarPage() {
                 </Button>
               </div>
               <p className="mt-1.5 text-xs text-slate-400">
-                Manda el PDF al proveedor elegido para detectar y categorizar mejor (requiere API key server-side).
+                Claude usa la API key configurada en el servidor. ChatGPT usa la API key que pegás acá.
               </p>
               {aiError && <p className="mt-1 text-sm text-red-600">{aiError}</p>}
             </div>

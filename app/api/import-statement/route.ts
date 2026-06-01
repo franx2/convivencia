@@ -231,8 +231,13 @@ class ProviderError extends Error {
 function readOpenAIError(data: Record<string, unknown>): string | null {
   const error = data.error
   if (typeof error !== 'object' || error === null) return null
-  const message = (error as Record<string, unknown>).message
-  return typeof message === 'string' ? message : null
+  const details = error as Record<string, unknown>
+  const code = typeof details.code === 'string' ? details.code : ''
+  const message = typeof details.message === 'string' ? details.message : ''
+  if (code === 'insufficient_quota' || message.toLowerCase().includes('exceeded your current quota')) {
+    return 'Tu API key de ChatGPT no tiene cupo disponible. Revisá billing/créditos o pegá otra key.'
+  }
+  return message || null
 }
 
 function extractOutputText(data: Record<string, unknown>): string {
