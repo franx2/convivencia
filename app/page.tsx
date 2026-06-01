@@ -1,65 +1,119 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
+import { useRequireAuth } from '@/components/AuthProvider'
+import { Header } from '@/components/Header'
+import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
+import { CURRENCIES } from '@/lib/currencies'
+import type { Group } from '@/lib/types'
+
+export default function HomePage() {
+  const { user, loading } = useRequireAuth()
+  const [groups, setGroups] = useState<Group[]>([])
+  const [fetching, setFetching] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [name, setName] = useState('')
+  const [currency, setCurrency] = useState('ARS')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('groups')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (!error && data) setGroups(data as Group[])
+    setFetching(false)
+  }, [])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial async; setState ocurre tras el await
+    if (user) load()
+  }, [user, load])
+
+  async function createGroup(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    const { data, error } = await supabase
+      .from('groups')
+      .insert({ name: name.trim(), base_currency: currency })
+      .select()
+      .single()
+    setBusy(false)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setName('')
+    setShowForm(false)
+    if (data) setGroups((g) => [data as Group, ...g])
+  }
+
+  if (loading || !user) return <Spinner />
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <>
+      <Header />
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="text-xl font-semibold">Mis grupos</h1>
+          <Button onClick={() => setShowForm((s) => !s)}>
+            {showForm ? 'Cancelar' : '+ Nuevo grupo'}
+          </Button>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+        {showForm && (
+          <Card className="mb-5">
+            <form onSubmit={createGroup} className="space-y-3">
+              <div>
+                <Label>Nombre del grupo</Label>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Viaje a Bariloche"
+                  required
+                />
+              </div>
+              <div>
+                <Label>Moneda base</Label>
+                <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                  {CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              {error && <p className="text-sm text-red-600">{error}</p>}
+              <Button type="submit" disabled={busy || !name.trim()}>
+                {busy ? 'Creando…' : 'Crear grupo'}
+              </Button>
+            </form>
+          </Card>
+        )}
+
+        {fetching ? (
+          <Spinner />
+        ) : groups.length === 0 ? (
+          <Card className="text-center text-slate-500">
+            Todavía no tenés grupos. Creá uno para empezar a cargar gastos.
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {groups.map((g) => (
+              <Link key={g.id} href={`/g/${g.id}`}>
+                <Card className="flex items-center justify-between transition hover:border-emerald-300 hover:shadow">
+                  <span className="font-medium">{g.name}</span>
+                  <span className="text-sm text-slate-400">{g.base_currency}</span>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
       </main>
-    </div>
-  );
+    </>
+  )
 }
