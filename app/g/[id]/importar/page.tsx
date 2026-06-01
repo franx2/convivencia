@@ -24,10 +24,13 @@ export default function ImportarPage() {
   const [fetching, setFetching] = useState(true)
   const [missing, setMissing] = useState(false)
 
+  const [file, setFile] = useState<File | null>(null)
   const [fileName, setFileName] = useState('')
   const [parsing, setParsing] = useState(false)
   const [rows, setRows] = useState<ParsedTx[]>([])
   const [parseError, setParseError] = useState<string | null>(null)
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -63,19 +66,21 @@ export default function ImportarPage() {
   }, [user, load])
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setFileName(file.name)
+    const f = e.target.files?.[0]
+    if (!f) return
+    setFile(f)
+    setFileName(f.name)
     setParseError(null)
+    setAiError(null)
     setRows([])
     setParsing(true)
     try {
-      const lines = await extractPdfLines(file)
-      const year = guessYear(file.name)
+      const lines = await extractPdfLines(f)
+      const year = guessYear(f.name)
       const txs = parseTransactions(lines, year)
       if (txs.length === 0) {
         setParseError(
-          'No detecté transacciones automáticamente. El formato de este resumen puede necesitar la opción “mejorar con IA”.'
+          'No detecté transacciones automáticamente. Probá “Mejorar con IA”.'
         )
       }
       setRows(txs)
@@ -83,6 +88,30 @@ export default function ImportarPage() {
       setParseError(err instanceof Error ? err.message : 'No se pudo leer el PDF.')
     } finally {
       setParsing(false)
+    }
+  }
+
+  async function improveWithAI() {
+    if (!file) return
+    setAiBusy(true)
+    setAiError(null)
+    try {
+      const base64 = arrayBufferToBase64(await file.arrayBuffer())
+      const res = await fetch('/api/import-statement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdf: base64 }),
+      })
+      const data = (await res.json()) as { transactions?: ParsedTx[]; error?: string }
+      if (!res.ok) throw new Error(data.error || 'La IA no pudo procesar el resumen.')
+      setRows(data.transactions ?? [])
+      if ((data.transactions ?? []).length === 0) {
+        setAiError('La IA no encontró transacciones en este PDF.')
+      }
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Error llamando a la IA.')
+    } finally {
+      setAiBusy(false)
     }
   }
 
@@ -171,6 +200,18 @@ export default function ImportarPage() {
           {fileName && <p className="mt-2 text-xs text-slate-400">{fileName}</p>}
           {parsing && <p className="mt-2 text-sm text-slate-500">Leyendo el PDF…</p>}
           {parseError && <p className="mt-2 text-sm text-amber-600">{parseError}</p>}
+
+          {file && (
+            <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+              <Button type="button" variant="ghost" onClick={improveWithAI} disabled={aiBusy}>
+                {aiBusy ? 'Procesando con IA…' : '✨ Mejorar con IA'}
+              </Button>
+              <p className="mt-1.5 text-xs text-slate-400">
+                Manda el PDF a Claude para detectar y categorizar mejor (necesita configurar la API key).
+              </p>
+              {aiError && <p className="mt-1 text-sm text-red-600">{aiError}</p>}
+            </div>
+          )}
         </Card>
 
         {rows.length > 0 && (
@@ -232,4 +273,15 @@ export default function ImportarPage() {
 function guessYear(fileName: string): number {
   const m = fileName.match(/20\d{2}/)
   return m ? Number(m[0]) : new Date().getFullYear()
+}
+
+// Convierte el PDF a base64 sin reventar el stack (chunks de 32KB).
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf)
+  let binary = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
 }
