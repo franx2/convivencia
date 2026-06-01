@@ -13,7 +13,8 @@ import { extractPdfLines, parseTransactions, type ParsedTx } from '@/lib/import-
 import type { Category, Group, Member } from '@/lib/types'
 
 type AIProvider = 'claude' | 'chatgpt'
-const OPENAI_KEY_STORAGE = 'convivencia.openaiApiKey'
+const OPENAI_KEY_STORAGE = 'covivencia.openaiApiKey'
+const LEGACY_OPENAI_KEY_STORAGE = 'convivencia.openaiApiKey'
 
 export default function ImportarPage() {
   const { user, loading } = useRequireAuth()
@@ -70,8 +71,16 @@ export default function ImportarPage() {
   }, [user, load])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- lee una preferencia local del navegador tras hidratar
-    setOpenaiApiKey(localStorage.getItem(OPENAI_KEY_STORAGE) ?? '')
+    let cancelled = false
+    const stored = localStorage.getItem(OPENAI_KEY_STORAGE) ?? localStorage.getItem(LEGACY_OPENAI_KEY_STORAGE) ?? ''
+    if (stored) localStorage.setItem(OPENAI_KEY_STORAGE, stored)
+    localStorage.removeItem(LEGACY_OPENAI_KEY_STORAGE)
+    queueMicrotask(() => {
+      if (!cancelled) setOpenaiApiKey(stored)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {

@@ -1,4 +1,4 @@
-# HANDOFF — convivencia
+# HANDOFF — covivencia.
 
 Estado vivo del proyecto para pasar contexto entre sesiones (Claude Code / gstack u otro agente).
 Leer junto con `AGENTS.md`, `CLAUDE.md`, `README.md`, `package.json` y `supabase/schema.sql`.
@@ -7,6 +7,7 @@ Leer junto con `AGENTS.md`, `CLAUDE.md`, `README.md`, `package.json` y `supabase
 
 Clon de **Tricount** para **convivientes (parejas / familias que viven juntos)**: repartir
 gastos compartidos, ver quién le debe a quién y sugerir transferencias mínimas para saldar.
+Nombre visible de la app: **covivencia.** (con punto final).
 
 ## Stack
 
@@ -55,7 +56,7 @@ gastos compartidos, ver quién le debe a quién y sugerir transferencias mínima
 - `/login` — registro / ingreso (email + password). Respeta `?next=`. Tiene modo
   **"olvidé mi contraseña"** (manda link a `/reset` con `resetPasswordForEmail`).
 - `/reset` — setear nueva contraseña al volver del email (sesión `PASSWORD_RECOVERY`).
-- `/` — lista de mis grupos + crear grupo.
+- `/` — lista de mis grupos + crear grupo + borrar grupos propios.
 - `/g/[id]` — grupo, tabs:
   - **Gastos**: tarjeta de **gastos típicos** (chips de un tap + "Editar" para crear plantillas),
     filtro por categoría, lista con editar (✎) / borrar (✕).
@@ -86,6 +87,8 @@ default `gpt-5`.
 
 - Auth (con **recuperación de contraseña** vía `/reset`), grupos (moneda base), miembros,
   gastos **multi-moneda** (tipo de cambio manual), balances y liquidación (greedy), invitación por link.
+- **Borrar grupos propios** desde la home: limpia gastos/repartos, pagos, presupuestos,
+  plantillas, categorías y miembros antes de borrar el grupo. RLS limita el borrado al owner.
 - **Categorías**: presets para convivientes en `lib/categories.ts` (Supermercado, Alquiler,
   Servicios, Comida/Delivery, Transporte, Hogar, Salud, Ocio, Otros) + **categorías personalizadas
   por grupo** (tabla `categories`, "+ Nueva categoría" en el form). Helpers `mergeCategories`,

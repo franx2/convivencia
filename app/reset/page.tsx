@@ -70,7 +70,7 @@ export default function ResetPasswordPage() {
   return (
     <div className="flex flex-1 items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <h1 className="mb-1 text-center text-3xl font-bold text-emerald-700">convivencia</h1>
+        <h1 className="mb-1 text-center text-3xl font-bold text-emerald-700">covivencia.</h1>
         <p className="mb-6 text-center text-sm text-slate-500">Crear una nueva contraseña</p>
         <Card>
           {status === 'checking' && <Spinner />}

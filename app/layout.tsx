@@ -9,12 +9,12 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "convivencia",
+  title: "covivencia.",
   description: "Repartí gastos compartidos con tu grupo",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "convivencia",
+    title: "covivencia.",
   },
   icons: {
     apple: "/apple-touch-icon.png",

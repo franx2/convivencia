@@ -1,4 +1,4 @@
-# convivencia
+# covivencia.
 
 Clon de **Tricount**: repartí gastos compartidos en un grupo (viaje, depto, asado). Cada quien carga lo que pagó, la app calcula quién le debe a quién y sugiere las transferencias mínimas para saldar.
 

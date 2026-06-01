@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'convivencia',
-    short_name: 'convivencia',
+    name: 'covivencia.',
+    short_name: 'covivencia.',
     description: 'Repartí gastos compartidos con tu grupo',
     start_url: '/',
     display: 'standalone',

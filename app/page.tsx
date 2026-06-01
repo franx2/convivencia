@@ -19,6 +19,8 @@ export default function HomePage() {
   const [personal, setPersonal] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
@@ -59,6 +61,43 @@ export default function HomePage() {
     setShowForm(false)
     setPersonal(false)
     if (data) setGroups((g) => [data as Group, ...g])
+  }
+
+  async function deleteGroup(group: Group) {
+    if (!user || group.owner_id !== user.id || deletingId) return
+    const userId = user.id
+
+    const ok = window.confirm(
+      `¿Borrar "${group.name}"? Se eliminan sus gastos, miembros, pagos, presupuestos y categorías.`
+    )
+    if (!ok) return
+
+    setDeletingId(group.id)
+    setDeleteError(null)
+
+    try {
+      const expenses = await supabase.from('expenses').select('id').eq('group_id', group.id)
+      if (expenses.error) throw expenses.error
+      const expenseIds = ((expenses.data ?? []) as { id: string }[]).map((e) => e.id)
+
+      if (expenseIds.length > 0) {
+        const { error } = await supabase.from('expense_shares').delete().in('expense_id', expenseIds)
+        if (error) throw error
+      }
+
+      for (const table of ['payments', 'budgets', 'templates', 'categories', 'expenses', 'members'] as const) {
+        const { error } = await supabase.from(table).delete().eq('group_id', group.id)
+        if (error) throw error
+      }
+
+      const { error } = await supabase.from('groups').delete().eq('id', group.id).eq('owner_id', userId)
+      if (error) throw error
+      setGroups((prev) => prev.filter((g) => g.id !== group.id))
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'No se pudo borrar el grupo.')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   if (loading || !user) return <Spinner />
@@ -116,20 +155,34 @@ export default function HomePage() {
           </Card>
         ) : (
           <div className="space-y-2">
+            {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
             {groups.map((g) => (
-              <Link key={g.id} href={`/g/${g.id}`}>
-                <Card className="flex items-center justify-between transition hover:border-emerald-300 hover:shadow">
-                  <span className="flex items-center gap-2 font-medium">
-                    {g.name}
+              <Card
+                key={g.id}
+                className="flex items-stretch justify-between overflow-hidden p-0 transition hover:border-emerald-300 hover:shadow"
+              >
+                <Link href={`/g/${g.id}`} className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3">
+                  <span className="flex min-w-0 items-center gap-2 font-medium">
+                    <span className="truncate">{g.name}</span>
                     {g.is_personal && (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                      <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                         personal
                       </span>
                     )}
                   </span>
-                  <span className="text-sm text-slate-400">{g.base_currency}</span>
-                </Card>
-              </Link>
+                  <span className="shrink-0 text-sm text-slate-400">{g.base_currency}</span>
+                </Link>
+                {g.owner_id === user.id && (
+                  <button
+                    type="button"
+                    onClick={() => deleteGroup(g)}
+                    disabled={deletingId !== null}
+                    className="border-l border-slate-100 px-3 text-sm font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:hover:bg-red-950/30"
+                  >
+                    {deletingId === g.id ? 'Borrando…' : 'Borrar'}
+                  </button>
+                )}
+              </Card>
             ))}
           </div>
         )}
