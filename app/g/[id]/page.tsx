@@ -121,13 +121,15 @@ export default function GroupPage() {
           <p className="text-sm text-slate-500">Moneda base: {group.base_currency}</p>
         </div>
 
-        <div className="mb-5 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1 text-sm">
+        <div className="mb-5 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1 text-sm dark:bg-slate-800">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`flex-1 whitespace-nowrap rounded-md px-3 py-1.5 font-medium ${
-                tab === t.key ? 'bg-white shadow-sm' : 'text-slate-500'
+                tab === t.key
+                  ? 'bg-white shadow-sm dark:bg-slate-700 dark:text-slate-100'
+                  : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               {t.label}
@@ -526,7 +528,7 @@ function BalancesTab({
                       )}
                     </span>
                   </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                     <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
                   </div>
                   {ratio >= 1 ? (

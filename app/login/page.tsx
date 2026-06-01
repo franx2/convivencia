@@ -73,9 +73,9 @@ export default function LoginPage() {
               </p>
             </div>
           ) : (
-            <div className="mb-4 flex rounded-lg bg-slate-100 p-1 text-sm">
+            <div className="mb-4 flex rounded-lg bg-slate-100 p-1 text-sm dark:bg-slate-800">
               <button
-                className={`flex-1 rounded-md py-1.5 font-medium ${mode === 'signin' ? 'bg-white shadow-sm' : 'text-slate-500'}`}
+                className={`flex-1 rounded-md py-1.5 font-medium ${mode === 'signin' ? 'bg-white shadow-sm dark:bg-slate-700 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}`}
                 onClick={() => {
                   setMode('signin')
                   setError(null)
@@ -86,7 +86,7 @@ export default function LoginPage() {
                 Iniciar sesión
               </button>
               <button
-                className={`flex-1 rounded-md py-1.5 font-medium ${mode === 'signup' ? 'bg-white shadow-sm' : 'text-slate-500'}`}
+                className={`flex-1 rounded-md py-1.5 font-medium ${mode === 'signup' ? 'bg-white shadow-sm dark:bg-slate-700 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}`}
                 onClick={() => {
                   setMode('signup')
                   setError(null)

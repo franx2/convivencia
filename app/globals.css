@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Modo oscuro por clase `.dark` en <html> (toggle manual), no por media query. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --font-sans: var(--font-geist-sans);
 }
