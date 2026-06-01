@@ -169,3 +169,22 @@ create policy expense_shares_all on public.expense_shares
       where e.id = expense_id and public.is_group_member(e.group_id)
     )
   );
+
+-- ---------- Privilegios de tabla ----------
+-- PostgREST exige privilegios de tabla ADEMAS de las policies de RLS:
+-- RLS filtra las FILAS, pero el rol primero necesita el GRANT sobre la TABLA.
+-- Damos acceso al rol `authenticated` (usuarios logueados); RLS limita a sus grupos.
+-- `anon` (deslogueado) queda sin acceso a proposito: la app exige login.
+
+grant usage on schema public to authenticated;
+
+grant select, insert, update, delete on
+  public.groups,
+  public.group_users,
+  public.members,
+  public.expenses,
+  public.expense_shares
+to authenticated;
+
+grant execute on function public.join_group(uuid) to authenticated;
+grant execute on function public.is_group_member(uuid) to authenticated;
