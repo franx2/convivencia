@@ -83,7 +83,8 @@ export function Donut({
 }
 
 /**
- * Barras verticales de gasto por mes (SVG/divs). Escala a la barra mas alta.
+ * Barras verticales de gasto por mes. Escala a la barra mas alta, con linea de
+ * promedio punteada y referencia del maximo. Solo divs/CSS, sin librerias.
  */
 export function MonthlyBars({
   data,
@@ -93,26 +94,53 @@ export function MonthlyBars({
   format: (n: number) => string
 }) {
   const max = Math.max(1, ...data.map((d) => d.total))
+  const withSpend = data.filter((d) => d.total > 0)
+  const avg = withSpend.length
+    ? withSpend.reduce((s, d) => s + d.total, 0) / withSpend.length
+    : 0
+  const avgPct = max > 0 ? (avg / max) * 100 : 0
+
   return (
-    <div className="flex h-40 items-end justify-between gap-2">
-      {data.map((d) => {
-        const h = Math.round((d.total / max) * 100)
-        return (
-          <div key={d.key} className="flex flex-1 flex-col items-center gap-1">
-            <span className="text-[10px] tabular-nums text-slate-400">
-              {d.total > 0 ? format(d.total) : ''}
-            </span>
-            <div className="flex w-full flex-1 items-end">
+    <div>
+      <div className="mb-1 flex justify-between text-[10px] text-slate-400 dark:text-slate-500">
+        <span>{avg > 0 ? `prom ${format(avg)}` : ''}</span>
+        <span>máx {format(max)}</span>
+      </div>
+
+      {/* área del gráfico: barras + línea de promedio */}
+      <div className="relative h-44">
+        {avg > 0 && (
+          <div
+            className="absolute inset-x-0 z-0 border-t border-dashed border-amber-400/70"
+            style={{ bottom: `${avgPct}%` }}
+          />
+        )}
+        <div className="relative z-10 flex h-full items-end gap-2">
+          {data.map((d) => {
+            const h = d.total > 0 ? Math.max((d.total / max) * 100, 2) : 0
+            return (
               <div
-                className="w-full rounded-t bg-emerald-500 transition-all"
-                style={{ height: `${Math.max(h, d.total > 0 ? 4 : 0)}%` }}
+                key={d.key}
+                className="flex-1 rounded-t bg-emerald-500 transition-all hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                style={{ height: `${h}%` }}
                 title={`${d.label}: ${format(d.total)}`}
               />
+            )
+          })}
+        </div>
+      </div>
+
+      {/* etiquetas: mes + monto */}
+      <div className="mt-1 flex gap-2">
+        {data.map((d) => (
+          <div key={d.key} className="flex-1 text-center">
+            <div className="text-xs text-slate-500 dark:text-slate-400">{d.label}</div>
+            <div className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500">
+              {d.total > 0 ? format(d.total) : '—'}
             </div>
-            <span className="text-xs text-slate-500">{d.label}</span>
           </div>
-        )
-      })}
+        ))}
+      </div>
     </div>
   )
 }
