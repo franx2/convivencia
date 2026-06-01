@@ -102,12 +102,17 @@ export default function GroupPage() {
       </>
     )
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'gastos', label: 'Gastos' },
-    { key: 'balances', label: 'Balances' },
-    { key: 'liquidacion', label: 'Liquidación' },
-    { key: 'miembros', label: 'Miembros' },
-  ]
+  const tabs: { key: Tab; label: string }[] = group.is_personal
+    ? [
+        { key: 'gastos', label: 'Gastos' },
+        { key: 'balances', label: 'Balances' },
+      ]
+    : [
+        { key: 'gastos', label: 'Gastos' },
+        { key: 'balances', label: 'Balances' },
+        { key: 'liquidacion', label: 'Liquidación' },
+        { key: 'miembros', label: 'Miembros' },
+      ]
 
   return (
     <>
@@ -117,8 +122,17 @@ export default function GroupPage() {
           <Link href="/" className="text-sm text-slate-400 hover:text-slate-600">
             ← Mis grupos
           </Link>
-          <h1 className="mt-1 text-2xl font-bold">{group.name}</h1>
-          <p className="text-sm text-slate-500">Moneda base: {group.base_currency}</p>
+          <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold">
+            {group.name}
+            {group.is_personal && (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                personal
+              </span>
+            )}
+          </h1>
+          <p className="text-sm text-slate-500">
+            {group.is_personal ? 'Espacio personal · ' : ''}Moneda base: {group.base_currency}
+          </p>
         </div>
 
         <div className="mb-5 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1 text-sm dark:bg-slate-800">

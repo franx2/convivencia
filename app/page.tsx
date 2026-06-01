@@ -16,6 +16,7 @@ export default function HomePage() {
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [currency, setCurrency] = useState('ARS')
+  const [personal, setPersonal] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,18 +38,26 @@ export default function HomePage() {
     e.preventDefault()
     setBusy(true)
     setError(null)
-    const { data, error } = await supabase
-      .from('groups')
-      .insert({ name: name.trim(), base_currency: currency })
-      .select()
-      .single()
-    setBusy(false)
+    // migration-safe: solo mandamos is_personal cuando aplica.
+    const payload: { name: string; base_currency: string; is_personal?: boolean } = {
+      name: name.trim(),
+      base_currency: currency,
+    }
+    if (personal) payload.is_personal = true
+    const { data, error } = await supabase.from('groups').insert(payload).select().single()
     if (error) {
+      setBusy(false)
       setError(error.message)
       return
     }
+    // Un espacio personal arranca con un único miembro ("Yo").
+    if (personal && data) {
+      await supabase.from('members').insert({ group_id: (data as Group).id, name: 'Yo' })
+    }
+    setBusy(false)
     setName('')
     setShowForm(false)
+    setPersonal(false)
     if (data) setGroups((g) => [data as Group, ...g])
   }
 
@@ -87,9 +96,13 @@ export default function HomePage() {
                   ))}
                 </Select>
               </div>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                <input type="checkbox" checked={personal} onChange={(e) => setPersonal(e.target.checked)} />
+                Es un espacio personal (solo mío, sin repartir)
+              </label>
               {error && <p className="text-sm text-red-600">{error}</p>}
               <Button type="submit" disabled={busy || !name.trim()}>
-                {busy ? 'Creando…' : 'Crear grupo'}
+                {busy ? 'Creando…' : personal ? 'Crear espacio' : 'Crear grupo'}
               </Button>
             </form>
           </Card>
@@ -106,7 +119,14 @@ export default function HomePage() {
             {groups.map((g) => (
               <Link key={g.id} href={`/g/${g.id}`}>
                 <Card className="flex items-center justify-between transition hover:border-emerald-300 hover:shadow">
-                  <span className="font-medium">{g.name}</span>
+                  <span className="flex items-center gap-2 font-medium">
+                    {g.name}
+                    {g.is_personal && (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                        personal
+                      </span>
+                    )}
+                  </span>
                   <span className="text-sm text-slate-400">{g.base_currency}</span>
                 </Card>
               </Link>

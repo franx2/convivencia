@@ -4,6 +4,7 @@ export type Group = {
   base_currency: string
   owner_id: string
   invite_token: string
+  is_personal: boolean
   created_at: string
 }
 

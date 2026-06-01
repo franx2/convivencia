@@ -287,3 +287,10 @@ create policy budgets_all on public.budgets
   with check (public.is_group_member(group_id));
 
 grant select, insert, update, delete on public.budgets to authenticated;
+
+-- ============================================================
+-- Espacio personal (ver migration_espacio_personal.sql)
+-- ============================================================
+
+alter table public.groups
+  add column if not exists is_personal boolean not null default false;
