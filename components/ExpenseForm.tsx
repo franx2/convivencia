@@ -7,8 +7,15 @@ import { supabase } from '@/lib/supabase'
 import { Header } from '@/components/Header'
 import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
 import { CURRENCIES } from '@/lib/currencies'
-import { EXPENSE_CATEGORIES, DEFAULT_CATEGORY } from '@/lib/categories'
-import type { Expense, ExpenseShare, Group, Member } from '@/lib/types'
+import {
+  DEFAULT_CATEGORY,
+  EXPENSE_CATEGORIES,
+  mergeCategories,
+  paletteAt,
+  slugifyCategory,
+  type CatMeta,
+} from '@/lib/categories'
+import type { Category, Expense, ExpenseShare, Group, Member } from '@/lib/types'
 
 /**
  * Form de gasto compartido entre crear (/nuevo) y editar (/editar/[eid]).
@@ -30,6 +37,9 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
   const [paidBy, setPaidBy] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [category, setCategory] = useState<string>(DEFAULT_CATEGORY)
+  const [cats, setCats] = useState<CatMeta[]>(() => mergeCategories([]))
+  const [adding, setAdding] = useState(false)
+  const [newCat, setNewCat] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,6 +59,22 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
     setGroup(g as Group)
     const mm = (m ?? []) as Member[]
     setMembers(mm)
+
+    const { data: c } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('group_id', groupId)
+      .order('created_at')
+    setCats(
+      mergeCategories(
+        ((c ?? []) as Category[]).map((x) => ({
+          value: x.value,
+          label: x.label,
+          color: x.color,
+          hex: x.hex,
+        }))
+      )
+    )
 
     if (isEdit && expenseId) {
       const { data: exp } = await supabase
@@ -94,6 +120,32 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
       else next.add(id)
       return next
     })
+  }
+
+  async function addCategory() {
+    const name = newCat.trim()
+    if (!name) return
+    const value = slugifyCategory(name)
+    const existing = cats.find((c) => c.value === value)
+    if (existing) {
+      setCategory(existing.value)
+      setNewCat('')
+      setAdding(false)
+      return
+    }
+    const customCount = Math.max(0, cats.length - EXPENSE_CATEGORIES.length)
+    const { color, hex } = paletteAt(customCount)
+    const { error: insErr } = await supabase
+      .from('categories')
+      .insert({ group_id: groupId, value, label: name, color, hex })
+    if (insErr) {
+      setError(insErr.message)
+      return
+    }
+    setCats((prev) => [...prev, { value, label: name, color, hex }])
+    setCategory(value)
+    setNewCat('')
+    setAdding(false)
   }
 
   async function submit(e: React.FormEvent) {
@@ -245,12 +297,49 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
             <div>
               <Label>Categoría</Label>
               <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-                {EXPENSE_CATEGORIES.map((c) => (
+                {cats.map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}
                   </option>
                 ))}
               </Select>
+              {adding ? (
+                <div className="mt-2 flex gap-2">
+                  <Input
+                    value={newCat}
+                    onChange={(e) => setNewCat(e.target.value)}
+                    placeholder="Nombre de la categoría"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addCategory()
+                      }
+                    }}
+                  />
+                  <Button type="button" variant="ghost" onClick={addCategory}>
+                    Agregar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setAdding(false)
+                      setNewCat('')
+                    }}
+                  >
+                    ✕
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAdding(true)}
+                  className="mt-1.5 text-sm font-medium text-emerald-700 hover:underline"
+                >
+                  + Nueva categoría
+                </button>
+              )}
             </div>
 
             <div>

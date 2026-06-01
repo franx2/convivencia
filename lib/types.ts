@@ -32,3 +32,25 @@ export type ExpenseShare = {
   expense_id: string
   member_id: string
 }
+
+export type Category = {
+  id: string
+  group_id: string
+  value: string
+  label: string
+  color: string
+  hex: string
+  created_at: string
+}
+
+export type Payment = {
+  id: string
+  group_id: string
+  from_member: string
+  to_member: string
+  amount: number
+  date: string
+  note: string | null
+  created_by: string | null
+  created_at: string
+}

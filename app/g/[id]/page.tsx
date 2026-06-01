@@ -6,12 +6,12 @@ import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { Header } from '@/components/Header'
-import { Button, Card, Input, Select, Spinner } from '@/components/ui'
+import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
-import { categoryMeta } from '@/lib/categories'
+import { mergeCategories, metaFrom, type CatMeta } from '@/lib/categories'
 import { computeBalances, settle, spendByCategory, spendByMonth } from '@/lib/balances'
 import { Donut, MonthlyBars } from '@/components/charts'
-import type { Expense, ExpenseShare, Group, Member } from '@/lib/types'
+import type { Category, Expense, ExpenseShare, Group, Member, Payment } from '@/lib/types'
 
 type Tab = 'gastos' | 'balances' | 'liquidacion' | 'miembros'
 
@@ -24,6 +24,8 @@ export default function GroupPage() {
   const [members, setMembers] = useState<Member[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [shares, setShares] = useState<ExpenseShare[]>([])
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [fetching, setFetching] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [tab, setTab] = useState<Tab>('gastos')
@@ -36,11 +38,15 @@ export default function GroupPage() {
       return
     }
     setGroup(g as Group)
-    const [{ data: m }, { data: e }] = await Promise.all([
+    const [{ data: m }, { data: e }, { data: c }, { data: p }] = await Promise.all([
       supabase.from('members').select('*').eq('group_id', groupId).order('created_at'),
       supabase.from('expenses').select('*').eq('group_id', groupId).order('date', { ascending: false }),
+      supabase.from('categories').select('*').eq('group_id', groupId).order('created_at'),
+      supabase.from('payments').select('*').eq('group_id', groupId).order('date', { ascending: false }),
     ])
     setMembers((m ?? []) as Member[])
+    setCategories((c ?? []) as Category[])
+    setPayments((p ?? []) as Payment[])
     const exp = (e ?? []) as Expense[]
     setExpenses(exp)
     if (exp.length) {
@@ -65,6 +71,15 @@ export default function GroupPage() {
     members.forEach((m) => map.set(m.id, m.name))
     return (id: string) => map.get(id) ?? '—'
   }, [members])
+
+  const cats = useMemo(
+    () =>
+      mergeCategories(
+        categories.map((c) => ({ value: c.value, label: c.label, color: c.color, hex: c.hex }))
+      ),
+    [categories]
+  )
+  const catMeta = useMemo(() => (v: string) => metaFrom(cats, v), [cats])
 
   if (loading || !user || fetching) return <Spinner />
   if (notFound || !group)
@@ -118,15 +133,31 @@ export default function GroupPage() {
             group={group}
             expenses={expenses}
             memberName={memberName}
+            catMeta={catMeta}
             hasMembers={members.length > 0}
             onChanged={load}
           />
         )}
         {tab === 'balances' && (
-          <BalancesTab group={group} members={members} expenses={expenses} shares={shares} />
+          <BalancesTab
+            group={group}
+            members={members}
+            expenses={expenses}
+            shares={shares}
+            payments={payments}
+            catMeta={catMeta}
+          />
         )}
         {tab === 'liquidacion' && (
-          <LiquidacionTab group={group} members={members} expenses={expenses} shares={shares} />
+          <LiquidacionTab
+            group={group}
+            members={members}
+            expenses={expenses}
+            shares={shares}
+            payments={payments}
+            memberName={memberName}
+            onChanged={load}
+          />
         )}
         {tab === 'miembros' && (
           <MiembrosTab group={group} members={members} expenses={expenses} onChanged={load} />
@@ -140,12 +171,14 @@ function GastosTab({
   group,
   expenses,
   memberName,
+  catMeta,
   hasMembers,
   onChanged,
 }: {
   group: Group
   expenses: Expense[]
   memberName: (id: string) => string
+  catMeta: (v: string) => CatMeta
   hasMembers: boolean
   onChanged: () => void
 }) {
@@ -168,7 +201,7 @@ function GastosTab({
             <option value="all">Todas las categorías</option>
             {usedCats.map((c) => (
               <option key={c} value={c}>
-                {categoryMeta(c).label}
+                {catMeta(c).label}
               </option>
             ))}
           </Select>
@@ -192,8 +225,8 @@ function GastosTab({
             <div>
               <p className="font-medium">{e.title}</p>
               <p className="mt-0.5 flex items-center gap-2 text-sm text-slate-500">
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${categoryMeta(e.category).color}`}>
-                  {categoryMeta(e.category).label}
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${catMeta(e.category).color}`}>
+                  {catMeta(e.category).label}
                 </span>
                 Pagó {memberName(e.paid_by)} · {e.date}
               </p>
@@ -234,24 +267,28 @@ function BalancesTab({
   members,
   expenses,
   shares,
+  payments,
+  catMeta,
 }: {
   group: Group
   members: Member[]
   expenses: Expense[]
   shares: ExpenseShare[]
+  payments: Payment[]
+  catMeta: (v: string) => CatMeta
 }) {
   const balances = useMemo(
-    () => computeBalances(members, expenses, shares),
-    [members, expenses, shares]
+    () => computeBalances(members, expenses, shares, payments),
+    [members, expenses, shares, payments]
   )
   const total = expenses.reduce((s, e) => s + Number(e.amount) * Number(e.rate_to_base), 0)
   const byCat = useMemo(() => spendByCategory(expenses), [expenses])
   const byMonth = useMemo(() => spendByMonth(expenses, 6), [expenses])
   const fmt = (n: number) => formatMoney(n, group.base_currency)
   const donutData = byCat.map((c) => ({
-    label: categoryMeta(c.category).label,
+    label: catMeta(c.category).label,
     value: c.total,
-    color: categoryMeta(c.category).hex,
+    color: catMeta(c.category).hex,
   }))
 
   return (
@@ -307,32 +344,192 @@ function LiquidacionTab({
   members,
   expenses,
   shares,
+  payments,
+  memberName,
+  onChanged,
 }: {
   group: Group
   members: Member[]
   expenses: Expense[]
   shares: ExpenseShare[]
+  payments: Payment[]
+  memberName: (id: string) => string
+  onChanged: () => void
 }) {
-  const transfers = useMemo(() => {
-    const balances = computeBalances(members, expenses, shares)
-    return settle(balances)
-  }, [members, expenses, shares])
+  const transfers = useMemo(
+    () => settle(computeBalances(members, expenses, shares, payments)),
+    [members, expenses, shares, payments]
+  )
+  const fmt = (n: number) => formatMoney(n, group.base_currency)
 
-  if (transfers.length === 0)
-    return <Card className="text-center text-slate-500">Todo saldado. Nadie le debe a nadie. 🎉</Card>
+  const [showForm, setShowForm] = useState(false)
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [amount, setAmount] = useState('')
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function pay(fromId: string, toId: string, amt: number, when?: string) {
+    setBusy(true)
+    setError(null)
+    const { error: insErr } = await supabase.from('payments').insert({
+      group_id: group.id,
+      from_member: fromId,
+      to_member: toId,
+      amount: amt,
+      date: when ?? new Date().toISOString().slice(0, 10),
+    })
+    setBusy(false)
+    if (insErr) {
+      setError(insErr.message)
+      return
+    }
+    onChanged()
+  }
+
+  async function submitManual(e: React.FormEvent) {
+    e.preventDefault()
+    const amt = Number(amount)
+    if (!from || !to) return setError('Elegí quién paga y quién cobra.')
+    if (from === to) return setError('No puede pagarse a sí mismo.')
+    if (!(amt > 0)) return setError('Ingresá un monto válido.')
+    await pay(from, to, amt, date)
+    setAmount('')
+    setShowForm(false)
+  }
+
+  async function undo(id: string) {
+    if (!confirm('¿Deshacer este pago?')) return
+    await supabase.from('payments').delete().eq('id', id)
+    onChanged()
+  }
 
   return (
-    <div className="space-y-2">
-      {transfers.map((t, i) => (
-        <Card key={i} className="flex items-center justify-between">
-          <span>
-            <span className="font-medium text-red-600">{t.fromName}</span>
-            <span className="text-slate-400"> le paga a </span>
-            <span className="font-medium text-emerald-600">{t.toName}</span>
-          </span>
-          <span className="font-semibold">{formatMoney(t.amount, group.base_currency)}</span>
-        </Card>
-      ))}
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <p className="px-1 text-xs font-medium uppercase tracking-wide text-slate-400">Para saldar</p>
+        {transfers.length === 0 ? (
+          <Card className="text-center text-slate-500">Todo saldado. Nadie le debe a nadie. 🎉</Card>
+        ) : (
+          transfers.map((t, i) => (
+            <Card key={i} className="flex items-center justify-between gap-3">
+              <span className="text-sm">
+                <span className="font-medium text-red-600">{t.fromName}</span>
+                <span className="text-slate-400"> le paga a </span>
+                <span className="font-medium text-emerald-600">{t.toName}</span>
+              </span>
+              <div className="flex items-center gap-3">
+                <span className="font-semibold">{fmt(t.amount)}</span>
+                <Button
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => pay(t.fromId, t.toId, t.amount)}
+                >
+                  Marcar pagado
+                </Button>
+              </div>
+            </Card>
+          ))
+        )}
+      </div>
+
+      <Card>
+        {showForm ? (
+          <form onSubmit={submitManual} className="space-y-3">
+            <p className="text-sm font-medium text-slate-600">Registrar un pago</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Paga</Label>
+                <Select value={from} onChange={(e) => setFrom(e.target.value)}>
+                  <option value="">—</option>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label>Cobra</Label>
+                <Select value={to} onChange={(e) => setTo(e.target.value)}>
+                  <option value="">—</option>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Monto ({group.base_currency})</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <Label>Fecha</Label>
+                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              </div>
+            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex gap-2">
+              <Button type="submit" disabled={busy}>
+                {busy ? 'Guardando…' : 'Guardar pago'}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setShowForm(true)
+              setError(null)
+            }}
+            className="text-sm font-medium text-emerald-700 hover:underline"
+          >
+            + Registrar un pago manualmente
+          </button>
+        )}
+      </Card>
+
+      {payments.length > 0 && (
+        <div className="space-y-2">
+          <p className="px-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+            Pagos registrados
+          </p>
+          {payments.map((p) => (
+            <Card key={p.id} className="flex items-center justify-between gap-3">
+              <span className="text-sm text-slate-600">
+                <span className="font-medium">{memberName(p.from_member)}</span>
+                <span className="text-slate-400"> → </span>
+                <span className="font-medium">{memberName(p.to_member)}</span>
+                <span className="text-slate-400"> · {p.date}</span>
+              </span>
+              <div className="flex items-center gap-3">
+                <span className="font-semibold">{fmt(Number(p.amount))}</span>
+                <button
+                  onClick={() => undo(p.id)}
+                  className="text-slate-300 hover:text-red-500"
+                  title="Deshacer"
+                >
+                  ✕
+                </button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

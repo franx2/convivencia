@@ -1,4 +1,4 @@
-import type { Expense, ExpenseShare, Member } from './types'
+import type { Expense, ExpenseShare, Member, Payment } from './types'
 
 export type Balance = {
   memberId: string
@@ -80,7 +80,8 @@ export function spendByMonth(expenses: Expense[], count = 6): MonthTotal[] {
 export function computeBalances(
   members: Member[],
   expenses: Expense[],
-  shares: ExpenseShare[]
+  shares: ExpenseShare[],
+  payments: Payment[] = []
 ): Balance[] {
   const paid = new Map<string, number>()
   const owed = new Map<string, number>()
@@ -107,6 +108,14 @@ export function computeBalances(
     for (const mid of participants) {
       owed.set(mid, (owed.get(mid) ?? 0) + perHead)
     }
+  }
+
+  // Pagos ya registrados: quien pagó reduce su deuda (cuenta como "puso"),
+  // quien cobró reduce lo que le deben (cuenta como "le tocaba").
+  for (const p of payments) {
+    const amt = Number(p.amount)
+    paid.set(p.from_member, (paid.get(p.from_member) ?? 0) + amt)
+    owed.set(p.to_member, (owed.get(p.to_member) ?? 0) + amt)
   }
 
   return members.map((m) => {

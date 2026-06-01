@@ -16,13 +16,60 @@ export type CategoryValue = (typeof EXPENSE_CATEGORIES)[number]['value']
 
 export const DEFAULT_CATEGORY: CategoryValue = 'otros'
 
-export function categoryMeta(value: string) {
-  return (
-    EXPENSE_CATEGORIES.find((c) => c.value === value) ?? {
-      value,
-      label: value,
-      color: 'bg-slate-100 text-slate-600',
-      hex: '#94a3b8',
-    }
-  )
+/** Forma minima de una categoria para render (preset o personalizada). */
+export type CatMeta = { value: string; label: string; color: string; hex: string }
+
+// Paleta para asignar color/hex a las categorias que crea el usuario.
+export const CATEGORY_PALETTE: { color: string; hex: string }[] = [
+  { color: 'bg-teal-100 text-teal-700', hex: '#14b8a6' },
+  { color: 'bg-rose-100 text-rose-700', hex: '#f43f5e' },
+  { color: 'bg-lime-100 text-lime-700', hex: '#65a30d' },
+  { color: 'bg-cyan-100 text-cyan-700', hex: '#06b6d4' },
+  { color: 'bg-violet-100 text-violet-700', hex: '#8b5cf6' },
+  { color: 'bg-fuchsia-100 text-fuchsia-700', hex: '#d946ef' },
+  { color: 'bg-yellow-100 text-yellow-700', hex: '#eab308' },
+  { color: 'bg-blue-100 text-blue-700', hex: '#3b82f6' },
+]
+
+export function paletteAt(i: number) {
+  return CATEGORY_PALETTE[i % CATEGORY_PALETTE.length]
+}
+
+/** Slug ASCII a partir del nombre escrito por el usuario. */
+export function slugifyCategory(label: string): string {
+  const s = label
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+  return s || 'categoria'
+}
+
+const FALLBACK_META = (value: string): CatMeta => ({
+  value,
+  label: value,
+  color: 'bg-slate-100 text-slate-600',
+  hex: '#94a3b8',
+})
+
+export function categoryMeta(value: string): CatMeta {
+  return EXPENSE_CATEGORIES.find((c) => c.value === value) ?? FALLBACK_META(value)
+}
+
+/** Presets + personalizadas del grupo (las custom se agregan al final). */
+export function mergeCategories(custom: CatMeta[]): CatMeta[] {
+  const presets: CatMeta[] = EXPENSE_CATEGORIES.map((c) => ({
+    value: c.value,
+    label: c.label,
+    color: c.color,
+    hex: c.hex,
+  }))
+  const seen = new Set(presets.map((c) => c.value))
+  return [...presets, ...custom.filter((c) => !seen.has(c.value))]
+}
+
+/** Busca la meta de una categoria en una lista ya mergeada (con fallback). */
+export function metaFrom(list: CatMeta[], value: string): CatMeta {
+  return list.find((c) => c.value === value) ?? FALLBACK_META(value)
 }
