@@ -1,4 +1,5 @@
 @AGENTS.md
+@HANDOFF.md
 
 ## gstack
 
