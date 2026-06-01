@@ -87,10 +87,16 @@ const TOOL: Anthropic.Tool = {
 export async function POST(req: Request) {
   let pdf: string | undefined
   let provider: AIProvider = 'claude'
+  let openaiApiKey: string | undefined
 
   try {
-    const body = (await req.json()) as { pdf?: string; provider?: string }
+    const body = (await req.json()) as {
+      pdf?: string
+      provider?: string
+      openaiApiKey?: string
+    }
     pdf = body.pdf
+    openaiApiKey = body.openaiApiKey
     if (body.provider === 'chatgpt' || body.provider === 'claude') provider = body.provider
     else if (body.provider) return Response.json({ error: 'Proveedor de IA invalido.' }, { status: 400 })
   } catch {
@@ -103,7 +109,7 @@ export async function POST(req: Request) {
 
   try {
     const transactions =
-      provider === 'chatgpt' ? await extractWithOpenAI(pdf) : await extractWithAnthropic(pdf)
+      provider === 'chatgpt' ? await extractWithOpenAI(pdf, openaiApiKey) : await extractWithAnthropic(pdf)
     return Response.json({ transactions, provider })
   } catch (err) {
     const status =
@@ -155,9 +161,9 @@ async function extractWithAnthropic(pdf: string): Promise<Tx[]> {
   return normalize(Array.isArray(raw) ? raw : [])
 }
 
-async function extractWithOpenAI(pdf: string): Promise<Tx[]> {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) throw new ProviderError('Falta OPENAI_API_KEY en el servidor.', 500)
+async function extractWithOpenAI(pdf: string, userApiKey?: string): Promise<Tx[]> {
+  const apiKey = userApiKey?.trim() || process.env.OPENAI_API_KEY
+  if (!apiKey) throw new ProviderError('Pegá tu API key de ChatGPT antes de mejorar con IA.', 400)
 
   const res = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',

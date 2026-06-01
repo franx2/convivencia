@@ -13,6 +13,7 @@ import { extractPdfLines, parseTransactions, type ParsedTx } from '@/lib/import-
 import type { Category, Group, Member } from '@/lib/types'
 
 type AIProvider = 'claude' | 'chatgpt'
+const OPENAI_KEY_STORAGE = 'convivencia.openaiApiKey'
 
 export default function ImportarPage() {
   const { user, loading } = useRequireAuth()
@@ -33,6 +34,7 @@ export default function ImportarPage() {
   const [parseError, setParseError] = useState<string | null>(null)
   const [aiBusy, setAiBusy] = useState<AIProvider | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
+  const [openaiApiKey, setOpenaiApiKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -67,6 +69,11 @@ export default function ImportarPage() {
     if (user) load()
   }, [user, load])
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lee una preferencia local del navegador tras hidratar
+    setOpenaiApiKey(localStorage.getItem(OPENAI_KEY_STORAGE) ?? '')
+  }, [])
+
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (!f) return
@@ -95,6 +102,11 @@ export default function ImportarPage() {
 
   async function improveWithAI(provider: AIProvider) {
     if (!file) return
+    const openaiKey = openaiApiKey.trim()
+    if (provider === 'chatgpt' && !openaiKey) {
+      setAiError('Pegá tu API key de ChatGPT antes de mejorar con IA.')
+      return
+    }
     setAiBusy(provider)
     setAiError(null)
     try {
@@ -102,7 +114,11 @@ export default function ImportarPage() {
       const res = await fetch('/api/import-statement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pdf: base64, provider }),
+        body: JSON.stringify({
+          pdf: base64,
+          provider,
+          openaiApiKey: provider === 'chatgpt' ? openaiKey : undefined,
+        }),
       })
       const data = (await res.json()) as { transactions?: ParsedTx[]; error?: string }
       if (!res.ok) throw new Error(data.error || `${providerName(provider)} no pudo procesar el resumen.`)
@@ -122,6 +138,18 @@ export default function ImportarPage() {
   }
   function removeRow(i: number) {
     setRows((prev) => prev.filter((_, idx) => idx !== i))
+  }
+
+  function updateOpenaiApiKey(value: string) {
+    setOpenaiApiKey(value)
+    const next = value.trim()
+    if (next) localStorage.setItem(OPENAI_KEY_STORAGE, next)
+    else localStorage.removeItem(OPENAI_KEY_STORAGE)
+  }
+
+  function forgetOpenaiApiKey() {
+    setOpenaiApiKey('')
+    localStorage.removeItem(OPENAI_KEY_STORAGE)
   }
 
   async function save() {
@@ -205,6 +233,27 @@ export default function ImportarPage() {
 
           {file && (
             <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+              <div className="mb-3 space-y-1.5">
+                <span className="block text-sm font-medium text-slate-600 dark:text-slate-300">
+                  API key de ChatGPT
+                </span>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    value={openaiApiKey}
+                    onChange={(e) => updateOpenaiApiKey(e.target.value)}
+                    placeholder="sk-..."
+                    autoComplete="off"
+                    className="min-w-0"
+                  />
+                  {openaiApiKey && (
+                    <Button type="button" variant="ghost" onClick={forgetOpenaiApiKey} className="shrink-0">
+                      Olvidar
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400">Se guarda solo en este dispositivo.</p>
+              </div>
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"

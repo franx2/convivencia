@@ -76,8 +76,11 @@ y Miembros. Tiene el botón "Importar resumen".
 (Node runtime) recibe el PDF en base64 y lo manda al proveedor elegido:
 Claude (Anthropic SDK, modelo Haiku 4.5) o ChatGPT/OpenAI (Responses API con
 PDF `input_file` y Structured Outputs). Devuelve transacciones estructuradas.
-Lee `ANTHROPIC_API_KEY` y/o `OPENAI_API_KEY` del entorno (server-only, NO
-`NEXT_PUBLIC`). `OPENAI_MODEL` es opcional; default `gpt-5`.
+Lee `ANTHROPIC_API_KEY` del entorno para Claude. Para ChatGPT, cada usuario pega
+su propia API key en `/g/[id]/importar`; se guarda en `localStorage` del navegador
+y se manda solo al endpoint cuando se usa ChatGPT. `OPENAI_API_KEY` queda como
+fallback server-side opcional (NO `NEXT_PUBLIC`). `OPENAI_MODEL` es opcional;
+default `gpt-5`.
 
 ## Features hechas
 
@@ -113,7 +116,8 @@ Lee `ANTHROPIC_API_KEY` y/o `OPENAI_API_KEY` del entorno (server-only, NO
   - **Parser local** (`lib/import-statement.ts`): extrae texto con `pdfjs-dist` (worker desde
     CDN) y detecta transacciones por heurística (fecha + último monto, formato AR), categoriza
     con `suggestCategory`. Gratis y privado.
-  - **Mejorar con IA**: `app/api/import-statement/route.ts` manda el PDF a Claude o ChatGPT. Más robusto.
+  - **Mejorar con IA**: `app/api/import-statement/route.ts` manda el PDF a Claude o ChatGPT.
+    ChatGPT usa la API key pegada por cada usuario (persistida solo en ese navegador). Más robusto.
   - Preview editable (fecha/monto/título/categoría) antes de guardar como gastos.
   - Deps nuevas: `pdfjs-dist@4`, `@anthropic-ai/sdk`.
 
@@ -134,7 +138,8 @@ Lee `ANTHROPIC_API_KEY` y/o `OPENAI_API_KEY` del entorno (server-only, NO
    Vercel. **Para reset de contraseña agregar `…/reset`** a Redirect URLs (prod y `localhost:3000/reset`),
    sino el link del email rebota.
 3. **Vercel env vars:** `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` (ver `.env.local`),
-   en Production. Para IA de importación, agregar `ANTHROPIC_API_KEY` y/o `OPENAI_API_KEY`
+   en Production. Para Claude, agregar `ANTHROPIC_API_KEY`. Para ChatGPT, los usuarios pueden
+   pegar su propia API key en la app; `OPENAI_API_KEY` queda como fallback opcional server-side
    (`OPENAI_MODEL` opcional). Las `NEXT_PUBLIC_*` se hornean en el build → **Redeploy** tras cargarlas.
 4. **Vercel Deployment Protection:** apagar **Vercel Authentication** (Settings → Deployment
    Protection) para que externos accedan sin cuenta de Vercel; sino ven "Access Required / Pending Approval".
