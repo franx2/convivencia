@@ -35,12 +35,13 @@ gastos compartidos, ver quién le debe a quién y sugerir transferencias mínima
 |---|---|
 | `groups` | `name`, `base_currency`, `owner_id`, `invite_token`, `created_at` |
 | `group_users` | (group_id, user_id) — quién puede acceder. Controla RLS. |
-| `members` | participantes (texto libre, no necesitan cuenta). **`weight`** (peso default para reparto proporcional, default 1) |
+| `members` | participantes (texto libre, no necesitan cuenta). **`weight`** (peso default reparto, default 1), **`alias`** (alias/CBU para cobrar, opcional) |
 | `expenses` | `title`, `amount`, `currency`, `rate_to_base`, `paid_by`, `date`, `category`, `created_by` |
 | `expense_shares` | (expense_id, member_id) — entre quiénes se divide. **`weight`** (peso del participante en ese gasto, default 1) |
 | `categories` | categorías **personalizadas** por grupo: `value` (slug), `label`, `color` (clases tailwind), `hex`. Los presets viven en `lib/categories.ts` |
 | `payments` | pagos/saldados: `from_member`, `to_member`, `amount` (moneda base), `date`, `note`. Reducen la deuda en balances/liquidación |
 | `templates` | gastos típicos (de un tap): `label`, `category`, `amount` (opcional). Abren el form precargado via query params |
+| `budgets` | presupuesto mensual por categoría: `category`, `amount`. `unique(group_id, category)` |
 
 - Funciones `SECURITY DEFINER`: `is_group_member(gid)`, `join_group(token)` (RPC para invitación),
   y trigger `add_owner_to_group` (suma al dueño a `group_users` al crear grupo).
@@ -83,6 +84,17 @@ gastos compartidos, ver quién le debe a quién y sugerir transferencias mínima
   (por gasto). El form tiene toggle "Reparto proporcional". `computeBalances` reparte por peso.
 - **Gastos típicos de un tap** (tabla `templates`): chips en la tab Gastos que abren el form
   precargado. Alta/baja con "Editar".
+- **Pagar con alias** (`members.alias`): en Liquidación, "Copiar alias + monto" copia
+  "alias, $monto" al portapapeles. Alias editable en Miembros.
+- **Presupuesto mensual por categoría** (tabla `budgets`): editable en Balances, barra de
+  progreso del gasto del mes vs límite + aviso 80% (ámbar) / 100% (rojo).
+- **Categoría inteligente**: `suggestCategory(title, history)` en `lib/categories.ts` sugiere
+  por historial (títulos parecidos) + palabras clave (AR). Editable; no pisa la elección manual.
+- **PWA instalable / agregar al inicio en iPhone**: `app/manifest.ts` + meta apple-web-app +
+  `apple-touch-icon`. Íconos PNG en `public/` (generados con `sharp`, casita emerald). Sin offline.
+- **Modo oscuro**: Tailwind v4 por clase (`@custom-variant dark` en `globals.css`), script
+  anti-flash en `layout.tsx`, toggle 🌙/☀️ en `Header` (recordado en localStorage). Dark en los
+  primitivos `components/ui.tsx`, Header, tabs y body.
 
 ## Pasos manuales (Supabase / Vercel)
 
@@ -92,6 +104,7 @@ gastos compartidos, ver quién le debe a quién y sugerir transferencias mínima
    - `supabase/migration_category.sql` — columna `category` en expenses.
    - `supabase/migration_categorias_pagos.sql` — tablas `categories` y `payments`.
    - `supabase/migration_reparto_plantillas.sql` — `members.weight`, `expense_shares.weight`, tabla `templates`.
+   - `supabase/migration_alias_presupuesto.sql` — `members.alias`, tabla `budgets`.
    El código es **migration-safe**: agregar/editar gasto no rompe aunque falte una migración
    (el `weight` solo se manda en reparto proporcional; las lecturas caen a `?? []`).
 2. **Supabase Auth:** desactivar **Confirm email** (Authentication → Sign In/Providers → Email)
@@ -105,17 +118,13 @@ gastos compartidos, ver quién le debe a quién y sugerir transferencias mínima
 
 ## Ideas / deuda pendiente
 
-Pendiente del roadmap "vamos con todo" (features **sin** cambios de base):
-- **Pagar con alias precargado**: botón que abra Mercado Pago / transferencia con alias+monto
-  (guardar alias/CBU por miembro).
-- **Presupuesto por categoría** con alerta ("vas 80% del super este mes").
-- **PWA instalable** (manifest + ícono en home → quick-add del último grupo). Ver design doc Enfoque B.
-- **Modo oscuro**.
-
-Otra deuda:
-- **UX convivientes:** al crear un grupo no se cargan miembros ahí mismo, y **al creador no se lo
-  suma como miembro automáticamente** (solo a `group_users`). Conviene pedir integrantes en la creación
-  y autovincular al dueño — habilita defaults "pagó=yo".
+- **Autovincular al creador como miembro** (decidido NO hacerlo por ahora, jun-2026): hoy el dueño
+  no es `member` (solo `group_users`), así que no se lo puede elegir como quien pagó ni incluirlo
+  en repartos sin agregarlo a mano. Habilitaría defaults "pagó=yo" / quick-capture. Pendiente si se retoma.
+- **UX convivientes:** al crear un grupo no se cargan miembros ahí mismo. Conviene pedir integrantes
+  en la creación.
+- **Quick-add dedicado + PWA con deep-link** al último grupo (design doc Enfoque B): la PWA ya es
+  instalable, falta la pantalla de captura rápida y que el ícono entre directo al quick-add.
 - **Gastos fijos/recurrentes** (alquiler, servicios): las plantillas son de *un tap*, no recurrentes
   automáticos. Aún no hay generación periódica.
 - Multi-moneda: el tipo de cambio es manual; se podría auto-traer de una API.
