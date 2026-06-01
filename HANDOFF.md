@@ -73,9 +73,11 @@ gastos compartidos, ver quién le debe a quién y sugerir transferencias mínima
 y Miembros. Tiene el botón "Importar resumen".
 
 **API route** (primer código de servidor): `app/api/import-statement/route.ts`
-(Node runtime) recibe el PDF en base64, lo manda a Claude (Anthropic SDK, modelo
-Haiku 4.5) como document block + tool use, y devuelve transacciones estructuradas.
-Lee `ANTHROPIC_API_KEY` del entorno (server-only, NO `NEXT_PUBLIC`).
+(Node runtime) recibe el PDF en base64 y lo manda al proveedor elegido:
+Claude (Anthropic SDK, modelo Haiku 4.5) o ChatGPT/OpenAI (Responses API con
+PDF `input_file` y Structured Outputs). Devuelve transacciones estructuradas.
+Lee `ANTHROPIC_API_KEY` y/o `OPENAI_API_KEY` del entorno (server-only, NO
+`NEXT_PUBLIC`). `OPENAI_MODEL` es opcional; default `gpt-5`.
 
 ## Features hechas
 
@@ -111,7 +113,7 @@ Lee `ANTHROPIC_API_KEY` del entorno (server-only, NO `NEXT_PUBLIC`).
   - **Parser local** (`lib/import-statement.ts`): extrae texto con `pdfjs-dist` (worker desde
     CDN) y detecta transacciones por heurística (fecha + último monto, formato AR), categoriza
     con `suggestCategory`. Gratis y privado.
-  - **Mejorar con IA**: `app/api/import-statement/route.ts` manda el PDF a Claude. Más robusto.
+  - **Mejorar con IA**: `app/api/import-statement/route.ts` manda el PDF a Claude o ChatGPT. Más robusto.
   - Preview editable (fecha/monto/título/categoría) antes de guardar como gastos.
   - Deps nuevas: `pdfjs-dist@4`, `@anthropic-ai/sdk`.
 
@@ -132,7 +134,8 @@ Lee `ANTHROPIC_API_KEY` del entorno (server-only, NO `NEXT_PUBLIC`).
    Vercel. **Para reset de contraseña agregar `…/reset`** a Redirect URLs (prod y `localhost:3000/reset`),
    sino el link del email rebota.
 3. **Vercel env vars:** `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` (ver `.env.local`),
-   en Production. Las `NEXT_PUBLIC_*` se hornean en el build → **Redeploy** tras cargarlas.
+   en Production. Para IA de importación, agregar `ANTHROPIC_API_KEY` y/o `OPENAI_API_KEY`
+   (`OPENAI_MODEL` opcional). Las `NEXT_PUBLIC_*` se hornean en el build → **Redeploy** tras cargarlas.
 4. **Vercel Deployment Protection:** apagar **Vercel Authentication** (Settings → Deployment
    Protection) para que externos accedan sin cuenta de Vercel; sino ven "Access Required / Pending Approval".
 

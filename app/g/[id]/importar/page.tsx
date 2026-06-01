@@ -12,6 +12,8 @@ import { mergeCategories, type CatMeta } from '@/lib/categories'
 import { extractPdfLines, parseTransactions, type ParsedTx } from '@/lib/import-statement'
 import type { Category, Group, Member } from '@/lib/types'
 
+type AIProvider = 'claude' | 'chatgpt'
+
 export default function ImportarPage() {
   const { user, loading } = useRequireAuth()
   const params = useParams<{ id: string }>()
@@ -29,7 +31,7 @@ export default function ImportarPage() {
   const [parsing, setParsing] = useState(false)
   const [rows, setRows] = useState<ParsedTx[]>([])
   const [parseError, setParseError] = useState<string | null>(null)
-  const [aiBusy, setAiBusy] = useState(false)
+  const [aiBusy, setAiBusy] = useState<AIProvider | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -91,27 +93,27 @@ export default function ImportarPage() {
     }
   }
 
-  async function improveWithAI() {
+  async function improveWithAI(provider: AIProvider) {
     if (!file) return
-    setAiBusy(true)
+    setAiBusy(provider)
     setAiError(null)
     try {
       const base64 = arrayBufferToBase64(await file.arrayBuffer())
       const res = await fetch('/api/import-statement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pdf: base64 }),
+        body: JSON.stringify({ pdf: base64, provider }),
       })
       const data = (await res.json()) as { transactions?: ParsedTx[]; error?: string }
-      if (!res.ok) throw new Error(data.error || 'La IA no pudo procesar el resumen.')
+      if (!res.ok) throw new Error(data.error || `${providerName(provider)} no pudo procesar el resumen.`)
       setRows(data.transactions ?? [])
       if ((data.transactions ?? []).length === 0) {
-        setAiError('La IA no encontró transacciones en este PDF.')
+        setAiError(`${providerName(provider)} no encontró transacciones en este PDF.`)
       }
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'Error llamando a la IA.')
     } finally {
-      setAiBusy(false)
+      setAiBusy(null)
     }
   }
 
@@ -203,11 +205,26 @@ export default function ImportarPage() {
 
           {file && (
             <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
-              <Button type="button" variant="ghost" onClick={improveWithAI} disabled={aiBusy}>
-                {aiBusy ? 'Procesando con IA…' : '✨ Mejorar con IA'}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => improveWithAI('claude')}
+                  disabled={aiBusy !== null}
+                >
+                  {aiBusy === 'claude' ? 'Procesando con Claude…' : 'Mejorar con Claude'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => improveWithAI('chatgpt')}
+                  disabled={aiBusy !== null}
+                >
+                  {aiBusy === 'chatgpt' ? 'Procesando con ChatGPT…' : 'Mejorar con ChatGPT'}
+                </Button>
+              </div>
               <p className="mt-1.5 text-xs text-slate-400">
-                Manda el PDF a Claude para detectar y categorizar mejor (necesita configurar la API key).
+                Manda el PDF al proveedor elegido para detectar y categorizar mejor (requiere API key server-side).
               </p>
               {aiError && <p className="mt-1 text-sm text-red-600">{aiError}</p>}
             </div>
@@ -273,6 +290,10 @@ export default function ImportarPage() {
 function guessYear(fileName: string): number {
   const m = fileName.match(/20\d{2}/)
   return m ? Number(m[0]) : new Date().getFullYear()
+}
+
+function providerName(provider: AIProvider): string {
+  return provider === 'chatgpt' ? 'ChatGPT' : 'Claude'
 }
 
 // Convierte el PDF a base64 sin reventar el stack (chunks de 32KB).

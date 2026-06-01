@@ -36,6 +36,10 @@ Seguridad por **Row Level Security**: solo ves/editás un grupo si estás en `gr
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://<tu-proyecto>.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=<tu-publishable-key>
+   # Opcional para "Mejorar con IA" al importar resumenes PDF:
+   ANTHROPIC_API_KEY=<tu-anthropic-key>
+   OPENAI_API_KEY=<tu-openai-key>
+   OPENAI_MODEL=gpt-5
    ```
 3. Aplicar el esquema: en el **SQL Editor** de Supabase, pegar y ejecutar todo
    [`supabase/schema.sql`](supabase/schema.sql) (crea tablas, RLS y funciones).
@@ -50,6 +54,8 @@ Seguridad por **Row Level Security**: solo ves/editás un grupo si estás en `gr
 
 1. [vercel.com/new](https://vercel.com/new) → importar este repo.
 2. Cargar las env vars `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+   Para importar resumenes con IA, cargar tambien `ANTHROPIC_API_KEY` y/o `OPENAI_API_KEY`
+   (`OPENAI_MODEL` es opcional; por defecto usa `gpt-5`).
 3. Deploy.
 4. En **Supabase → Authentication → URL Configuration**, agregar la URL de Vercel en
    *Site URL* y *Redirect URLs*.
