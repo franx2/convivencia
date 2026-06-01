@@ -12,6 +12,7 @@ export type Member = {
   group_id: string
   name: string
   weight: number // peso por defecto para el reparto (1 = parte normal)
+  alias: string | null // alias/CBU para cobrar (opcional)
   created_at: string
 }
 
@@ -41,6 +42,14 @@ export type Template = {
   label: string
   category: string
   amount: number | null
+  created_at: string
+}
+
+export type Budget = {
+  id: string
+  group_id: string
+  category: string
+  amount: number
   created_at: string
 }
 

@@ -11,7 +11,7 @@ import { formatMoney } from '@/lib/currencies'
 import { mergeCategories, metaFrom, type CatMeta } from '@/lib/categories'
 import { computeBalances, settle, spendByCategory, spendByMonth } from '@/lib/balances'
 import { Donut, MonthlyBars } from '@/components/charts'
-import type { Category, Expense, ExpenseShare, Group, Member, Payment, Template } from '@/lib/types'
+import type { Budget, Category, Expense, ExpenseShare, Group, Member, Payment, Template } from '@/lib/types'
 
 type Tab = 'gastos' | 'balances' | 'liquidacion' | 'miembros'
 
@@ -27,6 +27,7 @@ export default function GroupPage() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
+  const [budgets, setBudgets] = useState<Budget[]>([])
   const [fetching, setFetching] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [tab, setTab] = useState<Tab>('gastos')
@@ -39,17 +40,20 @@ export default function GroupPage() {
       return
     }
     setGroup(g as Group)
-    const [{ data: m }, { data: e }, { data: c }, { data: p }, { data: tpl }] = await Promise.all([
-      supabase.from('members').select('*').eq('group_id', groupId).order('created_at'),
-      supabase.from('expenses').select('*').eq('group_id', groupId).order('date', { ascending: false }),
-      supabase.from('categories').select('*').eq('group_id', groupId).order('created_at'),
-      supabase.from('payments').select('*').eq('group_id', groupId).order('date', { ascending: false }),
-      supabase.from('templates').select('*').eq('group_id', groupId).order('created_at'),
-    ])
+    const [{ data: m }, { data: e }, { data: c }, { data: p }, { data: tpl }, { data: bud }] =
+      await Promise.all([
+        supabase.from('members').select('*').eq('group_id', groupId).order('created_at'),
+        supabase.from('expenses').select('*').eq('group_id', groupId).order('date', { ascending: false }),
+        supabase.from('categories').select('*').eq('group_id', groupId).order('created_at'),
+        supabase.from('payments').select('*').eq('group_id', groupId).order('date', { ascending: false }),
+        supabase.from('templates').select('*').eq('group_id', groupId).order('created_at'),
+        supabase.from('budgets').select('*').eq('group_id', groupId).order('created_at'),
+      ])
     setMembers((m ?? []) as Member[])
     setCategories((c ?? []) as Category[])
     setPayments((p ?? []) as Payment[])
     setTemplates((tpl ?? []) as Template[])
+    setBudgets((bud ?? []) as Budget[])
     const exp = (e ?? []) as Expense[]
     setExpenses(exp)
     if (exp.length) {
@@ -150,7 +154,10 @@ export default function GroupPage() {
             expenses={expenses}
             shares={shares}
             payments={payments}
+            budgets={budgets}
+            cats={cats}
             catMeta={catMeta}
+            onChanged={load}
           />
         )}
         {tab === 'liquidacion' && (
@@ -389,14 +396,20 @@ function BalancesTab({
   expenses,
   shares,
   payments,
+  budgets,
+  cats,
   catMeta,
+  onChanged,
 }: {
   group: Group
   members: Member[]
   expenses: Expense[]
   shares: ExpenseShare[]
   payments: Payment[]
+  budgets: Budget[]
+  cats: CatMeta[]
   catMeta: (v: string) => CatMeta
+  onChanged: () => void
 }) {
   const balances = useMemo(
     () => computeBalances(members, expenses, shares, payments),
@@ -411,6 +424,40 @@ function BalancesTab({
     value: c.total,
     color: catMeta(c.category).hex,
   }))
+
+  // Gasto del mes en curso por categoría (para el presupuesto).
+  const monthKey = new Date().toISOString().slice(0, 7)
+  const monthByCat = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const e of expenses) {
+      if (String(e.date).slice(0, 7) !== monthKey) continue
+      const base = Number(e.amount) * Number(e.rate_to_base)
+      map.set(e.category || 'otros', (map.get(e.category || 'otros') ?? 0) + base)
+    }
+    return map
+  }, [expenses, monthKey])
+
+  const [editingBudgets, setEditingBudgets] = useState(false)
+  const [bCat, setBCat] = useState<string>('supermercado')
+  const [bAmount, setBAmount] = useState('')
+  const [bBusy, setBBusy] = useState(false)
+
+  async function saveBudget() {
+    const amt = Number(bAmount)
+    if (!(amt > 0)) return
+    setBBusy(true)
+    await supabase
+      .from('budgets')
+      .upsert({ group_id: group.id, category: bCat, amount: amt }, { onConflict: 'group_id,category' })
+    setBAmount('')
+    setBBusy(false)
+    onChanged()
+  }
+
+  async function removeBudget(id: string) {
+    await supabase.from('budgets').delete().eq('id', id)
+    onChanged()
+  }
 
   return (
     <div className="space-y-3">
@@ -432,6 +479,91 @@ function BalancesTab({
           <MonthlyBars data={byMonth} format={fmt} />
         </Card>
       )}
+
+      <Card>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-sm font-medium text-slate-600">Presupuesto del mes</p>
+          <button
+            type="button"
+            onClick={() => setEditingBudgets((v) => !v)}
+            className="text-xs font-medium text-slate-400 hover:text-slate-600"
+          >
+            {editingBudgets ? 'Listo' : 'Editar'}
+          </button>
+        </div>
+
+        {budgets.length === 0 && !editingBudgets ? (
+          <p className="text-xs text-slate-400">
+            Definí límites mensuales por categoría con “Editar” (ej: Super $80.000).
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {budgets.map((b) => {
+              const spent = monthByCat.get(b.category) ?? 0
+              const limit = Number(b.amount)
+              const ratio = limit > 0 ? spent / limit : 0
+              const pct = Math.min(100, Math.round(ratio * 100))
+              const barColor = ratio >= 1 ? 'bg-red-500' : ratio >= 0.8 ? 'bg-amber-500' : 'bg-emerald-500'
+              const txtColor = ratio >= 1 ? 'text-red-600' : ratio >= 0.8 ? 'text-amber-600' : 'text-slate-600'
+              return (
+                <div key={b.id}>
+                  <div className="mb-1 flex items-center justify-between text-sm">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${catMeta(b.category).color}`}>
+                      {catMeta(b.category).label}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span className={txtColor}>
+                        {fmt(spent)} / {fmt(limit)}
+                      </span>
+                      {editingBudgets && (
+                        <button
+                          onClick={() => removeBudget(b.id)}
+                          className="text-slate-300 hover:text-red-500"
+                          title="Quitar"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  {ratio >= 1 ? (
+                    <p className="mt-0.5 text-xs text-red-600">Te pasaste del presupuesto.</p>
+                  ) : ratio >= 0.8 ? (
+                    <p className="mt-0.5 text-xs text-amber-600">Vas {Math.round(ratio * 100)}% del presupuesto.</p>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {editingBudgets && (
+          <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
+            <Select value={bCat} onChange={(e) => setBCat(e.target.value)}>
+              {cats.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </Select>
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              value={bAmount}
+              onChange={(e) => setBAmount(e.target.value)}
+              placeholder="Límite"
+              className="max-w-[130px]"
+            />
+            <Button type="button" onClick={saveBudget} disabled={bBusy || !(Number(bAmount) > 0)}>
+              Guardar
+            </Button>
+          </div>
+        )}
+      </Card>
 
       <p className="px-1 pt-1 text-xs font-medium uppercase tracking-wide text-slate-400">Saldos</p>
       {balances.map((b) => (
@@ -490,6 +622,21 @@ function LiquidacionTab({
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+
+  const aliasOf = (id: string) => members.find((m) => m.id === id)?.alias ?? null
+
+  async function copyPay(key: string, toId: string, amt: number) {
+    const alias = aliasOf(toId)
+    const text = `${alias ? alias + ', ' : ''}${fmt(amt)}`
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedKey(key)
+      setTimeout(() => setCopiedKey(null), 1500)
+    } catch {
+      setError('No se pudo copiar al portapapeles.')
+    }
+  }
 
   async function pay(fromId: string, toId: string, amt: number, when?: string) {
     setBusy(true)
@@ -534,19 +681,23 @@ function LiquidacionTab({
           <Card className="text-center text-slate-500">Todo saldado. Nadie le debe a nadie. 🎉</Card>
         ) : (
           transfers.map((t, i) => (
-            <Card key={i} className="flex items-center justify-between gap-3">
-              <span className="text-sm">
-                <span className="font-medium text-red-600">{t.fromName}</span>
-                <span className="text-slate-400"> le paga a </span>
-                <span className="font-medium text-emerald-600">{t.toName}</span>
-              </span>
-              <div className="flex items-center gap-3">
+            <Card key={i} className="space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-sm">
+                  <span className="font-medium text-red-600">{t.fromName}</span>
+                  <span className="text-slate-400"> le paga a </span>
+                  <span className="font-medium text-emerald-600">{t.toName}</span>
+                  {aliasOf(t.toId) && (
+                    <span className="mt-0.5 block text-xs text-slate-400">alias: {aliasOf(t.toId)}</span>
+                  )}
+                </span>
                 <span className="font-semibold">{fmt(t.amount)}</span>
-                <Button
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() => pay(t.fromId, t.toId, t.amount)}
-                >
+              </div>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => copyPay(`t${i}`, t.toId, t.amount)}>
+                  {copiedKey === `t${i}` ? '¡Copiado!' : 'Copiar alias + monto'}
+                </Button>
+                <Button variant="ghost" disabled={busy} onClick={() => pay(t.fromId, t.toId, t.amount)}>
                   Marcar pagado
                 </Button>
               </div>
@@ -703,6 +854,13 @@ function MiembrosTab({
     onChanged()
   }
 
+  async function updateAlias(id: string, val: string, current: string | null) {
+    const alias = val.trim()
+    if (alias === (current ?? '')) return
+    await supabase.from('members').update({ alias: alias || null }).eq('id', id)
+    onChanged()
+  }
+
   async function copyInvite() {
     await navigator.clipboard.writeText(inviteUrl)
     setCopied(true)
@@ -723,22 +881,33 @@ function MiembrosTab({
             <p className="text-sm text-slate-500">Todavía no hay miembros.</p>
           ) : (
             members.map((m) => (
-              <div key={m.id} className="flex items-center justify-between gap-3 border-b border-slate-100 pb-1.5 last:border-0">
-                <span className="flex-1">{m.name}</span>
-                <label className="flex items-center gap-1 text-xs text-slate-400" title="Peso para el reparto proporcional">
-                  peso
+              <div key={m.id} className="border-b border-slate-100 pb-2 last:border-0">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex-1 font-medium">{m.name}</span>
+                  <label className="flex items-center gap-1 text-xs text-slate-400" title="Peso para el reparto proporcional">
+                    peso
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      defaultValue={String(m.weight ?? 1)}
+                      onBlur={(e) => updateWeight(m.id, e.target.value)}
+                      className="w-14 text-right"
+                    />
+                  </label>
+                  <button onClick={() => remove(m.id)} className="text-slate-300 hover:text-red-500" title="Quitar">
+                    ✕
+                  </button>
+                </div>
+                <label className="mt-1 flex items-center gap-1 text-xs text-slate-400" title="Alias o CBU para cobrar">
+                  alias
                   <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    defaultValue={String(m.weight ?? 1)}
-                    onBlur={(e) => updateWeight(m.id, e.target.value)}
-                    className="w-16 text-right"
+                    defaultValue={m.alias ?? ''}
+                    onBlur={(e) => updateAlias(m.id, e.target.value, m.alias)}
+                    placeholder="alias.mercadopago / CBU"
+                    className="flex-1"
                   />
                 </label>
-                <button onClick={() => remove(m.id)} className="text-slate-300 hover:text-red-500" title="Quitar">
-                  ✕
-                </button>
               </div>
             ))
           )}

@@ -73,3 +73,45 @@ export function mergeCategories(custom: CatMeta[]): CatMeta[] {
 export function metaFrom(list: CatMeta[], value: string): CatMeta {
   return list.find((c) => c.value === value) ?? FALLBACK_META(value)
 }
+
+// Palabras clave -> categoria preset (orden = prioridad). Pensado para AR.
+const CATEGORY_KEYWORDS: { cat: CategoryValue; words: string[] }[] = [
+  { cat: 'supermercado', words: ['super', 'mercado', 'coto', 'carrefour', 'jumbo', 'dia ', 'walmart', 'chino', 'verduler', 'almacen', 'despensa', 'compras'] },
+  { cat: 'transporte', words: ['uber', 'cabify', 'didi', 'nafta', 'combustible', 'sube', 'colectivo', 'subte', 'tren', 'taxi', 'peaje', 'ypf', 'shell', 'estacion', 'auto'] },
+  { cat: 'comida', words: ['delivery', 'rappi', 'pedidosya', 'pedidos ya', 'mcdonald', 'burger', 'pizza', 'resto', 'restaurant', 'bar', 'cafe', 'helado', 'panaderia', 'sushi', 'empanada'] },
+  { cat: 'servicios', words: ['luz', 'gas', 'agua', 'internet', 'edenor', 'edesur', 'metrogas', 'aysa', 'expensas', 'telefono', 'celular', 'cable', 'netflix', 'spotify', 'abono', 'wifi'] },
+  { cat: 'alquiler', words: ['alquiler', 'renta'] },
+  { cat: 'salud', words: ['farmacia', 'medico', 'remedio', 'dentista', 'hospital', 'obra social', 'prepaga'] },
+  { cat: 'hogar', words: ['ferreteria', 'muebles', 'deco', 'sodimac', 'easy', 'limpieza', 'electrodomestico', 'pinturer'] },
+  { cat: 'ocio', words: ['cine', 'teatro', 'salida', 'regalo', 'viaje', 'finde', 'entrada', 'juego', 'gimnasio', 'gym', 'recital'] },
+]
+
+/**
+ * Sugiere una categoria para un gasto segun su titulo: primero por historial
+ * (titulos parecidos del grupo) y si no, por palabras clave. Devuelve el slug
+ * o null si no hay pista. La eleccion final siempre la decide el usuario.
+ */
+export function suggestCategory(
+  title: string,
+  history: { title: string; category: string }[]
+): string | null {
+  const t = title.trim().toLowerCase()
+  if (!t) return null
+
+  const matches = history.filter((h) => {
+    const ht = (h.title ?? '').trim().toLowerCase()
+    if (!ht) return false
+    if (ht === t) return true
+    return t.length >= 3 && (ht.includes(t) || t.includes(ht))
+  })
+  if (matches.length) {
+    const count = new Map<string, number>()
+    for (const m of matches) count.set(m.category, (count.get(m.category) ?? 0) + 1)
+    return [...count.entries()].sort((a, b) => b[1] - a[1])[0][0]
+  }
+
+  for (const k of CATEGORY_KEYWORDS) {
+    if (k.words.some((w) => t.includes(w))) return k.cat
+  }
+  return null
+}

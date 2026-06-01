@@ -13,6 +13,7 @@ import {
   mergeCategories,
   paletteAt,
   slugifyCategory,
+  suggestCategory,
   type CatMeta,
 } from '@/lib/categories'
 import type { Category, Expense, ExpenseShare, Group, Member } from '@/lib/types'
@@ -37,6 +38,8 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
   const [paidBy, setPaidBy] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [category, setCategory] = useState<string>(DEFAULT_CATEGORY)
+  const [categoryTouched, setCategoryTouched] = useState(false)
+  const [history, setHistory] = useState<{ title: string; category: string }[]>([])
   const [cats, setCats] = useState<CatMeta[]>(() => mergeCategories([]))
   const [adding, setAdding] = useState(false)
   const [newCat, setNewCat] = useState('')
@@ -78,6 +81,13 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
       )
     )
 
+    // Historial para sugerir categoría según títulos previos.
+    const { data: hist } = await supabase
+      .from('expenses')
+      .select('title, category')
+      .eq('group_id', groupId)
+    setHistory((hist ?? []) as { title: string; category: string }[])
+
     // Pesos por defecto: el del miembro (1 = parte normal).
     const wBase: Record<string, string> = Object.fromEntries(
       mm.map((x) => [x.id, String(x.weight ?? 1)])
@@ -102,6 +112,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
       setPaidBy(e.paid_by)
       setDate(e.date)
       setCategory(e.category || DEFAULT_CATEGORY)
+      setCategoryTouched(true) // no auto-sugerir al editar
       const { data: sh } = await supabase
         .from('expense_shares')
         .select('member_id, weight')
@@ -127,7 +138,10 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
         const cat = sp.get('category')
         const amt = sp.get('amount')
         if (t) setTitle(t)
-        if (cat) setCategory(cat)
+        if (cat) {
+          setCategory(cat)
+          setCategoryTouched(true) // la plantilla ya fijó la categoría
+        }
         if (amt) setAmount(amt)
       }
     }
@@ -176,6 +190,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
     const existing = cats.find((c) => c.value === value)
     if (existing) {
       setCategory(existing.value)
+      setCategoryTouched(true)
       setNewCat('')
       setAdding(false)
       return
@@ -191,6 +206,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
     }
     setCats((prev) => [...prev, { value, label: name, color, hex }])
     setCategory(value)
+    setCategoryTouched(true)
     setNewCat('')
     setAdding(false)
   }
@@ -280,7 +296,19 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
           <form onSubmit={submit} className="space-y-4">
             <div>
               <Label>Título</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Cena, nafta, super…" required />
+              <Input
+                value={title}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setTitle(v)
+                  if (!categoryTouched && !isEdit) {
+                    const s = suggestCategory(v, history)
+                    if (s) setCategory(s)
+                  }
+                }}
+                placeholder="Cena, nafta, super…"
+                required
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -343,7 +371,13 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
 
             <div>
               <Label>Categoría</Label>
-              <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+              <Select
+                value={category}
+                onChange={(e) => {
+                  setCategory(e.target.value)
+                  setCategoryTouched(true)
+                }}
+              >
                 {cats.map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}
