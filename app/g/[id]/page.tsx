@@ -353,9 +353,16 @@ function GastosTab({
           <span />
         )}
         {hasMembers ? (
-          <Link href={`/g/${group.id}/nuevo`}>
-            <Button>+ Agregar gasto</Button>
-          </Link>
+          <div className="flex gap-2">
+            {group.is_personal && (
+              <Link href={`/g/${group.id}/importar`}>
+                <Button variant="ghost">Importar resumen</Button>
+              </Link>
+            )}
+            <Link href={`/g/${group.id}/nuevo`}>
+              <Button>+ Agregar gasto</Button>
+            </Link>
+          </div>
         ) : (
           <p className="text-sm text-amber-600">Agregá miembros antes de cargar gastos.</p>
         )}
