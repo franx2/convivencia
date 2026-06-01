@@ -76,13 +76,13 @@ export function metaFrom(list: CatMeta[], value: string): CatMeta {
 
 // Palabras clave -> categoria preset (orden = prioridad). Pensado para AR.
 const CATEGORY_KEYWORDS: { cat: CategoryValue; words: string[] }[] = [
-  { cat: 'supermercado', words: ['super', 'mercado', 'coto', 'carrefour', 'jumbo', 'dia ', 'walmart', 'chino', 'verduler', 'almacen', 'despensa', 'compras'] },
+  { cat: 'supermercado', words: ['super', 'mercado', 'coto', 'carrefour', 'jumbo', 'dia ', 'walmart', 'changomas', 'hiper', 'chino', 'verduler', 'granja', 'almacen', 'despensa', 'compras'] },
   { cat: 'transporte', words: ['uber', 'cabify', 'didi', 'nafta', 'combustible', 'sube', 'colectivo', 'subte', 'tren', 'taxi', 'peaje', 'ypf', 'shell', 'estacion', 'auto'] },
-  { cat: 'comida', words: ['delivery', 'rappi', 'pedidosya', 'pedidos ya', 'mcdonald', 'burger', 'pizza', 'resto', 'restaurant', 'bar', 'cafe', 'helado', 'panaderia', 'sushi', 'empanada'] },
+  { cat: 'comida', words: ['delivery', 'rappi', 'pedidosya', 'pedidos ya', 'mcdonald', 'burger', 'pizza', 'resto', 'restaurant', 'fonda', 'bar', 'cafe', 'helado', 'panaderia', 'nostrano', 'sushi', 'empanada'] },
   { cat: 'servicios', words: ['luz', 'gas', 'agua', 'internet', 'edenor', 'edesur', 'metrogas', 'aysa', 'expensas', 'telefono', 'celular', 'cable', 'netflix', 'spotify', 'abono', 'wifi'] },
   { cat: 'alquiler', words: ['alquiler', 'renta'] },
   { cat: 'salud', words: ['farmacia', 'medico', 'remedio', 'dentista', 'hospital', 'obra social', 'prepaga'] },
-  { cat: 'hogar', words: ['ferreteria', 'muebles', 'deco', 'sodimac', 'easy', 'limpieza', 'electrodomestico', 'pinturer'] },
+  { cat: 'hogar', words: ['ferreteria', 'muebles', 'deco', 'sodimac', 'easy', 'limpieza', 'electrodomestico', 'pinturer', 'pinture'] },
   { cat: 'ocio', words: ['cine', 'teatro', 'salida', 'regalo', 'viaje', 'finde', 'entrada', 'juego', 'gimnasio', 'gym', 'recital'] },
 ]
 

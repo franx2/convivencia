@@ -7,3 +7,6 @@
 -- repartir. Se crea con un único miembro ("Yo"). Reusa todo el modelo de grupos.
 alter table public.groups
   add column if not exists is_personal boolean not null default false;
+
+-- Fuerza a PostgREST/Supabase a refrescar el schema cache inmediatamente.
+notify pgrst, 'reload schema';

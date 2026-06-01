@@ -294,3 +294,5 @@ grant select, insert, update, delete on public.budgets to authenticated;
 
 alter table public.groups
   add column if not exists is_personal boolean not null default false;
+
+notify pgrst, 'reload schema';

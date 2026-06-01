@@ -47,7 +47,7 @@ export default function HomePage() {
     const { data, error } = await supabase.from('groups').insert(payload).select().single()
     if (error) {
       setBusy(false)
-      setError(error.message)
+      setError(describeCreateGroupError(error.message))
       return
     }
     // Un espacio personal arranca con un único miembro ("Yo").
@@ -136,4 +136,15 @@ export default function HomePage() {
       </main>
     </>
   )
+}
+
+function describeCreateGroupError(message: string): string {
+  if (message.includes('is_personal')) {
+    return (
+      'Falta aplicar la migración de espacio personal en Supabase ' +
+      '(columna groups.is_personal). Ejecutá supabase/migration_espacio_personal.sql ' +
+      'en el SQL Editor y volvé a intentar.'
+    )
+  }
+  return message
 }

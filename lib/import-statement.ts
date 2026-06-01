@@ -48,6 +48,9 @@ export async function extractPdfLines(file: File): Promise<string[]> {
 const DATE_RE = /^(\d{1,2})[/.\-](\d{1,2})(?:[/.\-](\d{2,4}))?\b/
 // montos formato AR (1.234,56) o simples (1234.56)
 const MONEY_RE = /-?\$?\s?\d{1,3}(?:\.\d{3})*,\d{2}|-?\$?\s?\d+\.\d{2}/g
+const IGNORE_LINE_RE =
+  /\b(SU PAGO|PAGO MINIMO|PAGO MÍNIMO|SALDO ANTERIOR|TOTAL A PAGAR|TOTAL CONSUMOS|DEV\.?\s?IMP|DB\.?\s?RG|IMPUESTO|PERCEPCION|PERCEPCIÓN|INTERESES?)\b/i
+const FOREIGN_CURRENCY_RE = /\b(U\$S|US\$|USD|D[OÓ]LARES?|EUR|BRL|REALES?|CLP)\b|BUSD/i
 
 function parseMoney(s: string): number {
   let t = s.replace(/[$\s]/g, '')
@@ -67,13 +70,18 @@ function parseMoney(s: string): number {
 export function parseTransactions(lines: string[], fallbackYear: number): ParsedTx[] {
   const out: ParsedTx[] = []
   for (const line of lines) {
+    if (IGNORE_LINE_RE.test(line)) continue
+    // Los consumos en moneda extranjera suelen traer el importe en dolares,
+    // no en pesos. Si no hay una columna de pesos confiable, los omitimos.
+    if (FOREIGN_CURRENCY_RE.test(line)) continue
+
     const dm = line.match(DATE_RE)
     if (!dm) continue
     const amounts = line.match(MONEY_RE)
     if (!amounts || amounts.length === 0) continue
     const raw = amounts[amounts.length - 1]
     const amount = parseMoney(raw)
-    if (!Number.isFinite(amount) || Math.abs(amount) === 0) continue
+    if (!Number.isFinite(amount) || amount <= 0) continue
 
     const dd = dm[1].padStart(2, '0')
     const mm = dm[2].padStart(2, '0')
@@ -86,13 +94,19 @@ export function parseTransactions(lines: string[], fallbackYear: number): Parsed
     let title = line.slice(dm[0].length)
     const idx = title.lastIndexOf(raw)
     if (idx >= 0) title = title.slice(0, idx)
-    title = title.replace(/\s+/g, ' ').replace(/[-–|]+\s*$/, '').trim()
+    title = title
+      .replace(/^\s*(K|\*)\s+/, '')
+      .replace(/\s+\d{6}\s*$/, '')
+      .replace(/\s+\d{2}\/\d{2}\s*$/, '')
+      .replace(/\s+/g, ' ')
+      .replace(/[-–|]+\s*$/, '')
+      .trim()
     if (!title) title = 'Gasto'
 
     out.push({
       date,
       title,
-      amount: Math.abs(amount),
+      amount,
       category: suggestCategory(title, []) ?? 'otros',
     })
   }

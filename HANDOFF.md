@@ -33,7 +33,7 @@ gastos compartidos, ver quién le debe a quién y sugerir transferencias mínima
 
 | Tabla | Notas |
 |---|---|
-| `groups` | `name`, `base_currency`, `owner_id`, `invite_token`, `created_at` |
+| `groups` | `name`, `base_currency`, `owner_id`, `invite_token`, **`is_personal`** (espacio personal: gastos propios sin repartir), `created_at` |
 | `group_users` | (group_id, user_id) — quién puede acceder. Controla RLS. |
 | `members` | participantes (texto libre, no necesitan cuenta). **`weight`** (peso default reparto, default 1), **`alias`** (alias/CBU para cobrar, opcional) |
 | `expenses` | `title`, `amount`, `currency`, `rate_to_base`, `paid_by`, `date`, `category`, `created_by` |
@@ -65,7 +65,17 @@ gastos compartidos, ver quién le debe a quién y sugerir transferencias mínima
 - `/g/[id]/nuevo` — agregar gasto. Acepta prefill por query params (`title`/`category`/`amount`)
   desde las plantillas. Permite **+ Nueva categoría** y **reparto proporcional** (peso por miembro).
 - `/g/[id]/editar/[eid]` — editar un gasto (mismo form, comparten `components/ExpenseForm.tsx`).
+- `/g/[id]/importar` — importar un resumen de tarjeta (PDF). Solo en espacios personales.
 - `/join?token=…` — sumarse a un grupo por invitación (llama RPC `join_group`).
+
+**Espacio personal** (`groups.is_personal`): se crea desde la home con el check
+"espacio personal"; arranca con un único miembro "Yo" y oculta las tabs Liquidación
+y Miembros. Tiene el botón "Importar resumen".
+
+**API route** (primer código de servidor): `app/api/import-statement/route.ts`
+(Node runtime) recibe el PDF en base64, lo manda a Claude (Anthropic SDK, modelo
+Haiku 4.5) como document block + tool use, y devuelve transacciones estructuradas.
+Lee `ANTHROPIC_API_KEY` del entorno (server-only, NO `NEXT_PUBLIC`).
 
 ## Features hechas
 
@@ -95,6 +105,15 @@ gastos compartidos, ver quién le debe a quién y sugerir transferencias mínima
 - **Modo oscuro**: Tailwind v4 por clase (`@custom-variant dark` en `globals.css`), script
   anti-flash en `layout.tsx`, toggle 🌙/☀️ en `Header` (recordado en localStorage). Dark en los
   primitivos `components/ui.tsx`, Header, tabs y body.
+- **Espacio personal** (`groups.is_personal`): grupo de gastos propios sin repartir, con un
+  único miembro "Yo". Tabs Liquidación/Miembros ocultas. Badge "personal".
+- **Importar resumen de tarjeta (PDF)** en `/g/[id]/importar` (solo personal):
+  - **Parser local** (`lib/import-statement.ts`): extrae texto con `pdfjs-dist` (worker desde
+    CDN) y detecta transacciones por heurística (fecha + último monto, formato AR), categoriza
+    con `suggestCategory`. Gratis y privado.
+  - **Mejorar con IA**: `app/api/import-statement/route.ts` manda el PDF a Claude. Más robusto.
+  - Preview editable (fecha/monto/título/categoría) antes de guardar como gastos.
+  - Deps nuevas: `pdfjs-dist@4`, `@anthropic-ai/sdk`.
 
 ## Pasos manuales (Supabase / Vercel)
 
@@ -105,6 +124,7 @@ gastos compartidos, ver quién le debe a quién y sugerir transferencias mínima
    - `supabase/migration_categorias_pagos.sql` — tablas `categories` y `payments`.
    - `supabase/migration_reparto_plantillas.sql` — `members.weight`, `expense_shares.weight`, tabla `templates`.
    - `supabase/migration_alias_presupuesto.sql` — `members.alias`, tabla `budgets`.
+   - `supabase/migration_espacio_personal.sql` — `groups.is_personal`.
    El código es **migration-safe**: agregar/editar gasto no rompe aunque falte una migración
    (el `weight` solo se manda en reparto proporcional; las lecturas caen a `?? []`).
 2. **Supabase Auth:** desactivar **Confirm email** (Authentication → Sign In/Providers → Email)
