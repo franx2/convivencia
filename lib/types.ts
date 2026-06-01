@@ -11,6 +11,7 @@ export type Member = {
   id: string
   group_id: string
   name: string
+  weight: number // peso por defecto para el reparto (1 = parte normal)
   created_at: string
 }
 
@@ -31,6 +32,16 @@ export type Expense = {
 export type ExpenseShare = {
   expense_id: string
   member_id: string
+  weight: number // peso del participante en este gasto (1 = parte igual)
+}
+
+export type Template = {
+  id: string
+  group_id: string
+  label: string
+  category: string
+  amount: number | null
+  created_at: string
 }
 
 export type Category = {

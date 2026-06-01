@@ -90,10 +90,10 @@ export function computeBalances(
     owed.set(m.id, 0)
   }
 
-  const sharesByExpense = new Map<string, string[]>()
+  const sharesByExpense = new Map<string, { id: string; weight: number }[]>()
   for (const s of shares) {
     const arr = sharesByExpense.get(s.expense_id) ?? []
-    arr.push(s.member_id)
+    arr.push({ id: s.member_id, weight: Number(s.weight) > 0 ? Number(s.weight) : 1 })
     sharesByExpense.set(s.expense_id, arr)
   }
 
@@ -101,12 +101,12 @@ export function computeBalances(
     const base = Number(e.amount) * Number(e.rate_to_base)
     // quien pago suma lo que puso
     paid.set(e.paid_by, (paid.get(e.paid_by) ?? 0) + base)
-    // reparto en partes iguales entre los participantes
+    // reparto proporcional al peso de cada participante
     const participants = sharesByExpense.get(e.id) ?? []
-    if (participants.length === 0) continue
-    const perHead = base / participants.length
-    for (const mid of participants) {
-      owed.set(mid, (owed.get(mid) ?? 0) + perHead)
+    const totalWeight = participants.reduce((s, p) => s + p.weight, 0)
+    if (totalWeight <= 0) continue
+    for (const p of participants) {
+      owed.set(p.id, (owed.get(p.id) ?? 0) + base * (p.weight / totalWeight))
     }
   }
 

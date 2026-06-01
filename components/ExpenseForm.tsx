@@ -41,6 +41,8 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
   const [adding, setAdding] = useState(false)
   const [newCat, setNewCat] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [proportional, setProportional] = useState(false)
+  const [weights, setWeights] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -76,6 +78,11 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
       )
     )
 
+    // Pesos por defecto: el del miembro (1 = parte normal).
+    const wBase: Record<string, string> = Object.fromEntries(
+      mm.map((x) => [x.id, String(x.weight ?? 1)])
+    )
+
     if (isEdit && expenseId) {
       const { data: exp } = await supabase
         .from('expenses')
@@ -97,13 +104,32 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
       setCategory(e.category || DEFAULT_CATEGORY)
       const { data: sh } = await supabase
         .from('expense_shares')
-        .select('member_id')
+        .select('member_id, weight')
         .eq('expense_id', expenseId)
-      setSelected(new Set(((sh ?? []) as Pick<ExpenseShare, 'member_id'>[]).map((x) => x.member_id)))
+      const rows = (sh ?? []) as Pick<ExpenseShare, 'member_id' | 'weight'>[]
+      setSelected(new Set(rows.map((x) => x.member_id)))
+      let anyDiff = false
+      for (const r of rows) {
+        wBase[r.member_id] = String(r.weight)
+        if (Number(r.weight) !== 1) anyDiff = true
+      }
+      setProportional(anyDiff)
+      setWeights(wBase)
     } else {
       setCurrency((g as Group).base_currency)
       setPaidBy(mm[0]?.id ?? '')
       setSelected(new Set(mm.map((x) => x.id)))
+      setWeights(wBase)
+      // Prefill desde una plantilla (gasto típico) via query params.
+      if (typeof window !== 'undefined') {
+        const sp = new URLSearchParams(window.location.search)
+        const t = sp.get('title')
+        const cat = sp.get('category')
+        const amt = sp.get('amount')
+        if (t) setTitle(t)
+        if (cat) setCategory(cat)
+        if (amt) setAmount(amt)
+      }
     }
     setFetching(false)
   }, [groupId, expenseId, isEdit])
@@ -120,6 +146,27 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
       else next.add(id)
       return next
     })
+  }
+
+  function setWeight(id: string, val: string) {
+    setWeights((prev) => ({ ...prev, [id]: val }))
+  }
+
+  function shareWeight(id: string): number {
+    if (!proportional) return 1
+    const w = Number(weights[id])
+    return w > 0 ? w : 1
+  }
+
+  // Solo incluye `weight` cuando el reparto es proporcional, para que el caso
+  // normal no dependa de la columna (migration-safe: usa el default de la DB).
+  function shareRow(eid: string, member_id: string) {
+    const row: { expense_id: string; member_id: string; weight?: number } = {
+      expense_id: eid,
+      member_id,
+    }
+    if (proportional) row.weight = shareWeight(member_id)
+    return row
   }
 
   async function addCategory() {
@@ -178,7 +225,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
       }
       // Reemplazar el reparto: borrar los shares actuales e insertar la nueva selección.
       await supabase.from('expense_shares').delete().eq('expense_id', expenseId)
-      const rows = [...selected].map((member_id) => ({ expense_id: expenseId, member_id }))
+      const rows = [...selected].map((member_id) => shareRow(expenseId, member_id))
       const { error: shErr } = await supabase.from('expense_shares').insert(rows)
       setBusy(false)
       if (shErr) {
@@ -196,7 +243,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
         setError(expErr?.message ?? 'No se pudo guardar.')
         return
       }
-      const rows = [...selected].map((member_id) => ({ expense_id: exp.id, member_id }))
+      const rows = [...selected].map((member_id) => shareRow(exp.id, member_id))
       const { error: shErr } = await supabase.from('expense_shares').insert(rows)
       setBusy(false)
       if (shErr) {
@@ -343,20 +390,58 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
             </div>
 
             <div>
-              <Label>Se reparte entre</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {members.map((m) => (
-                  <label
-                    key={m.id}
-                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
-                      selected.has(m.id) ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200'
-                    }`}
-                  >
-                    <input type="checkbox" checked={selected.has(m.id)} onChange={() => toggle(m.id)} />
-                    {m.name}
-                  </label>
-                ))}
+              <div className="mb-1 flex items-center justify-between">
+                <Label>Se reparte entre</Label>
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500">
+                  <input
+                    type="checkbox"
+                    checked={proportional}
+                    onChange={(e) => setProportional(e.target.checked)}
+                  />
+                  Reparto proporcional
+                </label>
               </div>
+              {proportional ? (
+                <div className="space-y-2">
+                  {members.map((m) => (
+                    <div
+                      key={m.id}
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                        selected.has(m.id) ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200'
+                      }`}
+                    >
+                      <input type="checkbox" checked={selected.has(m.id)} onChange={() => toggle(m.id)} />
+                      <span className="flex-1">{m.name}</span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={weights[m.id] ?? '1'}
+                        onChange={(e) => setWeight(m.id, e.target.value)}
+                        disabled={!selected.has(m.id)}
+                        className="w-20 text-right"
+                      />
+                    </div>
+                  ))}
+                  <p className="text-xs text-slate-400">
+                    El monto se reparte proporcional al peso (ej: pesos 2 y 1 = 66% y 33%).
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {members.map((m) => (
+                    <label
+                      key={m.id}
+                      className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                        selected.has(m.id) ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200'
+                      }`}
+                    >
+                      <input type="checkbox" checked={selected.has(m.id)} onChange={() => toggle(m.id)} />
+                      {m.name}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
 
             {error && <p className="text-sm text-red-600">{error}</p>}

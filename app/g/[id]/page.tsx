@@ -11,7 +11,7 @@ import { formatMoney } from '@/lib/currencies'
 import { mergeCategories, metaFrom, type CatMeta } from '@/lib/categories'
 import { computeBalances, settle, spendByCategory, spendByMonth } from '@/lib/balances'
 import { Donut, MonthlyBars } from '@/components/charts'
-import type { Category, Expense, ExpenseShare, Group, Member, Payment } from '@/lib/types'
+import type { Category, Expense, ExpenseShare, Group, Member, Payment, Template } from '@/lib/types'
 
 type Tab = 'gastos' | 'balances' | 'liquidacion' | 'miembros'
 
@@ -26,6 +26,7 @@ export default function GroupPage() {
   const [shares, setShares] = useState<ExpenseShare[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [templates, setTemplates] = useState<Template[]>([])
   const [fetching, setFetching] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [tab, setTab] = useState<Tab>('gastos')
@@ -38,15 +39,17 @@ export default function GroupPage() {
       return
     }
     setGroup(g as Group)
-    const [{ data: m }, { data: e }, { data: c }, { data: p }] = await Promise.all([
+    const [{ data: m }, { data: e }, { data: c }, { data: p }, { data: tpl }] = await Promise.all([
       supabase.from('members').select('*').eq('group_id', groupId).order('created_at'),
       supabase.from('expenses').select('*').eq('group_id', groupId).order('date', { ascending: false }),
       supabase.from('categories').select('*').eq('group_id', groupId).order('created_at'),
       supabase.from('payments').select('*').eq('group_id', groupId).order('date', { ascending: false }),
+      supabase.from('templates').select('*').eq('group_id', groupId).order('created_at'),
     ])
     setMembers((m ?? []) as Member[])
     setCategories((c ?? []) as Category[])
     setPayments((p ?? []) as Payment[])
+    setTemplates((tpl ?? []) as Template[])
     const exp = (e ?? []) as Expense[]
     setExpenses(exp)
     if (exp.length) {
@@ -132,6 +135,8 @@ export default function GroupPage() {
           <GastosTab
             group={group}
             expenses={expenses}
+            templates={templates}
+            cats={cats}
             memberName={memberName}
             catMeta={catMeta}
             hasMembers={members.length > 0}
@@ -170,6 +175,8 @@ export default function GroupPage() {
 function GastosTab({
   group,
   expenses,
+  templates,
+  cats,
   memberName,
   catMeta,
   hasMembers,
@@ -177,12 +184,19 @@ function GastosTab({
 }: {
   group: Group
   expenses: Expense[]
+  templates: Template[]
+  cats: CatMeta[]
   memberName: (id: string) => string
   catMeta: (v: string) => CatMeta
   hasMembers: boolean
   onChanged: () => void
 }) {
   const [filter, setFilter] = useState<string>('all')
+  const [managingTpl, setManagingTpl] = useState(false)
+  const [tplLabel, setTplLabel] = useState('')
+  const [tplCat, setTplCat] = useState<string>('otros')
+  const [tplAmount, setTplAmount] = useState('')
+  const [tplBusy, setTplBusy] = useState(false)
 
   async function remove(id: string) {
     if (!confirm('¿Borrar este gasto?')) return
@@ -190,11 +204,118 @@ function GastosTab({
     onChanged()
   }
 
+  async function addTemplate() {
+    const label = tplLabel.trim()
+    if (!label) return
+    setTplBusy(true)
+    const amt = Number(tplAmount)
+    await supabase.from('templates').insert({
+      group_id: group.id,
+      label,
+      category: tplCat,
+      amount: amt > 0 ? amt : null,
+    })
+    setTplLabel('')
+    setTplAmount('')
+    setTplBusy(false)
+    onChanged()
+  }
+
+  async function removeTemplate(id: string) {
+    await supabase.from('templates').delete().eq('id', id)
+    onChanged()
+  }
+
+  function tplHref(t: Template) {
+    const p = new URLSearchParams({ title: t.label, category: t.category })
+    if (t.amount != null) p.set('amount', String(t.amount))
+    return `/g/${group.id}/nuevo?${p.toString()}`
+  }
+
   const usedCats = Array.from(new Set(expenses.map((e) => e.category || 'otros')))
   const shown = filter === 'all' ? expenses : expenses.filter((e) => (e.category || 'otros') === filter)
 
   return (
     <div className="space-y-3">
+      {hasMembers && (
+        <Card>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-medium text-slate-600">Gastos típicos</p>
+            <button
+              type="button"
+              onClick={() => setManagingTpl((v) => !v)}
+              className="text-xs font-medium text-slate-400 hover:text-slate-600"
+            >
+              {managingTpl ? 'Listo' : 'Editar'}
+            </button>
+          </div>
+
+          {templates.length === 0 && !managingTpl ? (
+            <p className="text-xs text-slate-400">
+              Creá atajos de un tap (Super, Delivery, Nafta) con “Editar”.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {templates.map((t) => (
+                <div key={t.id} className="flex items-center">
+                  <Link
+                    href={tplHref(t)}
+                    className={`rounded-full px-3 py-1 text-sm font-medium ${catMeta(t.category).color}`}
+                  >
+                    {t.label}
+                    {t.amount != null && (
+                      <span className="ml-1 opacity-70">{formatMoney(Number(t.amount), group.base_currency)}</span>
+                    )}
+                  </Link>
+                  {managingTpl && (
+                    <button
+                      onClick={() => removeTemplate(t.id)}
+                      className="ml-1 text-slate-300 hover:text-red-500"
+                      title="Quitar plantilla"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {managingTpl && (
+            <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+              <div className="flex gap-2">
+                <Input
+                  value={tplLabel}
+                  onChange={(e) => setTplLabel(e.target.value)}
+                  placeholder="Nombre (ej: Super)"
+                />
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={tplAmount}
+                  onChange={(e) => setTplAmount(e.target.value)}
+                  placeholder="Monto (opc.)"
+                  className="max-w-[130px]"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Select value={tplCat} onChange={(e) => setTplCat(e.target.value)}>
+                  {cats.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </Select>
+                <Button type="button" onClick={addTemplate} disabled={tplBusy || !tplLabel.trim()}>
+                  Agregar
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
       <div className="flex items-center justify-between gap-3">
         {expenses.length > 0 ? (
           <Select value={filter} onChange={(e) => setFilter(e.target.value)} className="max-w-[200px]">
@@ -575,6 +696,13 @@ function MiembrosTab({
     onChanged()
   }
 
+  async function updateWeight(id: string, val: string) {
+    const w = Number(val)
+    if (!(w > 0)) return
+    await supabase.from('members').update({ weight: w }).eq('id', id)
+    onChanged()
+  }
+
   async function copyInvite() {
     await navigator.clipboard.writeText(inviteUrl)
     setCopied(true)
@@ -595,8 +723,19 @@ function MiembrosTab({
             <p className="text-sm text-slate-500">Todavía no hay miembros.</p>
           ) : (
             members.map((m) => (
-              <div key={m.id} className="flex items-center justify-between border-b border-slate-100 pb-1 last:border-0">
-                <span>{m.name}</span>
+              <div key={m.id} className="flex items-center justify-between gap-3 border-b border-slate-100 pb-1.5 last:border-0">
+                <span className="flex-1">{m.name}</span>
+                <label className="flex items-center gap-1 text-xs text-slate-400" title="Peso para el reparto proporcional">
+                  peso
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    defaultValue={String(m.weight ?? 1)}
+                    onBlur={(e) => updateWeight(m.id, e.target.value)}
+                    className="w-16 text-right"
+                  />
+                </label>
                 <button onClick={() => remove(m.id)} className="text-slate-300 hover:text-red-500" title="Quitar">
                   ✕
                 </button>
