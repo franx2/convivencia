@@ -18,6 +18,31 @@ export type Transfer = {
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
+export type CategoryTotal = {
+  category: string
+  total: number // en moneda base
+  pct: number // 0-100 sobre el total general
+}
+
+/** Total gastado por categoria, en moneda base, ordenado de mayor a menor. */
+export function spendByCategory(expenses: Expense[]): CategoryTotal[] {
+  const totals = new Map<string, number>()
+  let grand = 0
+  for (const e of expenses) {
+    const base = Number(e.amount) * Number(e.rate_to_base)
+    const cat = e.category || 'otros'
+    totals.set(cat, (totals.get(cat) ?? 0) + base)
+    grand += base
+  }
+  return [...totals.entries()]
+    .map(([category, total]) => ({
+      category,
+      total: round2(total),
+      pct: grand > 0 ? round2((total / grand) * 100) : 0,
+    }))
+    .sort((a, b) => b.total - a.total)
+}
+
 /**
  * Calcula el balance neto de cada miembro en la moneda base del grupo.
  * Cada gasto se reparte en partes iguales entre los miembros incluidos en sus shares.

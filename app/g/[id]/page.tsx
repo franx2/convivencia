@@ -6,9 +6,10 @@ import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { Header } from '@/components/Header'
-import { Button, Card, Input, Spinner } from '@/components/ui'
+import { Button, Card, Input, Select, Spinner } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
-import { computeBalances, settle } from '@/lib/balances'
+import { categoryMeta } from '@/lib/categories'
+import { computeBalances, settle, spendByCategory } from '@/lib/balances'
 import type { Expense, ExpenseShare, Group, Member } from '@/lib/types'
 
 type Tab = 'gastos' | 'balances' | 'liquidacion' | 'miembros'
@@ -147,15 +148,32 @@ function GastosTab({
   hasMembers: boolean
   onChanged: () => void
 }) {
+  const [filter, setFilter] = useState<string>('all')
+
   async function remove(id: string) {
     if (!confirm('¿Borrar este gasto?')) return
     await supabase.from('expenses').delete().eq('id', id)
     onChanged()
   }
 
+  const usedCats = Array.from(new Set(expenses.map((e) => e.category || 'otros')))
+  const shown = filter === 'all' ? expenses : expenses.filter((e) => (e.category || 'otros') === filter)
+
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-3">
+        {expenses.length > 0 ? (
+          <Select value={filter} onChange={(e) => setFilter(e.target.value)} className="max-w-[200px]">
+            <option value="all">Todas las categorías</option>
+            {usedCats.map((c) => (
+              <option key={c} value={c}>
+                {categoryMeta(c).label}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <span />
+        )}
         {hasMembers ? (
           <Link href={`/g/${group.id}/nuevo`}>
             <Button>+ Agregar gasto</Button>
@@ -168,11 +186,14 @@ function GastosTab({
       {expenses.length === 0 ? (
         <Card className="text-center text-slate-500">Todavía no hay gastos.</Card>
       ) : (
-        expenses.map((e) => (
+        shown.map((e) => (
           <Card key={e.id} className="flex items-center justify-between">
             <div>
               <p className="font-medium">{e.title}</p>
-              <p className="text-sm text-slate-500">
+              <p className="mt-0.5 flex items-center gap-2 text-sm text-slate-500">
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${categoryMeta(e.category).color}`}>
+                  {categoryMeta(e.category).label}
+                </span>
                 Pagó {memberName(e.paid_by)} · {e.date}
               </p>
             </div>
@@ -216,6 +237,7 @@ function BalancesTab({
     [members, expenses, shares]
   )
   const total = expenses.reduce((s, e) => s + Number(e.amount) * Number(e.rate_to_base), 0)
+  const byCat = useMemo(() => spendByCategory(expenses), [expenses])
 
   return (
     <div className="space-y-3">
@@ -223,6 +245,31 @@ function BalancesTab({
         <span className="text-slate-500">Total gastado</span>
         <span className="text-lg font-semibold">{formatMoney(total, group.base_currency)}</span>
       </Card>
+
+      {byCat.length > 0 && (
+        <Card>
+          <p className="mb-3 text-sm font-medium text-slate-600">Gastos por categoría</p>
+          <div className="space-y-2">
+            {byCat.map((c) => (
+              <div key={c.category}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${categoryMeta(c.category).color}`}>
+                    {categoryMeta(c.category).label}
+                  </span>
+                  <span className="text-slate-600">
+                    {formatMoney(c.total, group.base_currency)} · {c.pct}%
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full rounded-full bg-emerald-500" style={{ width: `${c.pct}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <p className="px-1 pt-1 text-xs font-medium uppercase tracking-wide text-slate-400">Saldos</p>
       {balances.map((b) => (
         <Card key={b.memberId} className="flex items-center justify-between">
           <div>

@@ -23,6 +23,7 @@ export type Expense = {
   rate_to_base: number
   paid_by: string
   date: string
+  category: string
   created_by: string | null
   created_at: string
 }

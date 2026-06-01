@@ -8,6 +8,7 @@ import { useRequireAuth } from '@/components/AuthProvider'
 import { Header } from '@/components/Header'
 import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
 import { CURRENCIES } from '@/lib/currencies'
+import { EXPENSE_CATEGORIES, DEFAULT_CATEGORY } from '@/lib/categories'
 import type { Group, Member } from '@/lib/types'
 
 export default function NewExpensePage() {
@@ -26,6 +27,7 @@ export default function NewExpensePage() {
   const [rate, setRate] = useState('1')
   const [paidBy, setPaidBy] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [category, setCategory] = useState<string>(DEFAULT_CATEGORY)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -83,6 +85,7 @@ export default function NewExpensePage() {
         rate_to_base: rt,
         paid_by: paidBy,
         date,
+        category,
       })
       .select()
       .single()
@@ -184,6 +187,17 @@ export default function NewExpensePage() {
                 <Label>Fecha</Label>
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               </div>
+            </div>
+
+            <div>
+              <Label>Categoría</Label>
+              <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+                {EXPENSE_CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </Select>
             </div>
 
             <div>

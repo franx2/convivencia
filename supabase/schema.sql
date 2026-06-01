@@ -37,6 +37,7 @@ create table if not exists public.expenses (
   rate_to_base numeric(18,8) not null default 1 check (rate_to_base > 0),
   paid_by      uuid not null references public.members(id) on delete restrict,
   date         date not null default current_date,
+  category     text not null default 'otros',
   created_by   uuid default auth.uid() references auth.users(id) on delete set null,
   created_at   timestamptz not null default now()
 );
