@@ -9,7 +9,8 @@ import { Header } from '@/components/Header'
 import { Button, Card, Input, Select, Spinner } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { categoryMeta } from '@/lib/categories'
-import { computeBalances, settle, spendByCategory } from '@/lib/balances'
+import { computeBalances, settle, spendByCategory, spendByMonth } from '@/lib/balances'
+import { Donut, MonthlyBars } from '@/components/charts'
 import type { Expense, ExpenseShare, Group, Member } from '@/lib/types'
 
 type Tab = 'gastos' | 'balances' | 'liquidacion' | 'miembros'
@@ -206,6 +207,13 @@ function GastosTab({
                   </p>
                 )}
               </div>
+              <Link
+                href={`/g/${group.id}/editar/${e.id}`}
+                className="text-slate-300 hover:text-emerald-600"
+                title="Editar"
+              >
+                ✎
+              </Link>
               <button
                 onClick={() => remove(e.id)}
                 className="text-slate-300 hover:text-red-500"
@@ -238,6 +246,13 @@ function BalancesTab({
   )
   const total = expenses.reduce((s, e) => s + Number(e.amount) * Number(e.rate_to_base), 0)
   const byCat = useMemo(() => spendByCategory(expenses), [expenses])
+  const byMonth = useMemo(() => spendByMonth(expenses, 6), [expenses])
+  const fmt = (n: number) => formatMoney(n, group.base_currency)
+  const donutData = byCat.map((c) => ({
+    label: categoryMeta(c.category).label,
+    value: c.total,
+    color: categoryMeta(c.category).hex,
+  }))
 
   return (
     <div className="space-y-3">
@@ -248,24 +263,15 @@ function BalancesTab({
 
       {byCat.length > 0 && (
         <Card>
-          <p className="mb-3 text-sm font-medium text-slate-600">Gastos por categoría</p>
-          <div className="space-y-2">
-            {byCat.map((c) => (
-              <div key={c.category}>
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${categoryMeta(c.category).color}`}>
-                    {categoryMeta(c.category).label}
-                  </span>
-                  <span className="text-slate-600">
-                    {formatMoney(c.total, group.base_currency)} · {c.pct}%
-                  </span>
-                </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full bg-emerald-500" style={{ width: `${c.pct}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
+          <p className="mb-4 text-sm font-medium text-slate-600">Gastos por categoría</p>
+          <Donut data={donutData} format={fmt} />
+        </Card>
+      )}
+
+      {total > 0 && (
+        <Card>
+          <p className="mb-4 text-sm font-medium text-slate-600">Gasto por mes</p>
+          <MonthlyBars data={byMonth} format={fmt} />
         </Card>
       )}
 

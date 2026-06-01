@@ -43,6 +43,36 @@ export function spendByCategory(expenses: Expense[]): CategoryTotal[] {
     .sort((a, b) => b.total - a.total)
 }
 
+export type MonthTotal = {
+  key: string // YYYY-MM
+  label: string // p. ej. "mar"
+  total: number // en moneda base
+}
+
+const MONTHS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+/**
+ * Gasto total por mes (moneda base) de los ultimos `count` meses, terminando
+ * en el mes actual. Devuelve la serie completa (meses sin gasto = 0) para que
+ * el grafico de barras tenga continuidad temporal.
+ */
+export function spendByMonth(expenses: Expense[], count = 6): MonthTotal[] {
+  const totals = new Map<string, number>()
+  for (const e of expenses) {
+    const key = String(e.date).slice(0, 7) // YYYY-MM
+    const base = Number(e.amount) * Number(e.rate_to_base)
+    totals.set(key, (totals.get(key) ?? 0) + base)
+  }
+  const now = new Date()
+  const out: MonthTotal[] = []
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    out.push({ key, label: MONTHS_ES[d.getMonth()], total: round2(totals.get(key) ?? 0) })
+  }
+  return out
+}
+
 /**
  * Calcula el balance neto de cada miembro en la moneda base del grupo.
  * Cada gasto se reparte en partes iguales entre los miembros incluidos en sus shares.
