@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# convivencia
 
-## Getting Started
+Clon de **Tricount**: repartí gastos compartidos en un grupo (viaje, depto, asado). Cada quien carga lo que pagó, la app calcula quién le debe a quién y sugiere las transferencias mínimas para saldar.
 
-First, run the development server:
+**Stack:** Next.js 16 (App Router) · Supabase (Auth + Postgres + RLS) · Tailwind CSS v4 · deploy en Vercel.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Funciones
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Login con cuentas** (Supabase Auth, email + contraseña).
+- **Grupos** con moneda base; cada usuario ve solo sus grupos.
+- **Miembros**: participantes de los gastos (texto libre, no necesitan cuenta).
+- **Gastos multi-moneda**: cada gasto en su moneda + tipo de cambio a la base.
+- **Reparto igualitario** entre los participantes elegidos.
+- **Balances** y **liquidación** (transferencias mínimas) en la moneda base.
+- **Invitación por link** con token: quien lo abre (con sesión) entra al grupo.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Modelo de datos
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Tabla | Para qué |
+|---|---|
+| `groups` | el grupo (nombre, moneda base, dueño, token de invitación) |
+| `group_users` | qué usuarios pueden acceder a cada grupo (controla RLS) |
+| `members` | participantes entre los que se reparten los gastos |
+| `expenses` | cada gasto (monto, moneda, tipo de cambio, quién pagó, fecha) |
+| `expense_shares` | entre qué miembros se divide cada gasto |
 
-## Learn More
+Seguridad por **Row Level Security**: solo ves/editás un grupo si estás en `group_users`. Las funciones `is_group_member`, `join_group` y el trigger del dueño son `SECURITY DEFINER` para evitar recursión en las policies.
 
-To learn more about Next.js, take a look at the following resources:
+## Setup local
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Instalar dependencias:
+   ```bash
+   npm install
+   ```
+2. Crear `.env.local` con las claves de tu proyecto Supabase:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=https://<tu-proyecto>.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=<tu-publishable-key>
+   ```
+3. Aplicar el esquema: en el **SQL Editor** de Supabase, pegar y ejecutar todo
+   [`supabase/schema.sql`](supabase/schema.sql) (crea tablas, RLS y funciones).
+4. (Opcional, para testear sin confirmar mails) en *Authentication → Sign In / Providers → Email*,
+   desactivar **Confirm email**.
+5. Correr el server:
+   ```bash
+   npm run dev
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deploy en Vercel
 
-## Deploy on Vercel
+1. [vercel.com/new](https://vercel.com/new) → importar este repo.
+2. Cargar las env vars `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+3. Deploy.
+4. En **Supabase → Authentication → URL Configuration**, agregar la URL de Vercel en
+   *Site URL* y *Redirect URLs*.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Rutas
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `/login` — registro / ingreso.
+- `/` — lista de mis grupos + crear grupo.
+- `/g/[id]` — grupo: tabs Gastos, Balances, Liquidación, Miembros.
+- `/g/[id]/nuevo` — agregar gasto.
+- `/join?token=…` — sumarse a un grupo por invitación.
