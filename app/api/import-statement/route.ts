@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk'
 // dificil, subir a 'claude-sonnet-4-6' o 'claude-opus-4-8'.
 const ANTHROPIC_MODEL = 'claude-haiku-4-5'
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? 'gpt-5'
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash'
 
 // Categorias validas (deben coincidir con lib/categories.ts).
 const CATEGORIES = [
@@ -29,7 +30,7 @@ type Tx = {
   bank: string | null
   card: string | null
 }
-type AIProvider = 'claude' | 'chatgpt'
+type AIProvider = 'claude' | 'chatgpt' | 'gemini'
 
 const SYSTEM_RULES = `Sos un asistente que extrae transacciones de un resumen de tarjeta de credito argentino (en espanol).
 Reglas:
@@ -71,6 +72,32 @@ const OPENAI_TRANSACTIONS_SCHEMA = {
   required: ['transacciones'],
 }
 
+const GEMINI_INSTRUCTIONS = `${SYSTEM_RULES}
+Devolve solamente JSON que cumpla el schema solicitado.`
+
+// Schema en el formato de Gemini (tipos en MAYUSCULAS, nullable).
+const GEMINI_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    transacciones: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          date: { type: 'STRING' },
+          title: { type: 'STRING' },
+          amount: { type: 'NUMBER' },
+          category: { type: 'STRING', enum: CATEGORIES as unknown as string[] },
+          bank: { type: 'STRING', nullable: true },
+          card: { type: 'STRING', nullable: true },
+        },
+        required: ['date', 'title', 'amount', 'category'],
+      },
+    },
+  },
+  required: ['transacciones'],
+}
+
 const TOOL: Anthropic.Tool = {
   name: 'registrar_transacciones',
   description: 'Registra las transacciones de consumo detectadas en el resumen.',
@@ -101,16 +128,20 @@ export async function POST(req: Request) {
   let pdf: string | undefined
   let provider: AIProvider = 'claude'
   let openaiApiKey: string | undefined
+  let geminiApiKey: string | undefined
 
   try {
     const body = (await req.json()) as {
       pdf?: string
       provider?: string
       openaiApiKey?: string
+      geminiApiKey?: string
     }
     pdf = body.pdf
     openaiApiKey = body.openaiApiKey
-    if (body.provider === 'chatgpt' || body.provider === 'claude') provider = body.provider
+    geminiApiKey = body.geminiApiKey
+    if (body.provider === 'chatgpt' || body.provider === 'claude' || body.provider === 'gemini')
+      provider = body.provider
     else if (body.provider) return Response.json({ error: 'Proveedor de IA invalido.' }, { status: 400 })
   } catch {
     return Response.json({ error: 'Body invalido.' }, { status: 400 })
@@ -122,7 +153,11 @@ export async function POST(req: Request) {
 
   try {
     const transactions =
-      provider === 'chatgpt' ? await extractWithOpenAI(pdf, openaiApiKey) : await extractWithAnthropic(pdf)
+      provider === 'chatgpt'
+        ? await extractWithOpenAI(pdf, openaiApiKey)
+        : provider === 'gemini'
+          ? await extractWithGemini(pdf, geminiApiKey)
+          : await extractWithAnthropic(pdf)
     return Response.json({ transactions, provider })
   } catch (err) {
     const status =
@@ -233,6 +268,85 @@ async function extractWithOpenAI(pdf: string, userApiKey?: string): Promise<Tx[]
 
   const raw = (parsed as { transacciones?: unknown }).transacciones
   return normalize(Array.isArray(raw) ? raw : [])
+}
+
+async function extractWithGemini(pdf: string, userApiKey?: string): Promise<Tx[]> {
+  const apiKey = userApiKey?.trim() || process.env.GEMINI_API_KEY
+  if (!apiKey) throw new ProviderError('Pegá tu API key de Gemini antes de mejorar con IA.', 400)
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    {
+      method: 'POST',
+      headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: GEMINI_INSTRUCTIONS }] },
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { inline_data: { mime_type: 'application/pdf', data: pdf } },
+              { text: 'Extrae todas las transacciones de consumo de este resumen.' },
+            ],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: GEMINI_SCHEMA,
+        },
+      }),
+    }
+  )
+
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+  if (!res.ok) {
+    throw new ProviderError(readGeminiError(data) ?? 'Gemini no pudo procesar el resumen.', res.status)
+  }
+
+  const text = extractGeminiText(data)
+  if (!text) throw new ProviderError('Gemini no devolvio transacciones.', 502)
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    throw new ProviderError('Gemini devolvio una respuesta invalida.', 502)
+  }
+  const raw = (parsed as { transacciones?: unknown }).transacciones
+  return normalize(Array.isArray(raw) ? raw : [])
+}
+
+function readGeminiError(data: Record<string, unknown>): string | null {
+  const error = data.error
+  if (typeof error !== 'object' || error === null) return null
+  const details = error as Record<string, unknown>
+  const message = typeof details.message === 'string' ? details.message : ''
+  const status = typeof details.status === 'string' ? details.status : ''
+  if (status === 'RESOURCE_EXHAUSTED' || message.toLowerCase().includes('quota')) {
+    return 'Tu API key de Gemini llegó al límite de la cuota gratis. Probá más tarde o con otra key.'
+  }
+  if (message.toLowerCase().includes('api key') || message.toLowerCase().includes('api_key')) {
+    return 'La API key de Gemini no es válida.'
+  }
+  return message || null
+}
+
+function extractGeminiText(data: Record<string, unknown>): string {
+  const candidates = Array.isArray(data.candidates) ? data.candidates : []
+  const chunks: string[] = []
+  for (const cand of candidates) {
+    if (typeof cand !== 'object' || cand === null) continue
+    const content = (cand as Record<string, unknown>).content
+    if (typeof content !== 'object' || content === null) continue
+    const parts = (content as Record<string, unknown>).parts
+    if (!Array.isArray(parts)) continue
+    for (const part of parts) {
+      if (typeof part !== 'object' || part === null) continue
+      const text = (part as Record<string, unknown>).text
+      if (typeof text === 'string') chunks.push(text)
+    }
+  }
+  return chunks.join('').trim()
 }
 
 class ProviderError extends Error {

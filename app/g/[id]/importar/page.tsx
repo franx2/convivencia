@@ -12,9 +12,10 @@ import { mergeCategories, type CatMeta } from '@/lib/categories'
 import { extractPdfLines, parseTransactions, type ParsedTx } from '@/lib/import-statement'
 import type { Category, Group, Member } from '@/lib/types'
 
-type AIProvider = 'claude' | 'chatgpt'
+type AIProvider = 'claude' | 'chatgpt' | 'gemini'
 const OPENAI_KEY_STORAGE = 'covivencia.openaiApiKey'
 const LEGACY_OPENAI_KEY_STORAGE = 'convivencia.openaiApiKey'
+const GEMINI_KEY_STORAGE = 'covivencia.geminiApiKey'
 
 export default function ImportarPage() {
   const { user, loading } = useRequireAuth()
@@ -36,6 +37,7 @@ export default function ImportarPage() {
   const [aiBusy, setAiBusy] = useState<AIProvider | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
   const [openaiApiKey, setOpenaiApiKey] = useState('')
+  const [geminiApiKey, setGeminiApiKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -83,6 +85,17 @@ export default function ImportarPage() {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    const stored = localStorage.getItem(GEMINI_KEY_STORAGE) ?? ''
+    queueMicrotask(() => {
+      if (!cancelled) setGeminiApiKey(stored)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (!f) return
@@ -112,8 +125,13 @@ export default function ImportarPage() {
   async function improveWithAI(provider: AIProvider) {
     if (!file) return
     const openaiKey = openaiApiKey.trim()
+    const geminiKey = geminiApiKey.trim()
     if (provider === 'chatgpt' && !openaiKey) {
       setAiError('Pegá tu API key de ChatGPT antes de mejorar con IA.')
+      return
+    }
+    if (provider === 'gemini' && !geminiKey) {
+      setAiError('Pegá tu API key de Gemini antes de mejorar con IA.')
       return
     }
     setAiBusy(provider)
@@ -127,6 +145,7 @@ export default function ImportarPage() {
           pdf: base64,
           provider,
           openaiApiKey: provider === 'chatgpt' ? openaiKey : undefined,
+          geminiApiKey: provider === 'gemini' ? geminiKey : undefined,
         }),
       })
       const data = (await res.json()) as { transactions?: ParsedTx[]; error?: string }
@@ -209,6 +228,18 @@ export default function ImportarPage() {
   function forgetOpenaiApiKey() {
     setOpenaiApiKey('')
     localStorage.removeItem(OPENAI_KEY_STORAGE)
+  }
+
+  function updateGeminiApiKey(value: string) {
+    setGeminiApiKey(value)
+    const next = value.trim()
+    if (next) localStorage.setItem(GEMINI_KEY_STORAGE, next)
+    else localStorage.removeItem(GEMINI_KEY_STORAGE)
+  }
+
+  function forgetGeminiApiKey() {
+    setGeminiApiKey('')
+    localStorage.removeItem(GEMINI_KEY_STORAGE)
   }
 
   async function save() {
@@ -336,14 +367,48 @@ export default function ImportarPage() {
                 </div>
                 <p className="text-xs text-slate-400">Se guarda solo en este dispositivo.</p>
               </div>
+
+              <div className="mb-3 space-y-1.5">
+                <span className="block text-sm font-medium text-slate-600 dark:text-slate-300">
+                  API key de Gemini (Google, gratis)
+                </span>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    value={geminiApiKey}
+                    onChange={(e) => updateGeminiApiKey(e.target.value)}
+                    placeholder="AIza..."
+                    autoComplete="off"
+                    className="min-w-0"
+                  />
+                  {geminiApiKey && (
+                    <Button type="button" variant="ghost" onClick={forgetGeminiApiKey} className="shrink-0">
+                      Olvidar
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400">
+                  Gratis en{' '}
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-emerald-700 underline dark:text-emerald-400"
+                  >
+                    aistudio.google.com/apikey
+                  </a>
+                  . Se guarda solo en este dispositivo.
+                </p>
+              </div>
+
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => improveWithAI('claude')}
+                  onClick={() => improveWithAI('gemini')}
                   disabled={aiBusy !== null}
                 >
-                  {aiBusy === 'claude' ? 'Procesando con Claude…' : 'Mejorar con Claude'}
+                  {aiBusy === 'gemini' ? 'Procesando con Gemini…' : '✨ Mejorar con Gemini (gratis)'}
                 </Button>
                 <Button
                   type="button"
@@ -353,9 +418,18 @@ export default function ImportarPage() {
                 >
                   {aiBusy === 'chatgpt' ? 'Procesando con ChatGPT…' : 'Mejorar con ChatGPT'}
                 </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => improveWithAI('claude')}
+                  disabled={aiBusy !== null}
+                >
+                  {aiBusy === 'claude' ? 'Procesando con Claude…' : 'Mejorar con Claude'}
+                </Button>
               </div>
               <p className="mt-1.5 text-xs text-slate-400">
-                Claude usa la API key configurada en el servidor. ChatGPT usa la API key que pegás acá.
+                Gemini y ChatGPT usan la API key que pegás acá (gratis la de Gemini). Claude usa la
+                key configurada en el servidor.
               </p>
               {aiError && <p className="mt-1 text-sm text-red-600">{aiError}</p>}
             </div>
@@ -465,7 +539,9 @@ function monthLabel(key: string): string {
 }
 
 function providerName(provider: AIProvider): string {
-  return provider === 'chatgpt' ? 'ChatGPT' : 'Claude'
+  if (provider === 'chatgpt') return 'ChatGPT'
+  if (provider === 'gemini') return 'Gemini'
+  return 'Claude'
 }
 
 // Convierte el PDF a base64 sin reventar el stack (chunks de 32KB).
