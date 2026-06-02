@@ -9,6 +9,72 @@ Clon de **Tricount** para **convivientes (parejas / familias que viven juntos)**
 gastos compartidos, ver quién le debe a quién y sugerir transferencias mínimas para saldar.
 Nombre visible de la app: **covivencia.** (con punto final).
 
+## Estado actual critico (2026-06-01)
+
+### Git / codigo
+
+- Branch local: `main`.
+- Working tree estaba limpio antes de editar este handoff.
+- Despues de esta actualizacion, puede quedar solo `HANDOFF.md` modificado localmente.
+  No pushear por ahora para no agregar mas deploys a la cola de Vercel.
+- Remoto GitHub: `origin` = `https://github.com/franx2/convivencia.git`.
+- `origin/main` apunta a `d6229fa6f8bb85f880d008535695bd54eecba14f`.
+- Ultimos commits relevantes:
+  - `d6229fa` - commit vacio: `Retry Vercel production deploy` (solo disparo de deploy).
+  - `d285b3d` - commit vacio: `Trigger Vercel deploy`.
+  - `2a34584` - `Clarify ChatGPT quota errors`.
+  - `1557caf` - `Rename app and allow deleting groups`.
+  - `da886b2` - `Let users provide ChatGPT API keys`.
+  - `c4b85dd` - `Add ChatGPT statement import provider`.
+  - `e691eeb` - `Fix personal space import setup`.
+
+### Vercel / produccion
+
+- Proyecto/URL principal visible: `convivencia-kzfk`, URL `https://convivencia-kzfk.vercel.app`.
+- Se hizo **Instant Rollback** desde el dashboard porque varios deploys quedaron en `Queued`.
+- En las capturas, el ultimo deploy `Ready` marcado como `Production` para `convivencia-kzfk`
+  era `da886b2` (`Let users provide ChatGPT API keys`). Es probable que produccion siga en ese
+  rollback aunque GitHub `main` tenga commits mas nuevos.
+- La pantalla **All Projects -> Deployments** muestra cola acumulada en varios proyectos:
+  `convivencia`, `convivencia-hvoh`, `convivencia-kzfk`. No seguir pusheando commits vacios:
+  eso solo agrega mas filas `Queued`.
+- Deploys queued vistos por API/script:
+  - `convivencia-kzfk` `dpl_CYn9Aofvu1n7wPhS6gfhYaB8TT12` commit `d6229fa` - **cancelado OK por API**.
+  - `convivencia-hvoh` `dpl_3y3PWzywFw9eoxVSWgQZfHutvqZq` commit `d6229fa` - API devolvio `not_found`.
+  - `convivencia` `dpl_9PcsPwCUSigRfXre7m91C9XC1c9f` commit `d6229fa`.
+  - `convivencia-hvoh` `dpl_BbhUzJNcP1q9M4d5fi5MxHXRpR8U` commit `d285b3d`.
+  - `convivencia` `dpl_2nPTvivkH7xDpBfVGZGdqKTDMFmy` commit `d285b3d`.
+  - `convivencia-hvoh` `dpl_8AeaLBox7r45jEBQsVF3E5VVR1wz` commit `2a34584`.
+  - `convivencia` `dpl_EubWkhjEqBLqLZ75CTgLWsCpMfWb` commit `2a34584`.
+  - `convivencia` `dpl_HWNGPwafb7XbcZnzpngDi6XCz5gQ` commit `1557caf`.
+  - `convivencia-hvoh` `dpl_BLWd8s19YSZAz5y4ucR2Y94tciGj` commit `1557caf`.
+  - `convivencia` `dpl_DvmtwvDU5etvHprgbG7Xn8hWJ6Vn` commit `da886b2`.
+- Intento de cancelacion con API:
+  - `GET https://api.vercel.com/v6/deployments?state=QUEUED&target=production&branch=main&limit=100`
+    encontro 10 deploys.
+  - `PATCH https://api.vercel.com/v12/deployments/{id}/cancel` cancelo el primero.
+  - Para `convivencia-hvoh dpl_3y3...` devolvio:
+    `{"error":{"code":"not_found","message":"Could not find project associated with deployment: ..."}}`
+  - Se probo agregar `?slug=franx2` y siguio devolviendo `not_found`.
+- Importante de seguridad: el usuario pego un token Vercel en el chat durante la sesion.
+  **Debe revocarlo en `https://vercel.com/account/tokens` y crear uno nuevo si hace falta.**
+
+### Recomendacion para retomar deploy
+
+1. No hacer mas pushes vacios.
+2. Desde Vercel dashboard, entrar proyecto por proyecto (`convivencia`, `convivencia-hvoh`,
+   `convivencia-kzfk`) y cancelar manualmente los queued desde el menu `...` o desde la pagina
+   individual del deployment.
+3. Mantener produccion en el rollback `Ready` que funcione.
+4. Cuando la cola quede limpia, redeployar manualmente **un solo commit**:
+   - Si se quiere lo ultimo del repo: `d6229fa` (incluye todos los cambios hasta `2a34584`; `d6229fa`
+     y `d285b3d` son commits vacios).
+   - Si se quiere nombre `covivencia.` + borrar grupos, pero sin los cambios posteriores de error quota:
+     `1557caf`.
+   - Si se quiere la version estable que se ve Ready en captura: `da886b2`.
+5. Tras deploy listo, revisar si Vercel quedo en modo rollback; si si, usar `Undo Rollback` o
+   promover manualmente el deployment correcto a Production.
+
 ## Stack
 
 - **Next.js 16.2.6** (App Router) + **React 19** + **Tailwind CSS v4**.
