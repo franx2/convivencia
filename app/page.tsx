@@ -1,38 +1,77 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { Header } from '@/components/Header'
 import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
-import { CURRENCIES } from '@/lib/currencies'
+import { CURRENCIES, formatMoney } from '@/lib/currencies'
 import type { Group } from '@/lib/types'
+
+type Tab = 'personal' | 'compartido'
 
 export default function HomePage() {
   const { user, loading } = useRequireAuth()
   const [groups, setGroups] = useState<Group[]>([])
+  const [totals, setTotals] = useState<Record<string, number>>({})
+  const [tab, setTab] = useState<Tab>('personal')
   const [fetching, setFetching] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [currency, setCurrency] = useState('ARS')
-  const [personal, setPersonal] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const ensuredPersonal = useRef(false)
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('groups')
       .select('*')
       .order('created_at', { ascending: false })
-    if (!error && data) setGroups(data as Group[])
+    let gs = (data ?? []) as Group[]
+
+    // Auto-crear el espacio personal a quien no tenga (una sola vez).
+    if (!ensuredPersonal.current && !gs.some((g) => g.is_personal)) {
+      ensuredPersonal.current = true
+      const { data: pg } = await supabase
+        .from('groups')
+        .insert({ name: 'Mi espacio', is_personal: true })
+        .select()
+        .single()
+      if (pg) {
+        await supabase.from('members').insert({ group_id: (pg as Group).id, name: 'Yo' })
+        gs = [pg as Group, ...gs]
+      }
+    }
+    setGroups(gs)
+
+    // Total gastado en el mes en curso por grupo (en su moneda base).
+    const ids = gs.map((g) => g.id)
+    if (ids.length) {
+      const { data: ex } = await supabase
+        .from('expenses')
+        .select('group_id, amount, rate_to_base, date')
+        .in('group_id', ids)
+      const month = new Date().toISOString().slice(0, 7)
+      const t: Record<string, number> = {}
+      for (const e of (ex ?? []) as {
+        group_id: string
+        amount: number
+        rate_to_base: number
+        date: string
+      }[]) {
+        if (String(e.date).slice(0, 7) !== month) continue
+        t[e.group_id] = (t[e.group_id] ?? 0) + Number(e.amount) * Number(e.rate_to_base)
+      }
+      setTotals(t)
+    }
     setFetching(false)
   }, [])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial async; setState ocurre tras el await
     if (user) load()
   }, [user, load])
 
@@ -40,33 +79,25 @@ export default function HomePage() {
     e.preventDefault()
     setBusy(true)
     setError(null)
-    // migration-safe: solo mandamos is_personal cuando aplica.
-    const payload: { name: string; base_currency: string; is_personal?: boolean } = {
-      name: name.trim(),
-      base_currency: currency,
-    }
-    if (personal) payload.is_personal = true
-    const { data, error } = await supabase.from('groups').insert(payload).select().single()
+    const { data, error } = await supabase
+      .from('groups')
+      .insert({ name: name.trim(), base_currency: currency })
+      .select()
+      .single()
     if (error) {
       setBusy(false)
-      setError(describeCreateGroupError(error.message))
+      setError(error.message)
       return
-    }
-    // Un espacio personal arranca con un único miembro ("Yo").
-    if (personal && data) {
-      await supabase.from('members').insert({ group_id: (data as Group).id, name: 'Yo' })
     }
     setBusy(false)
     setName('')
     setShowForm(false)
-    setPersonal(false)
     if (data) setGroups((g) => [data as Group, ...g])
   }
 
   async function deleteGroup(group: Group) {
     if (!user || group.owner_id !== user.id || deletingId) return
     const userId = user.id
-
     const ok = window.confirm(
       `¿Borrar "${group.name}"? Se eliminan sus gastos, miembros, pagos, presupuestos y categorías.`
     )
@@ -74,22 +105,18 @@ export default function HomePage() {
 
     setDeletingId(group.id)
     setDeleteError(null)
-
     try {
       const expenses = await supabase.from('expenses').select('id').eq('group_id', group.id)
       if (expenses.error) throw expenses.error
       const expenseIds = ((expenses.data ?? []) as { id: string }[]).map((e) => e.id)
-
       if (expenseIds.length > 0) {
         const { error } = await supabase.from('expense_shares').delete().in('expense_id', expenseIds)
         if (error) throw error
       }
-
       for (const table of ['payments', 'budgets', 'templates', 'categories', 'expenses', 'members'] as const) {
         const { error } = await supabase.from(table).delete().eq('group_id', group.id)
         if (error) throw error
       }
-
       const { error } = await supabase.from('groups').delete().eq('id', group.id).eq('owner_id', userId)
       if (error) throw error
       setGroups((prev) => prev.filter((g) => g.id !== group.id))
@@ -102,102 +129,143 @@ export default function HomePage() {
 
   if (loading || !user) return <Spinner />
 
+  const personalGroups = groups.filter((g) => g.is_personal)
+  const sharedGroups = groups.filter((g) => !g.is_personal)
+  const shown = tab === 'personal' ? personalGroups : sharedGroups
+
+  function groupCard(g: Group) {
+    const month = totals[g.id] ?? 0
+    return (
+      <Card
+        key={g.id}
+        className="flex items-stretch justify-between overflow-hidden p-0 transition hover:border-emerald-300 hover:shadow"
+      >
+        <Link href={`/g/${g.id}`} className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3">
+          <span className="min-w-0">
+            <span className="flex items-center gap-2 font-medium">
+              <span className="truncate">{g.name}</span>
+              {g.is_personal && (
+                <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                  personal
+                </span>
+              )}
+            </span>
+            <span className="mt-0.5 block text-xs text-slate-400">
+              Este mes: {formatMoney(month, g.base_currency)}
+            </span>
+          </span>
+          <span className="shrink-0 text-sm text-slate-400">{g.base_currency}</span>
+        </Link>
+        {g.owner_id === user!.id && (
+          <button
+            type="button"
+            onClick={() => deleteGroup(g)}
+            disabled={deletingId !== null}
+            className="border-l border-slate-100 px-3 text-sm font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:hover:bg-red-950/30"
+          >
+            {deletingId === g.id ? 'Borrando…' : 'Borrar'}
+          </button>
+        )}
+      </Card>
+    )
+  }
+
   return (
     <>
       <Header />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Mis grupos</h1>
-          <Button onClick={() => setShowForm((s) => !s)}>
-            {showForm ? 'Cancelar' : '+ Nuevo grupo'}
-          </Button>
-        </div>
-
-        {showForm && (
-          <Card className="mb-5">
-            <form onSubmit={createGroup} className="space-y-3">
-              <div>
-                <Label>Nombre del grupo</Label>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Viaje a Bariloche"
-                  required
-                />
-              </div>
-              <div>
-                <Label>Moneda base</Label>
-                <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                  {CURRENCIES.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.label}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                <input type="checkbox" checked={personal} onChange={(e) => setPersonal(e.target.checked)} />
-                Es un espacio personal (solo mío, sin repartir)
-              </label>
-              {error && <p className="text-sm text-red-600">{error}</p>}
-              <Button type="submit" disabled={busy || !name.trim()}>
-                {busy ? 'Creando…' : personal ? 'Crear espacio' : 'Crear grupo'}
-              </Button>
-            </form>
-          </Card>
-        )}
-
-        {fetching ? (
-          <Spinner />
-        ) : groups.length === 0 ? (
-          <Card className="text-center text-slate-500">
-            Todavía no tenés grupos. Creá uno para empezar a cargar gastos.
-          </Card>
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-24 pt-6">
+        {tab === 'personal' ? (
+          <>
+            <h1 className="mb-4 text-xl font-semibold">Mi espacio</h1>
+            {deleteError && <p className="mb-2 text-sm text-red-600">{deleteError}</p>}
+            {fetching ? (
+              <Spinner />
+            ) : personalGroups.length === 0 ? (
+              <Card className="text-center text-slate-500">Preparando tu espacio personal…</Card>
+            ) : (
+              <div className="space-y-2">{personalGroups.map(groupCard)}</div>
+            )}
+            {personalGroups[0] && (
+              <Link href={`/g/${personalGroups[0].id}/importar`} className="mt-3 inline-block">
+                <Button variant="ghost">Importar resumen de tarjeta</Button>
+              </Link>
+            )}
+          </>
         ) : (
-          <div className="space-y-2">
-            {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
-            {groups.map((g) => (
-              <Card
-                key={g.id}
-                className="flex items-stretch justify-between overflow-hidden p-0 transition hover:border-emerald-300 hover:shadow"
-              >
-                <Link href={`/g/${g.id}`} className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3">
-                  <span className="flex min-w-0 items-center gap-2 font-medium">
-                    <span className="truncate">{g.name}</span>
-                    {g.is_personal && (
-                      <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                        personal
-                      </span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-sm text-slate-400">{g.base_currency}</span>
-                </Link>
-                {g.owner_id === user.id && (
-                  <button
-                    type="button"
-                    onClick={() => deleteGroup(g)}
-                    disabled={deletingId !== null}
-                    className="border-l border-slate-100 px-3 text-sm font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:hover:bg-red-950/30"
-                  >
-                    {deletingId === g.id ? 'Borrando…' : 'Borrar'}
-                  </button>
-                )}
+          <>
+            <div className="mb-4 flex items-center justify-between">
+              <h1 className="text-xl font-semibold">Grupos compartidos</h1>
+              <Button onClick={() => setShowForm((s) => !s)}>
+                {showForm ? 'Cancelar' : '+ Nuevo grupo'}
+              </Button>
+            </div>
+
+            {showForm && (
+              <Card className="mb-5">
+                <form onSubmit={createGroup} className="space-y-3">
+                  <div>
+                    <Label>Nombre del grupo</Label>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Casa, viaje, asado…"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label>Moneda base</Label>
+                    <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                      {CURRENCIES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  {error && <p className="text-sm text-red-600">{error}</p>}
+                  <Button type="submit" disabled={busy || !name.trim()}>
+                    {busy ? 'Creando…' : 'Crear grupo'}
+                  </Button>
+                </form>
               </Card>
-            ))}
-          </div>
+            )}
+
+            {deleteError && <p className="mb-2 text-sm text-red-600">{deleteError}</p>}
+            {fetching ? (
+              <Spinner />
+            ) : sharedGroups.length === 0 ? (
+              <Card className="text-center text-slate-500">
+                Todavía no tenés grupos compartidos. Creá uno para repartir gastos.
+              </Card>
+            ) : (
+              <div className="space-y-2">{shown.map(groupCard)}</div>
+            )}
+          </>
         )}
       </main>
+
+      {/* Barra de navegación inferior */}
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
+        <div className="mx-auto flex max-w-3xl">
+          {([
+            { key: 'personal', label: 'Personal', icon: '👤' },
+            { key: 'compartido', label: 'Compartido', icon: '👥' },
+          ] as const).map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium ${
+                tab === t.key
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+            >
+              <span className="text-lg leading-none">{t.icon}</span>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </nav>
     </>
   )
-}
-
-function describeCreateGroupError(message: string): string {
-  if (message.includes('is_personal')) {
-    return (
-      'Falta aplicar la migración de espacio personal en Supabase ' +
-      '(columna groups.is_personal). Ejecutá supabase/migration_espacio_personal.sql ' +
-      'en el SQL Editor y volvé a intentar.'
-    )
-  }
-  return message
 }

@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { Header } from '@/components/Header'
 import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
 import { CURRENCIES } from '@/lib/currencies'
+import { fetchDolarOficialVenta } from '@/lib/dolar'
 import {
   DEFAULT_CATEGORY,
   EXPENSE_CATEGORIES,
@@ -35,6 +36,8 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState('ARS')
   const [rate, setRate] = useState('1')
+  const [rateLoading, setRateLoading] = useState(false)
+  const [rateInfo, setRateInfo] = useState<string | null>(null)
   const [paidBy, setPaidBy] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [category, setCategory] = useState<string>(DEFAULT_CATEGORY)
@@ -183,6 +186,28 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
     return row
   }
 
+  // Trae el dólar oficial (venta) y lo usa como tipo de cambio. Solo aplica
+  // cuando el gasto es en USD y la moneda base del grupo es ARS.
+  async function traerDolar() {
+    setRateLoading(true)
+    setRateInfo(null)
+    const d = await fetchDolarOficialVenta()
+    setRateLoading(false)
+    if (d) {
+      setRate(String(d.venta))
+      setRateInfo(d.fecha ? `Oficial venta · ${new Date(d.fecha).toLocaleDateString('es-AR')}` : 'Oficial venta')
+    } else {
+      setRateInfo('No se pudo traer la cotización; cargala a mano.')
+    }
+  }
+
+  function onCurrencyChange(value: string) {
+    setCurrency(value)
+    setRateInfo(null)
+    // Autocompletar el dólar oficial al elegir USD en un grupo en pesos.
+    if (value === 'USD' && group?.base_currency === 'ARS') traerDolar()
+  }
+
   async function addCategory() {
     const name = newCat.trim()
     if (!name) return
@@ -326,7 +351,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
               </div>
               <div>
                 <Label>Moneda</Label>
-                <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                <Select value={currency} onChange={(e) => onCurrencyChange(e.target.value)}>
                   {CURRENCIES.map((c) => (
                     <option key={c.code} value={c.code}>
                       {c.code}
@@ -349,6 +374,19 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
                   onChange={(e) => setRate(e.target.value)}
                   required
                 />
+                {currency === 'USD' && group.base_currency === 'ARS' && (
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={traerDolar}
+                      disabled={rateLoading}
+                      className="text-sm font-medium text-emerald-700 hover:underline disabled:opacity-50 dark:text-emerald-400"
+                    >
+                      {rateLoading ? 'Trayendo…' : '↻ Traer dólar oficial (venta)'}
+                    </button>
+                    {rateInfo && <span className="text-xs text-slate-400">{rateInfo}</span>}
+                  </div>
+                )}
               </div>
             )}
 
