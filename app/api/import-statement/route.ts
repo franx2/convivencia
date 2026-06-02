@@ -31,6 +31,12 @@ type Tx = {
   card: string | null
 }
 type AIProvider = 'claude' | 'chatgpt' | 'gemini'
+type Source = { pdf?: string; text?: string }
+
+const ASK = 'Extrae todas las transacciones de consumo de este resumen.'
+const textPrompt = (text: string) =>
+  `Extrae todas las transacciones de consumo del siguiente texto extraido de un resumen de tarjeta (las columnas pueden venir desordenadas):\n\n${text}`
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 const SYSTEM_RULES = `Sos un asistente que extrae transacciones de un resumen de tarjeta de credito argentino (en espanol).
 Reglas:
@@ -126,6 +132,7 @@ const TOOL: Anthropic.Tool = {
 
 export async function POST(req: Request) {
   let pdf: string | undefined
+  let text: string | undefined
   let provider: AIProvider = 'claude'
   let openaiApiKey: string | undefined
   let geminiApiKey: string | undefined
@@ -133,11 +140,13 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as {
       pdf?: string
+      text?: string
       provider?: string
       openaiApiKey?: string
       geminiApiKey?: string
     }
     pdf = body.pdf
+    text = typeof body.text === 'string' && body.text.trim() ? body.text.trim() : undefined
     openaiApiKey = body.openaiApiKey
     geminiApiKey = body.geminiApiKey
     if (body.provider === 'chatgpt' || body.provider === 'claude' || body.provider === 'gemini')
@@ -147,17 +156,20 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Body invalido.' }, { status: 400 })
   }
 
-  if (!pdf) {
-    return Response.json({ error: 'Falta el PDF (base64).' }, { status: 400 })
+  // Preferimos el texto extraido (mucho mas barato en tokens que el PDF, y
+  // evita el limite de cuota gratis). El PDF queda como fallback.
+  if (!pdf && !text) {
+    return Response.json({ error: 'Falta el resumen (texto o PDF).' }, { status: 400 })
   }
+  const src: Source = { pdf, text }
 
   try {
     const transactions =
       provider === 'chatgpt'
-        ? await extractWithOpenAI(pdf, openaiApiKey)
+        ? await extractWithOpenAI(src, openaiApiKey)
         : provider === 'gemini'
-          ? await extractWithGemini(pdf, geminiApiKey)
-          : await extractWithAnthropic(pdf)
+          ? await extractWithGemini(src, geminiApiKey)
+          : await extractWithAnthropic(src)
     return Response.json({ transactions, provider })
   } catch (err) {
     const status =
@@ -171,9 +183,16 @@ export async function POST(req: Request) {
   }
 }
 
-async function extractWithAnthropic(pdf: string): Promise<Tx[]> {
+async function extractWithAnthropic(src: Source): Promise<Tx[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new ProviderError('Falta ANTHROPIC_API_KEY en el servidor.', 500)
+
+  const content: Anthropic.ContentBlockParam[] = src.text
+    ? [{ type: 'text', text: textPrompt(src.text) }]
+    : [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: src.pdf! } },
+        { type: 'text', text: ASK },
+      ]
 
   const client = new Anthropic({ apiKey })
   const msg = await client.messages.create({
@@ -183,21 +202,7 @@ async function extractWithAnthropic(pdf: string): Promise<Tx[]> {
     system: [{ type: 'text', text: ANTHROPIC_SYSTEM, cache_control: { type: 'ephemeral' } }],
     tools: [{ ...TOOL, cache_control: { type: 'ephemeral' } }],
     tool_choice: { type: 'tool', name: 'registrar_transacciones' },
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'document',
-            source: { type: 'base64', media_type: 'application/pdf', data: pdf },
-          },
-          {
-            type: 'text',
-            text: 'Extrae todas las transacciones de consumo de este resumen.',
-          },
-        ],
-      },
-    ],
+    messages: [{ role: 'user', content }],
   })
 
   const block = msg.content.find((b) => b.type === 'tool_use')
@@ -209,9 +214,16 @@ async function extractWithAnthropic(pdf: string): Promise<Tx[]> {
   return normalize(Array.isArray(raw) ? raw : [])
 }
 
-async function extractWithOpenAI(pdf: string, userApiKey?: string): Promise<Tx[]> {
+async function extractWithOpenAI(src: Source, userApiKey?: string): Promise<Tx[]> {
   const apiKey = userApiKey?.trim() || process.env.OPENAI_API_KEY
   if (!apiKey) throw new ProviderError('Pegá tu API key de ChatGPT antes de mejorar con IA.', 400)
+
+  const content = src.text
+    ? [{ type: 'input_text', text: textPrompt(src.text) }]
+    : [
+        { type: 'input_file', filename: 'resumen-tarjeta.pdf', file_data: `data:application/pdf;base64,${src.pdf}` },
+        { type: 'input_text', text: ASK },
+      ]
 
   const res = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -224,22 +236,7 @@ async function extractWithOpenAI(pdf: string, userApiKey?: string): Promise<Tx[]
       instructions: OPENAI_INSTRUCTIONS,
       max_output_tokens: 16000,
       store: false,
-      input: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'input_file',
-              filename: 'resumen-tarjeta.pdf',
-              file_data: `data:application/pdf;base64,${pdf}`,
-            },
-            {
-              type: 'input_text',
-              text: 'Extrae todas las transacciones de consumo de este resumen.',
-            },
-          ],
-        },
-      ],
+      input: [{ role: 'user', content }],
       text: {
         format: {
           type: 'json_schema',
@@ -270,33 +267,28 @@ async function extractWithOpenAI(pdf: string, userApiKey?: string): Promise<Tx[]
   return normalize(Array.isArray(raw) ? raw : [])
 }
 
-async function extractWithGemini(pdf: string, userApiKey?: string): Promise<Tx[]> {
+async function extractWithGemini(src: Source, userApiKey?: string): Promise<Tx[]> {
   const apiKey = userApiKey?.trim() || process.env.GEMINI_API_KEY
   if (!apiKey) throw new ProviderError('Pegá tu API key de Gemini antes de mejorar con IA.', 400)
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
-    {
-      method: 'POST',
-      headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: GEMINI_INSTRUCTIONS }] },
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { inline_data: { mime_type: 'application/pdf', data: pdf } },
-              { text: 'Extrae todas las transacciones de consumo de este resumen.' },
-            ],
-          },
-        ],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: GEMINI_SCHEMA,
-        },
-      }),
-    }
-  )
+  const parts = src.text
+    ? [{ text: textPrompt(src.text) }]
+    : [{ inline_data: { mime_type: 'application/pdf', data: src.pdf } }, { text: ASK }]
+
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: GEMINI_INSTRUCTIONS }] },
+    contents: [{ role: 'user', parts }],
+    generationConfig: { responseMimeType: 'application/json', responseSchema: GEMINI_SCHEMA },
+  })
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
+  const headers = { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' }
+
+  // La cuota gratis es por minuto: ante 429, esperamos y reintentamos una vez.
+  let res = await fetch(url, { method: 'POST', headers, body })
+  if (res.status === 429) {
+    await sleep(20000)
+    res = await fetch(url, { method: 'POST', headers, body })
+  }
 
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
   if (!res.ok) {

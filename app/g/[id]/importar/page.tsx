@@ -30,6 +30,7 @@ export default function ImportarPage() {
   const [missing, setMissing] = useState(false)
 
   const [file, setFile] = useState<File | null>(null)
+  const [pdfText, setPdfText] = useState('')
   const [fileName, setFileName] = useState('')
   const [parsing, setParsing] = useState(false)
   const [rows, setRows] = useState<ParsedTx[]>([])
@@ -104,9 +105,11 @@ export default function ImportarPage() {
     setParseError(null)
     setAiError(null)
     setRows([])
+    setPdfText('')
     setParsing(true)
     try {
       const lines = await extractPdfLines(f)
+      setPdfText(lines.join('\n'))
       const year = guessYear(f.name)
       const txs = parseTransactions(lines, year)
       if (txs.length === 0) {
@@ -137,12 +140,16 @@ export default function ImportarPage() {
     setAiBusy(provider)
     setAiError(null)
     try {
-      const base64 = arrayBufferToBase64(await file.arrayBuffer())
+      // Mandamos el TEXTO extraído (mucho más barato en tokens y evita el
+      // límite de cuota gratis). Solo caemos al PDF si no se pudo extraer texto.
+      const text = pdfText.trim()
+      const pdf = text ? undefined : arrayBufferToBase64(await file.arrayBuffer())
       const res = await fetch('/api/import-statement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pdf: base64,
+          text: text || undefined,
+          pdf,
           provider,
           openaiApiKey: provider === 'chatgpt' ? openaiKey : undefined,
           geminiApiKey: provider === 'gemini' ? geminiKey : undefined,
