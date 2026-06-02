@@ -27,6 +27,8 @@ export type Expense = {
   paid_by: string
   date: string
   category: string
+  bank: string | null
+  card: string | null
   created_by: string | null
   created_at: string
 }

@@ -149,6 +149,56 @@ export default function ImportarPage() {
     setRows((prev) => prev.filter((_, idx) => idx !== i))
   }
 
+  function itemCard(r: ParsedTx, i: number) {
+    return (
+      <Card key={i} className="space-y-2">
+        <div className="flex gap-2">
+          <Input
+            type="date"
+            value={r.date}
+            onChange={(e) => updateRow(i, { date: e.target.value })}
+            className="max-w-[150px]"
+          />
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            value={r.amount}
+            onChange={(e) => updateRow(i, { amount: Number(e.target.value) })}
+            className="max-w-[130px] text-right"
+          />
+          <button
+            onClick={() => removeRow(i)}
+            className="px-1 text-slate-300 hover:text-red-500"
+            title="Quitar"
+          >
+            ✕
+          </button>
+        </div>
+        <Input value={r.title} onChange={(e) => updateRow(i, { title: e.target.value })} />
+        <Select value={r.category} onChange={(e) => updateRow(i, { category: e.target.value })}>
+          {cats.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </Select>
+        <div className="flex gap-2">
+          <Input
+            value={r.bank ?? ''}
+            placeholder="Banco"
+            onChange={(e) => updateRow(i, { bank: e.target.value.trim() || null })}
+          />
+          <Input
+            value={r.card ?? ''}
+            placeholder="Tarjeta"
+            onChange={(e) => updateRow(i, { card: e.target.value.trim() || null })}
+          />
+        </div>
+      </Card>
+    )
+  }
+
   function updateOpenaiApiKey(value: string) {
     setOpenaiApiKey(value)
     const next = value.trim()
@@ -167,20 +217,41 @@ export default function ImportarPage() {
     if (valid.length === 0) return
     setBusy(true)
     setSaveError(null)
-    const exps = valid.map((r) => ({
-      group_id: groupId,
-      title: r.title.trim() || 'Gasto',
-      amount: r.amount,
-      currency: group.base_currency,
-      rate_to_base: 1,
-      paid_by: memberId,
-      date: r.date,
-      category: r.category,
-    }))
+    const exps = valid.map((r) => {
+      const e: {
+        group_id: string
+        title: string
+        amount: number
+        currency: string
+        rate_to_base: number
+        paid_by: string
+        date: string
+        category: string
+        bank?: string
+        card?: string
+      } = {
+        group_id: groupId,
+        title: r.title.trim() || 'Gasto',
+        amount: r.amount,
+        currency: group.base_currency,
+        rate_to_base: 1,
+        paid_by: memberId,
+        date: r.date,
+        category: r.category,
+      }
+      // migration-safe: solo mandamos banco/tarjeta cuando hay dato.
+      if (r.bank) e.bank = r.bank
+      if (r.card) e.card = r.card
+      return e
+    })
     const { data: inserted, error } = await supabase.from('expenses').insert(exps).select('id')
     if (error) {
       setBusy(false)
-      setSaveError(error.message)
+      setSaveError(
+        /bank|card/.test(error.message)
+          ? 'Falta correr la migración de banco/tarjeta en Supabase (supabase/migration_banco_tarjeta.sql).'
+          : error.message
+      )
       return
     }
     const shares = ((inserted ?? []) as { id: string }[]).map((e) => ({
@@ -203,6 +274,8 @@ export default function ImportarPage() {
 
   const total = rows.reduce((s, r) => s + (r.amount > 0 ? r.amount : 0), 0)
   const noMember = !memberId
+  const groups = groupForPreview(rows)
+  const fmt = (n: number) => formatMoney(n, group.base_currency)
 
   return (
     <>
@@ -292,43 +365,39 @@ export default function ImportarPage() {
         {rows.length > 0 && (
           <>
             <div className="mb-2 flex items-center justify-between px-1 text-sm">
-              <span className="text-slate-500">{rows.length} transacciones · {formatMoney(total, group.base_currency)}</span>
+              <span className="text-slate-500">
+                {rows.length} transacciones · {fmt(total)}
+              </span>
             </div>
-            <div className="space-y-2">
-              {rows.map((r, i) => (
-                <Card key={i} className="space-y-2">
-                  <div className="flex gap-2">
-                    <Input
-                      type="date"
-                      value={r.date}
-                      onChange={(e) => updateRow(i, { date: e.target.value })}
-                      className="max-w-[150px]"
-                    />
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={r.amount}
-                      onChange={(e) => updateRow(i, { amount: Number(e.target.value) })}
-                      className="max-w-[130px] text-right"
-                    />
-                    <button
-                      onClick={() => removeRow(i)}
-                      className="px-1 text-slate-300 hover:text-red-500"
-                      title="Quitar"
-                    >
-                      ✕
-                    </button>
+            <div className="space-y-5">
+              {groups.map((mg) => (
+                <div key={mg.key} className="space-y-2">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-1 dark:border-slate-700">
+                    <span className="text-sm font-semibold">{mg.label}</span>
+                    <span className="text-xs text-slate-500">{fmt(mg.total)}</span>
                   </div>
-                  <Input value={r.title} onChange={(e) => updateRow(i, { title: e.target.value })} />
-                  <Select value={r.category} onChange={(e) => updateRow(i, { category: e.target.value })}>
-                    {cats.map((c) => (
-                      <option key={c.value} value={c.value}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </Select>
-                </Card>
+                  {mg.banks.map((bg) => (
+                    <div key={bg.bank} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                          🏦 {bg.bank}
+                        </span>
+                        <span className="text-xs text-slate-400">{fmt(bg.total)}</span>
+                      </div>
+                      {bg.cards.map((cg) => (
+                        <div key={cg.card} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                              💳 {cg.card}
+                            </span>
+                            <span className="text-xs text-slate-400">{fmt(cg.total)}</span>
+                          </div>
+                          <div className="space-y-2">{cg.items.map((it) => itemCard(it.r, it.i))}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
               ))}
             </div>
 
@@ -348,6 +417,51 @@ export default function ImportarPage() {
 function guessYear(fileName: string): number {
   const m = fileName.match(/20\d{2}/)
   return m ? Number(m[0]) : new Date().getFullYear()
+}
+
+type Indexed = { r: ParsedTx; i: number }
+type CardGroup = { card: string; total: number; items: Indexed[] }
+type BankGroup = { bank: string; total: number; cards: CardGroup[] }
+type MonthGroup = { key: string; label: string; total: number; banks: BankGroup[] }
+
+const sumAmt = (items: Indexed[]) => items.reduce((s, it) => s + (it.r.amount > 0 ? it.r.amount : 0), 0)
+
+function bucket(items: Indexed[], keyOf: (r: ParsedTx) => string): [string, Indexed[]][] {
+  const m = new Map<string, Indexed[]>()
+  for (const it of items) {
+    const k = keyOf(it.r)
+    const arr = m.get(k) ?? []
+    arr.push(it)
+    m.set(k, arr)
+  }
+  return [...m.entries()]
+}
+
+// Agrupa la vista previa Mes -> Banco -> Tarjeta, con subtotales.
+function groupForPreview(rows: ParsedTx[]): MonthGroup[] {
+  const indexed: Indexed[] = rows.map((r, i) => ({ r, i }))
+  const byMonth = bucket(indexed, (r) => (/^\d{4}-\d{2}/.test(r.date) ? r.date.slice(0, 7) : 'sin-fecha'))
+  byMonth.sort((a, b) =>
+    a[0] === 'sin-fecha' ? 1 : b[0] === 'sin-fecha' ? -1 : b[0].localeCompare(a[0])
+  )
+  return byMonth.map(([mk, mItems]) => {
+    const banks = bucket(mItems, (r) => r.bank?.trim() || 'Sin banco')
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([bk, bItems]) => {
+        const cards = bucket(bItems, (r) => r.card?.trim() || 'Sin tarjeta')
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([ck, cItems]) => ({ card: ck, total: sumAmt(cItems), items: cItems }))
+        return { bank: bk, total: sumAmt(bItems), cards }
+      })
+    return { key: mk, label: monthLabel(mk), total: sumAmt(mItems), banks }
+  })
+}
+
+function monthLabel(key: string): string {
+  if (key === 'sin-fecha') return 'Sin fecha'
+  const [y, m] = key.split('-').map(Number)
+  const s = new Date(y, m - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 function providerName(provider: AIProvider): string {

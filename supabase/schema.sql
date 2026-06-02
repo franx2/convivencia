@@ -295,4 +295,13 @@ grant select, insert, update, delete on public.budgets to authenticated;
 alter table public.groups
   add column if not exists is_personal boolean not null default false;
 
+-- ============================================================
+-- Banco y tarjeta por gasto (ver migration_banco_tarjeta.sql)
+-- ============================================================
+
+alter table public.expenses
+  add column if not exists bank text;
+alter table public.expenses
+  add column if not exists card text;
+
 notify pgrst, 'reload schema';

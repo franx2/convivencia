@@ -21,7 +21,14 @@ const CATEGORIES = [
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-type Tx = { date: string; title: string; amount: number; category: string }
+type Tx = {
+  date: string
+  title: string
+  amount: number
+  category: string
+  bank: string | null
+  card: string | null
+}
 type AIProvider = 'claude' | 'chatgpt'
 
 const SYSTEM_RULES = `Sos un asistente que extrae transacciones de un resumen de tarjeta de credito argentino (en espanol).
@@ -30,7 +37,9 @@ Reglas:
 - amount: importe POSITIVO en pesos. Converti el formato argentino (1.234,56) a numero decimal (1234.56). Si una linea esta en dolares, no la conviertas: usa el importe en pesos de la misma fila si existe; si no hay importe en pesos, omiti la fila.
 - date: formato YYYY-MM-DD. Inferi el ano del periodo del resumen si la fila trae solo dia/mes.
 - title: el nombre del comercio o descripcion, limpio.
-- category: elegi la mas adecuada entre las permitidas segun el comercio.`
+- category: elegi la mas adecuada entre las permitidas segun el comercio.
+- bank: el banco/emisor del resumen (ej: "Galicia", "Santander", "BBVA", "Naranja"). El mismo para todo el resumen si no se aclara otra cosa. Si no lo sabes, usa null.
+- card: la tarjeta a la que pertenece el consumo dentro del resumen, lo mas identificable posible (ej: "Visa terminada en 1234", "Titular", "Adicional Juan", "Mastercard ****5678"). Si el resumen separa por tarjeta/titular/adicional, respetalo. Si no se puede distinguir, usa null.`
 
 const ANTHROPIC_SYSTEM = `${SYSTEM_RULES}
 Devolve los resultados llamando a la herramienta registrar_transacciones.`
@@ -52,8 +61,10 @@ const OPENAI_TRANSACTIONS_SCHEMA = {
           title: { type: 'string', description: 'Comercio o descripcion del consumo' },
           amount: { type: 'number', description: 'Importe positivo en pesos (ej: 1234.56)' },
           category: { type: 'string', enum: CATEGORIES as unknown as string[] },
+          bank: { type: ['string', 'null'], description: 'Banco/emisor del resumen, o null' },
+          card: { type: ['string', 'null'], description: 'Tarjeta del consumo (ej: Visa ****1234, Titular, Adicional), o null' },
         },
-        required: ['date', 'title', 'amount', 'category'],
+        required: ['date', 'title', 'amount', 'category', 'bank', 'card'],
       },
     },
   },
@@ -75,6 +86,8 @@ const TOOL: Anthropic.Tool = {
             title: { type: 'string', description: 'Comercio o descripcion del consumo' },
             amount: { type: 'number', description: 'Importe positivo en pesos (ej: 1234.56)' },
             category: { type: 'string', enum: CATEGORIES as unknown as string[] },
+            bank: { type: 'string', description: 'Banco/emisor del resumen (vacio si no se sabe)' },
+            card: { type: 'string', description: 'Tarjeta del consumo: ej "Visa ****1234", "Titular", "Adicional" (vacio si no se distingue)' },
           },
           required: ['date', 'title', 'amount', 'category'],
         },
@@ -271,7 +284,9 @@ function normalize(rows: unknown[]): Tx[] {
     const title = typeof o.title === 'string' && o.title.trim() ? o.title.trim() : 'Gasto'
     const cat = typeof o.category === 'string' ? o.category : 'otros'
     const category = (CATEGORIES as readonly string[]).includes(cat) ? cat : 'otros'
-    out.push({ date, title, amount, category })
+    const bank = typeof o.bank === 'string' && o.bank.trim() ? o.bank.trim() : null
+    const card = typeof o.card === 'string' && o.card.trim() ? o.card.trim() : null
+    out.push({ date, title, amount, category, bank, card })
   }
   return out
 }

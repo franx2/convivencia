@@ -5,6 +5,8 @@ export type ParsedTx = {
   title: string
   amount: number
   category: string
+  bank: string | null // emisor del resumen (lo completa la IA; el parser local lo deja null)
+  card: string | null // tarjeta del consumo (titular/adicional, ****1234)
 }
 
 const PDFJS_VERSION = '4.10.38'
@@ -108,6 +110,8 @@ export function parseTransactions(lines: string[], fallbackYear: number): Parsed
       title,
       amount,
       category: suggestCategory(title, []) ?? 'otros',
+      bank: null,
+      card: null,
     })
   }
   return out
