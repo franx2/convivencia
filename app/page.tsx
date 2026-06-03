@@ -113,7 +113,7 @@ export default function HomePage() {
         const { error } = await supabase.from('expense_shares').delete().in('expense_id', expenseIds)
         if (error) throw error
       }
-      for (const table of ['payments', 'budgets', 'templates', 'categories', 'expenses', 'members'] as const) {
+      for (const table of ['payments', 'budgets', 'templates', 'categories', 'incomes', 'expenses', 'members'] as const) {
         const { error } = await supabase.from(table).delete().eq('group_id', group.id)
         if (error) throw error
       }

@@ -11,7 +11,17 @@ import { formatMoney } from '@/lib/currencies'
 import { mergeCategories, metaFrom, type CatMeta } from '@/lib/categories'
 import { computeBalances, settle, spendByCategory, spendByMonth } from '@/lib/balances'
 import { Donut, MonthlyBars } from '@/components/charts'
-import type { Budget, Category, Expense, ExpenseShare, Group, Member, Payment, Template } from '@/lib/types'
+import type {
+  Budget,
+  Category,
+  Expense,
+  ExpenseShare,
+  Group,
+  Income,
+  Member,
+  Payment,
+  Template,
+} from '@/lib/types'
 
 type Tab = 'gastos' | 'balances' | 'liquidacion' | 'miembros'
 
@@ -28,6 +38,7 @@ export default function GroupPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
+  const [incomes, setIncomes] = useState<Income[]>([])
   const [fetching, setFetching] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [tab, setTab] = useState<Tab>('gastos')
@@ -40,20 +51,29 @@ export default function GroupPage() {
       return
     }
     setGroup(g as Group)
-    const [{ data: m }, { data: e }, { data: c }, { data: p }, { data: tpl }, { data: bud }] =
-      await Promise.all([
-        supabase.from('members').select('*').eq('group_id', groupId).order('created_at'),
-        supabase.from('expenses').select('*').eq('group_id', groupId).order('date', { ascending: false }),
-        supabase.from('categories').select('*').eq('group_id', groupId).order('created_at'),
-        supabase.from('payments').select('*').eq('group_id', groupId).order('date', { ascending: false }),
-        supabase.from('templates').select('*').eq('group_id', groupId).order('created_at'),
-        supabase.from('budgets').select('*').eq('group_id', groupId).order('created_at'),
-      ])
+    const [
+      { data: m },
+      { data: e },
+      { data: c },
+      { data: p },
+      { data: tpl },
+      { data: bud },
+      { data: inc },
+    ] = await Promise.all([
+      supabase.from('members').select('*').eq('group_id', groupId).order('created_at'),
+      supabase.from('expenses').select('*').eq('group_id', groupId).order('date', { ascending: false }),
+      supabase.from('categories').select('*').eq('group_id', groupId).order('created_at'),
+      supabase.from('payments').select('*').eq('group_id', groupId).order('date', { ascending: false }),
+      supabase.from('templates').select('*').eq('group_id', groupId).order('created_at'),
+      supabase.from('budgets').select('*').eq('group_id', groupId).order('created_at'),
+      supabase.from('incomes').select('*').eq('group_id', groupId).order('date', { ascending: false }),
+    ])
     setMembers((m ?? []) as Member[])
     setCategories((c ?? []) as Category[])
     setPayments((p ?? []) as Payment[])
     setTemplates((tpl ?? []) as Template[])
     setBudgets((bud ?? []) as Budget[])
+    setIncomes((inc ?? []) as Income[])
     const exp = (e ?? []) as Expense[]
     setExpenses(exp)
     if (exp.length) {
@@ -171,8 +191,10 @@ export default function GroupPage() {
             shares={shares}
             payments={payments}
             budgets={budgets}
+            incomes={incomes}
             cats={cats}
             catMeta={catMeta}
+            memberName={memberName}
             onChanged={load}
           />
         )}
@@ -420,8 +442,10 @@ function BalancesTab({
   shares,
   payments,
   budgets,
+  incomes,
   cats,
   catMeta,
+  memberName,
   onChanged,
 }: {
   group: Group
@@ -430,40 +454,71 @@ function BalancesTab({
   shares: ExpenseShare[]
   payments: Payment[]
   budgets: Budget[]
+  incomes: Income[]
   cats: CatMeta[]
   catMeta: (v: string) => CatMeta
+  memberName: (id: string) => string
   onChanged: () => void
 }) {
-  const balances = useMemo(
-    () => computeBalances(members, expenses, shares, payments),
-    [members, expenses, shares, payments]
-  )
-  const total = expenses.reduce((s, e) => s + Number(e.amount) * Number(e.rate_to_base), 0)
-  const byCat = useMemo(() => spendByCategory(expenses), [expenses])
-  const byMonth = useMemo(() => spendByMonth(expenses, 6), [expenses])
   const fmt = (n: number) => formatMoney(n, group.base_currency)
+  const baseOf = (e: Expense) => Number(e.amount) * Number(e.rate_to_base)
+  const personal = group.is_personal
+
+  // Meses con datos (gastos + ingresos) + el actual, desc.
+  const months = useMemo(() => {
+    const set = new Set<string>()
+    for (const e of expenses) if (/^\d{4}-\d{2}/.test(e.date)) set.add(String(e.date).slice(0, 7))
+    for (const i of incomes) if (/^\d{4}-\d{2}/.test(i.date)) set.add(String(i.date).slice(0, 7))
+    set.add(new Date().toISOString().slice(0, 7))
+    return [...set].sort((a, b) => b.localeCompare(a))
+  }, [expenses, incomes])
+
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [who, setWho] = useState<string>('all') // 'all' | member_id
+
+  const monthExpenses = expenses.filter(
+    (e) => String(e.date).slice(0, 7) === month && (who === 'all' || e.paid_by === who)
+  )
+  const monthIncomes = incomes.filter(
+    (i) => String(i.date).slice(0, 7) === month && (who === 'all' || i.member_id === who)
+  )
+  const gastosMes = monthExpenses.reduce((s, e) => s + baseOf(e), 0)
+  const ingresosMes = monthIncomes.reduce((s, i) => s + Number(i.amount), 0)
+  const balanceMes = ingresosMes - gastosMes
+
+  const byCat = spendByCategory(monthExpenses)
   const donutData = byCat.map((c) => ({
     label: catMeta(c.category).label,
     value: c.total,
     color: catMeta(c.category).hex,
   }))
+  const byMonth = useMemo(() => spendByMonth(expenses, 6), [expenses])
 
-  // Gasto del mes en curso por categoría (para el presupuesto).
-  const monthKey = new Date().toISOString().slice(0, 7)
-  const monthByCat = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const e of expenses) {
-      if (String(e.date).slice(0, 7) !== monthKey) continue
-      const base = Number(e.amount) * Number(e.rate_to_base)
-      map.set(e.category || 'otros', (map.get(e.category || 'otros') ?? 0) + base)
-    }
-    return map
-  }, [expenses, monthKey])
+  // Gasto del MES seleccionado por categoría (grupo entero, para el presupuesto).
+  const monthByCat = new Map<string, number>()
+  for (const e of expenses) {
+    if (String(e.date).slice(0, 7) !== month) continue
+    monthByCat.set(e.category || 'otros', (monthByCat.get(e.category || 'otros') ?? 0) + baseOf(e))
+  }
+
+  const balances = useMemo(
+    () => computeBalances(members, expenses, shares, payments),
+    [members, expenses, shares, payments]
+  )
 
   const [editingBudgets, setEditingBudgets] = useState(false)
   const [bCat, setBCat] = useState<string>('supermercado')
   const [bAmount, setBAmount] = useState('')
   const [bBusy, setBBusy] = useState(false)
+
+  // Ingresos
+  const [showIncForm, setShowIncForm] = useState(false)
+  const [incMember, setIncMember] = useState('')
+  const [incAmount, setIncAmount] = useState('')
+  const [incDate, setIncDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [incNote, setIncNote] = useState('')
+  const [incBusy, setIncBusy] = useState(false)
+  const [incError, setIncError] = useState<string | null>(null)
 
   async function saveBudget() {
     const amt = Number(bAmount)
@@ -482,30 +537,181 @@ function BalancesTab({
     onChanged()
   }
 
+  async function addIncome() {
+    const amt = Number(incAmount)
+    const member = incMember || members[0]?.id
+    if (!member) return setIncError('Agregá un miembro primero.')
+    if (!(amt > 0)) return setIncError('Ingresá un monto válido.')
+    setIncBusy(true)
+    setIncError(null)
+    const { error } = await supabase.from('incomes').insert({
+      group_id: group.id,
+      member_id: member,
+      amount: amt,
+      date: incDate,
+      note: incNote.trim() || null,
+    })
+    setIncBusy(false)
+    if (error) {
+      setIncError(/incomes/.test(error.message) ? 'Falta correr la migración de ingresos (migration_ingresos.sql).' : error.message)
+      return
+    }
+    setIncAmount('')
+    setIncNote('')
+    setShowIncForm(false)
+    onChanged()
+  }
+
+  async function removeIncome(id: string) {
+    await supabase.from('incomes').delete().eq('id', id)
+    onChanged()
+  }
+
+  const monthLbl = monthLabelEs(month)
+  const whoLbl = who === 'all' ? null : memberName(who)
+
   return (
     <div className="space-y-3">
-      <Card className="flex items-center justify-between">
-        <span className="text-slate-500">Total gastado</span>
-        <span className="text-lg font-semibold">{formatMoney(total, group.base_currency)}</span>
+      {/* Filtros */}
+      <Card className="flex flex-wrap items-center gap-2">
+        <Select value={month} onChange={(e) => setMonth(e.target.value)} className="max-w-[180px]">
+          {months.map((m) => (
+            <option key={m} value={m}>
+              {monthLabelEs(m)}
+            </option>
+          ))}
+        </Select>
+        {!personal && members.length > 1 && (
+          <Select value={who} onChange={(e) => setWho(e.target.value)} className="max-w-[160px]">
+            <option value="all">Todos</option>
+            {members.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </Select>
+        )}
       </Card>
 
-      {byCat.length > 0 && (
+      {/* Balance del mes */}
+      <Card>
+        <p className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+          Balance · {monthLbl}
+          {whoLbl ? ` · ${whoLbl}` : ''}
+        </p>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div>
+            <p className="text-xs text-slate-400">Ingresos</p>
+            <p className="font-semibold text-emerald-600">{fmt(ingresosMes)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">Gastos</p>
+            <p className="font-semibold text-slate-700 dark:text-slate-200">{fmt(gastosMes)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">Balance</p>
+            <p className={`font-semibold ${balanceMes >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {fmt(balanceMes)}
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Donut filtrado */}
+      {byCat.length > 0 ? (
         <Card>
-          <p className="mb-4 text-sm font-medium text-slate-600">Gastos por categoría</p>
+          <p className="mb-4 text-sm font-medium text-slate-600">
+            Gastos por categoría · {monthLbl}
+            {whoLbl ? ` · ${whoLbl}` : ''}
+          </p>
           <Donut data={donutData} format={fmt} />
         </Card>
+      ) : (
+        <Card className="text-center text-sm text-slate-500">Sin gastos en {monthLbl}.</Card>
       )}
 
-      {total > 0 && (
-        <Card>
-          <p className="mb-4 text-sm font-medium text-slate-600">Gasto por mes</p>
-          <MonthlyBars data={byMonth} format={fmt} />
-        </Card>
-      )}
+      {/* Ingresos del mes */}
+      <Card>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Ingresos · {monthLbl}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setShowIncForm((v) => !v)
+              setIncError(null)
+            }}
+            className="text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+          >
+            {showIncForm ? 'Cancelar' : '+ Agregar ingreso'}
+          </button>
+        </div>
+
+        {showIncForm && (
+          <div className="mb-3 space-y-2 border-b border-slate-100 pb-3 dark:border-slate-800">
+            <div className="grid grid-cols-2 gap-2">
+              {!personal && (
+                <Select value={incMember || members[0]?.id || ''} onChange={(e) => setIncMember(e.target.value)}>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </Select>
+              )}
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={incAmount}
+                onChange={(e) => setIncAmount(e.target.value)}
+                placeholder={`Monto (${group.base_currency})`}
+              />
+              <Input type="date" value={incDate} onChange={(e) => setIncDate(e.target.value)} />
+            </div>
+            <Input value={incNote} onChange={(e) => setIncNote(e.target.value)} placeholder="Nota (ej: Sueldo)" />
+            {incError && <p className="text-sm text-red-600">{incError}</p>}
+            <Button type="button" onClick={addIncome} disabled={incBusy}>
+              {incBusy ? 'Guardando…' : 'Guardar ingreso'}
+            </Button>
+          </div>
+        )}
+
+        {monthIncomes.length === 0 ? (
+          <p className="text-xs text-slate-400">No hay ingresos cargados en {monthLbl}.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {monthIncomes.map((i) => (
+              <div key={i.id} className="flex items-center justify-between text-sm">
+                <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">
+                  {!personal && <span className="font-medium">{memberName(i.member_id)} · </span>}
+                  {i.note || 'Ingreso'}
+                  <span className="text-slate-400"> · {i.date}</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="font-medium text-emerald-600">{fmt(Number(i.amount))}</span>
+                  <button
+                    onClick={() => removeIncome(i.id)}
+                    className="text-slate-300 hover:text-red-500"
+                    title="Quitar"
+                  >
+                    ✕
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Tendencia */}
+      <Card>
+        <p className="mb-4 text-sm font-medium text-slate-600">Gasto por mes (todos)</p>
+        <MonthlyBars data={byMonth} format={fmt} />
+      </Card>
 
       <Card>
         <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm font-medium text-slate-600">Presupuesto del mes</p>
+          <p className="text-sm font-medium text-slate-600">Presupuesto · {monthLbl}</p>
           <button
             type="button"
             onClick={() => setEditingBudgets((v) => !v)}
@@ -588,31 +794,44 @@ function BalancesTab({
         )}
       </Card>
 
-      <p className="px-1 pt-1 text-xs font-medium uppercase tracking-wide text-slate-400">Saldos</p>
-      {balances.map((b) => (
-        <Card key={b.memberId} className="flex items-center justify-between">
-          <div>
-            <p className="font-medium">{b.name}</p>
-            <p className="text-xs text-slate-400">
-              Puso {formatMoney(b.paid, group.base_currency)} · Le tocaba{' '}
-              {formatMoney(b.share, group.base_currency)}
-            </p>
-          </div>
-          <span
-            className={`font-semibold ${
-              b.net > 0.005 ? 'text-emerald-600' : b.net < -0.005 ? 'text-red-600' : 'text-slate-400'
-            }`}
-          >
-            {b.net > 0 ? '+' : ''}
-            {formatMoney(b.net, group.base_currency)}
-          </span>
-        </Card>
-      ))}
-      <p className="px-1 text-xs text-slate-400">
-        Verde = le deben · Rojo = debe. Todo en {group.base_currency}.
-      </p>
+      {!personal && (
+        <>
+          <p className="px-1 pt-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+            Saldos (acumulado)
+          </p>
+          {balances.map((b) => (
+            <Card key={b.memberId} className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">{b.name}</p>
+                <p className="text-xs text-slate-400">
+                  Puso {formatMoney(b.paid, group.base_currency)} · Le tocaba{' '}
+                  {formatMoney(b.share, group.base_currency)}
+                </p>
+              </div>
+              <span
+                className={`font-semibold ${
+                  b.net > 0.005 ? 'text-emerald-600' : b.net < -0.005 ? 'text-red-600' : 'text-slate-400'
+                }`}
+              >
+                {b.net > 0 ? '+' : ''}
+                {formatMoney(b.net, group.base_currency)}
+              </span>
+            </Card>
+          ))}
+          <p className="px-1 text-xs text-slate-400">
+            Verde = le deben · Rojo = debe. Todo en {group.base_currency}.
+          </p>
+        </>
+      )}
     </div>
   )
+}
+
+function monthLabelEs(key: string): string {
+  const [y, m] = key.split('-').map(Number)
+  if (!y || !m) return key
+  const s = new Date(y, m - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 function LiquidacionTab({

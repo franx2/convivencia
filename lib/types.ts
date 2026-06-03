@@ -56,6 +56,17 @@ export type Budget = {
   created_at: string
 }
 
+export type Income = {
+  id: string
+  group_id: string
+  member_id: string
+  amount: number // en moneda base
+  date: string
+  note: string | null
+  created_by: string | null
+  created_at: string
+}
+
 export type Category = {
   id: string
   group_id: string
