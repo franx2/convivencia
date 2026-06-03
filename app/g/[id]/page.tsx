@@ -307,6 +307,7 @@ function GastosTab({
                     href={tplHref(t)}
                     className={`rounded-full px-3 py-1 text-sm font-medium ${catMeta(t.category).color}`}
                   >
+                    <span className="mr-1">{catMeta(t.category).symbol}</span>
                     {t.label}
                     {t.amount != null && (
                       <span className="ml-1 opacity-70">{formatMoney(Number(t.amount), group.base_currency)}</span>
@@ -348,7 +349,7 @@ function GastosTab({
                 <Select value={tplCat} onChange={(e) => setTplCat(e.target.value)}>
                   {cats.map((c) => (
                     <option key={c.value} value={c.value}>
-                      {c.label}
+                      {c.symbol} {c.label}
                     </option>
                   ))}
                 </Select>
@@ -367,7 +368,7 @@ function GastosTab({
             <option value="all">Todas las categorías</option>
             {usedCats.map((c) => (
               <option key={c} value={c}>
-                {catMeta(c).label}
+                {catMeta(c).symbol} {catMeta(c).label}
               </option>
             ))}
           </Select>
@@ -399,7 +400,7 @@ function GastosTab({
               <p className="font-medium">{e.title}</p>
               <p className="mt-0.5 flex items-center gap-2 text-sm text-slate-500">
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${catMeta(e.category).color}`}>
-                  {catMeta(e.category).label}
+                  {catMeta(e.category).symbol} {catMeta(e.category).label}
                 </span>
                 Pagó {memberName(e.paid_by)} · {e.date}
               </p>
@@ -491,6 +492,7 @@ function BalancesTab({
     label: catMeta(c.category).label,
     value: c.total,
     color: catMeta(c.category).hex,
+    symbol: catMeta(c.category).symbol,
   }))
   const byMonth = useMemo(() => spendByMonth(expenses, 6), [expenses])
 
@@ -738,7 +740,7 @@ function BalancesTab({
                 <div key={b.id}>
                   <div className="mb-1 flex items-center justify-between text-sm">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${catMeta(b.category).color}`}>
-                      {catMeta(b.category).label}
+                      {catMeta(b.category).symbol} {catMeta(b.category).label}
                     </span>
                     <span className="flex items-center gap-2">
                       <span className={txtColor}>
@@ -774,7 +776,7 @@ function BalancesTab({
             <Select value={bCat} onChange={(e) => setBCat(e.target.value)}>
               {cats.map((c) => (
                 <option key={c.value} value={c.value}>
-                  {c.label}
+                  {c.symbol} {c.label}
                 </option>
               ))}
             </Select>

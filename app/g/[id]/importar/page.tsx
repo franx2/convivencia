@@ -239,7 +239,7 @@ export default function ImportarPage() {
         <Select value={r.category} onChange={(e) => updateRow(i, { category: e.target.value })}>
           {cats.map((c) => (
             <option key={c.value} value={c.value}>
-              {c.label}
+              {c.symbol} {c.label}
             </option>
           ))}
         </Select>

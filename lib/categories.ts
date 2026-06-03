@@ -1,29 +1,29 @@
 // Categorias fijas pensadas para convivientes (parejas / familias).
 // `color`: clases Tailwind para chips. `hex`: color sólido para gráficos SVG.
 export const EXPENSE_CATEGORIES = [
-  { value: 'supermercado', label: 'Supermercado', color: 'bg-emerald-100 text-emerald-700', hex: '#10b981' },
-  { value: 'alquiler', label: 'Alquiler', color: 'bg-violet-100 text-violet-700', hex: '#8b5cf6' },
-  { value: 'servicios', label: 'Servicios', color: 'bg-amber-100 text-amber-700', hex: '#f59e0b' },
-  { value: 'comida', label: 'Comida / Delivery', color: 'bg-orange-100 text-orange-700', hex: '#f97316' },
-  { value: 'transporte', label: 'Transporte', color: 'bg-sky-100 text-sky-700', hex: '#0ea5e9' },
-  { value: 'hogar', label: 'Hogar', color: 'bg-teal-100 text-teal-700', hex: '#14b8a6' },
-  { value: 'salud', label: 'Salud', color: 'bg-red-100 text-red-700', hex: '#ef4444' },
-  { value: 'ocio', label: 'Ocio', color: 'bg-indigo-100 text-indigo-700', hex: '#6366f1' },
-  { value: 'indumentaria', label: 'Indumentaria', color: 'bg-pink-100 text-pink-700', hex: '#ec4899' },
-  { value: 'educacion', label: 'Educación', color: 'bg-blue-100 text-blue-700', hex: '#3b82f6' },
-  { value: 'mascotas', label: 'Mascotas', color: 'bg-lime-100 text-lime-700', hex: '#65a30d' },
-  { value: 'viajes', label: 'Viajes', color: 'bg-cyan-100 text-cyan-700', hex: '#06b6d4' },
-  { value: 'impuestos', label: 'Impuestos', color: 'bg-yellow-100 text-yellow-700', hex: '#eab308' },
-  { value: 'seguros', label: 'Seguros', color: 'bg-slate-100 text-slate-700', hex: '#64748b' },
-  { value: 'suscripciones', label: 'Suscripciones', color: 'bg-fuchsia-100 text-fuchsia-700', hex: '#d946ef' },
-  { value: 'tecnologia', label: 'Tecnología', color: 'bg-blue-100 text-blue-700', hex: '#2563eb' },
-  { value: 'belleza', label: 'Belleza', color: 'bg-rose-100 text-rose-700', hex: '#f43f5e' },
-  { value: 'regalos', label: 'Regalos', color: 'bg-purple-100 text-purple-700', hex: '#a855f7' },
-  { value: 'deportes', label: 'Deportes', color: 'bg-green-100 text-green-700', hex: '#22c55e' },
-  { value: 'bebes-ninos', label: 'Bebés / Niños', color: 'bg-orange-100 text-orange-700', hex: '#fb923c' },
-  { value: 'trabajo', label: 'Trabajo', color: 'bg-stone-100 text-stone-700', hex: '#78716c' },
-  { value: 'banco-comisiones', label: 'Banco / Comisiones', color: 'bg-zinc-100 text-zinc-700', hex: '#71717a' },
-  { value: 'otros', label: 'Otros', color: 'bg-slate-100 text-slate-600', hex: '#94a3b8' },
+  { value: 'supermercado', label: 'Supermercado', symbol: '🛒', color: 'bg-emerald-100 text-emerald-700', hex: '#10b981' },
+  { value: 'alquiler', label: 'Alquiler', symbol: '🏠', color: 'bg-violet-100 text-violet-700', hex: '#8b5cf6' },
+  { value: 'servicios', label: 'Servicios', symbol: '💡', color: 'bg-amber-100 text-amber-700', hex: '#f59e0b' },
+  { value: 'comida', label: 'Comida / Delivery', symbol: '🍽️', color: 'bg-orange-100 text-orange-700', hex: '#f97316' },
+  { value: 'transporte', label: 'Transporte', symbol: '🚕', color: 'bg-sky-100 text-sky-700', hex: '#0ea5e9' },
+  { value: 'hogar', label: 'Hogar', symbol: '🧹', color: 'bg-teal-100 text-teal-700', hex: '#14b8a6' },
+  { value: 'salud', label: 'Salud', symbol: '⚕️', color: 'bg-red-100 text-red-700', hex: '#ef4444' },
+  { value: 'ocio', label: 'Ocio', symbol: '🎮', color: 'bg-indigo-100 text-indigo-700', hex: '#6366f1' },
+  { value: 'indumentaria', label: 'Indumentaria', symbol: '👕', color: 'bg-pink-100 text-pink-700', hex: '#ec4899' },
+  { value: 'educacion', label: 'Educación', symbol: '🎓', color: 'bg-blue-100 text-blue-700', hex: '#3b82f6' },
+  { value: 'mascotas', label: 'Mascotas', symbol: '🐾', color: 'bg-lime-100 text-lime-700', hex: '#65a30d' },
+  { value: 'viajes', label: 'Viajes', symbol: '✈️', color: 'bg-cyan-100 text-cyan-700', hex: '#06b6d4' },
+  { value: 'impuestos', label: 'Impuestos', symbol: '🧾', color: 'bg-yellow-100 text-yellow-700', hex: '#eab308' },
+  { value: 'seguros', label: 'Seguros', symbol: '🛡️', color: 'bg-slate-100 text-slate-700', hex: '#64748b' },
+  { value: 'suscripciones', label: 'Suscripciones', symbol: '▶️', color: 'bg-fuchsia-100 text-fuchsia-700', hex: '#d946ef' },
+  { value: 'tecnologia', label: 'Tecnología', symbol: '💻', color: 'bg-blue-100 text-blue-700', hex: '#2563eb' },
+  { value: 'belleza', label: 'Belleza', symbol: '✨', color: 'bg-rose-100 text-rose-700', hex: '#f43f5e' },
+  { value: 'regalos', label: 'Regalos', symbol: '🎁', color: 'bg-purple-100 text-purple-700', hex: '#a855f7' },
+  { value: 'deportes', label: 'Deportes', symbol: '⚽', color: 'bg-green-100 text-green-700', hex: '#22c55e' },
+  { value: 'bebes-ninos', label: 'Bebés / Niños', symbol: '🧸', color: 'bg-orange-100 text-orange-700', hex: '#fb923c' },
+  { value: 'trabajo', label: 'Trabajo', symbol: '💼', color: 'bg-stone-100 text-stone-700', hex: '#78716c' },
+  { value: 'banco-comisiones', label: 'Banco / Comisiones', symbol: '🏦', color: 'bg-zinc-100 text-zinc-700', hex: '#71717a' },
+  { value: 'otros', label: 'Otros', symbol: '•', color: 'bg-slate-100 text-slate-600', hex: '#94a3b8' },
 ] as const
 
 export type CategoryValue = (typeof EXPENSE_CATEGORIES)[number]['value']
@@ -31,7 +31,8 @@ export type CategoryValue = (typeof EXPENSE_CATEGORIES)[number]['value']
 export const DEFAULT_CATEGORY: CategoryValue = 'otros'
 
 /** Forma minima de una categoria para render (preset o personalizada). */
-export type CatMeta = { value: string; label: string; color: string; hex: string }
+export type CatMeta = { value: string; label: string; symbol: string; color: string; hex: string }
+type CatMetaInput = Omit<CatMeta, 'symbol'> & { symbol?: string }
 
 // Paleta para asignar color/hex a las categorias que crea el usuario.
 export const CATEGORY_PALETTE: { color: string; hex: string }[] = [
@@ -60,9 +61,53 @@ export function slugifyCategory(label: string): string {
   return s || 'categoria'
 }
 
+const SYMBOL_RULES: { symbol: string; words: string[] }[] = [
+  { symbol: '🛒', words: ['super', 'mercado', 'verduler', 'almacen', 'despensa'] },
+  { symbol: '🏠', words: ['alquiler', 'renta', 'casa', 'depto', 'departamento'] },
+  { symbol: '💡', words: ['luz', 'gas', 'agua', 'internet', 'servicio', 'telefono', 'expensa'] },
+  { symbol: '🍽️', words: ['comida', 'delivery', 'restaurant', 'resto', 'bar', 'cafe', 'pizza', 'helado'] },
+  { symbol: '🚕', words: ['transporte', 'uber', 'taxi', 'sube', 'nafta', 'peaje', 'auto'] },
+  { symbol: '⚕️', words: ['salud', 'farmacia', 'medico', 'kinesio', 'dentista', 'prepaga'] },
+  { symbol: '👕', words: ['ropa', 'indumentaria', 'zapatilla', 'zapato', 'moda'] },
+  { symbol: '🎓', words: ['educacion', 'curso', 'clase', 'colegio', 'facultad', 'universidad'] },
+  { symbol: '🐾', words: ['mascota', 'perro', 'gato', 'veterinaria', 'pet'] },
+  { symbol: '✈️', words: ['viaje', 'hotel', 'vuelo', 'turismo', 'pasaje'] },
+  { symbol: '🧾', words: ['impuesto', 'afip', 'arca', 'monotributo', 'rentas', 'patente'] },
+  { symbol: '🛡️', words: ['seguro', 'aseguradora', 'poliza'] },
+  { symbol: '▶️', words: ['suscripcion', 'netflix', 'spotify', 'prime', 'disney', 'hbo', 'youtube'] },
+  { symbol: '💻', words: ['tecnologia', 'software', 'celular', 'notebook', 'computadora'] },
+  { symbol: '✨', words: ['belleza', 'peluqueria', 'cosmetica', 'perfume', 'spa'] },
+  { symbol: '🎁', words: ['regalo', 'cumple', 'floreria', 'juguete'] },
+  { symbol: '⚽', words: ['deporte', 'gimnasio', 'gym', 'fitness', 'club'] },
+  { symbol: '🧸', words: ['bebe', 'nino', 'niño', 'chico', 'jardin', 'pañal', 'panal'] },
+  { symbol: '💼', words: ['trabajo', 'oficina', 'cowork', 'hosting', 'dominio'] },
+  { symbol: '🏦', words: ['banco', 'comision', 'comisión', 'cajero', 'atm'] },
+]
+
+export function categorySymbol(value: string, label = value): string {
+  const text = `${value} ${label}`
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+
+  const preset = EXPENSE_CATEGORIES.find((c) => c.value === value)
+  if (preset) return preset.symbol
+
+  const rule = SYMBOL_RULES.find((r) => r.words.some((w) => text.includes(w)))
+  if (rule) return rule.symbol
+
+  const first = label.trim().charAt(0).toUpperCase()
+  return first || '•'
+}
+
+function withSymbol(c: CatMetaInput): CatMeta {
+  return { ...c, symbol: c.symbol ?? categorySymbol(c.value, c.label) }
+}
+
 const FALLBACK_META = (value: string): CatMeta => ({
   value,
   label: value,
+  symbol: categorySymbol(value),
   color: 'bg-slate-100 text-slate-600',
   hex: '#94a3b8',
 })
@@ -72,15 +117,10 @@ export function categoryMeta(value: string): CatMeta {
 }
 
 /** Presets + personalizadas del grupo (las custom se agregan al final). */
-export function mergeCategories(custom: CatMeta[]): CatMeta[] {
-  const presets: CatMeta[] = EXPENSE_CATEGORIES.map((c) => ({
-    value: c.value,
-    label: c.label,
-    color: c.color,
-    hex: c.hex,
-  }))
+export function mergeCategories(custom: CatMetaInput[]): CatMeta[] {
+  const presets: CatMeta[] = EXPENSE_CATEGORIES.map((c) => withSymbol(c))
   const seen = new Set(presets.map((c) => c.value))
-  return [...presets, ...custom.filter((c) => !seen.has(c.value))]
+  return [...presets, ...custom.filter((c) => !seen.has(c.value)).map((c) => withSymbol(c))]
 }
 
 /** Busca la meta de una categoria en una lista ya mergeada (con fallback). */

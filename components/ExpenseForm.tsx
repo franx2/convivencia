@@ -11,6 +11,7 @@ import { fetchDolarOficialVenta } from '@/lib/dolar'
 import {
   DEFAULT_CATEGORY,
   EXPENSE_CATEGORIES,
+  categorySymbol,
   mergeCategories,
   paletteAt,
   slugifyCategory,
@@ -229,7 +230,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
       setError(insErr.message)
       return
     }
-    setCats((prev) => [...prev, { value, label: name, color, hex }])
+    setCats((prev) => [...prev, { value, label: name, symbol: categorySymbol(value, name), color, hex }])
     setCategory(value)
     setCategoryTouched(true)
     setNewCat('')
@@ -418,7 +419,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
               >
                 {cats.map((c) => (
                   <option key={c.value} value={c.value}>
-                    {c.label}
+                    {c.symbol} {c.label}
                   </option>
                 ))}
               </Select>

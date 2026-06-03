@@ -2,9 +2,10 @@
 
 import type { MonthTotal } from '@/lib/balances'
 
-export type DonutSlice = { label: string; value: number; color: string }
+export type DonutSlice = { label: string; value: number; color: string; symbol?: string }
 
-const MAX_WHEEL_SLICES = 7
+const MAX_WHEEL_SLICES = 6
+const EXPLODE_MAX = 30
 
 function polarPoint(cx: number, cy: number, r: number, angle: number) {
   const a = (angle * Math.PI) / 180
@@ -28,20 +29,14 @@ function ringPath(cx: number, cy: number, outerR: number, innerR: number, start:
   ].join(' ')
 }
 
-function compactWheelData(data: DonutSlice[]): DonutSlice[] {
-  const sorted = data.filter((d) => d.value > 0).sort((a, b) => b.value - a.value)
-  if (sorted.length <= MAX_WHEEL_SLICES) return sorted
-
-  const shown = sorted.slice(0, MAX_WHEEL_SLICES - 1)
-  const rest = sorted.slice(MAX_WHEEL_SLICES - 1).reduce((s, d) => s + d.value, 0)
-  return [...shown, { label: 'Resto', value: rest, color: '#64748b' }]
+function topWheelData(data: DonutSlice[]): DonutSlice[] {
+  return data
+    .filter((d) => d.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, MAX_WHEEL_SLICES)
 }
 
-function shortLabel(label: string): string {
-  return label.length > 13 ? `${label.slice(0, 12)}…` : label
-}
-
-/** Grafico radial de categorias, con segmentos tipo infografia y detalle. */
+/** Grafico radial de categorias, con segmentos explotados segun gasto. */
 export function Donut({
   data,
   format,
@@ -54,20 +49,24 @@ export function Donut({
   thickness?: number
 }) {
   const total = data.reduce((s, d) => s + d.value, 0)
-  const wheelData = compactWheelData(data)
+  const wheelData = topWheelData(data)
+  const wheelTotal = wheelData.reduce((s, d) => s + d.value, 0)
+  const maxValue = Math.max(1, ...wheelData.map((d) => d.value))
   const cx = size / 2
-  const outerR = size / 2 - 8
+  const outerR = size / 2 - EXPLODE_MAX - 8
   const innerR = Math.max(48, outerR - thickness)
   const labelR = innerR + (outerR - innerR) / 2
-  const gap = wheelData.length > 1 ? 2.5 : 0
+  const gap = wheelData.length > 1 ? 4 : 0
 
   let angle = -90
   const segments = wheelData.map((d, i) => {
-    const span = total > 0 ? (d.value / total) * 360 : 0
+    const span = wheelTotal > 0 ? (d.value / wheelTotal) * 360 : 0
     const start = angle + gap / 2
     const end = angle + span - gap / 2
     const mid = start + Math.max(end - start, 0) / 2
     const p = polarPoint(cx, cx, labelR, mid)
+    const offset = 5 + (d.value / maxValue) * EXPLODE_MAX
+    const shift = polarPoint(0, 0, offset, mid)
     const pct = total > 0 ? Math.round((d.value / total) * 100) : 0
     angle += span
 
@@ -75,8 +74,10 @@ export function Donut({
       ...d,
       key: `${d.label}-${i}`,
       path: ringPath(cx, cx, outerR, innerR, start, Math.max(end, start + 0.1)),
-      x: p.x,
-      y: p.y,
+      x: p.x + shift.x,
+      y: p.y + shift.y,
+      dx: shift.x,
+      dy: shift.y,
       pct,
     }
   })
@@ -84,31 +85,34 @@ export function Donut({
   return (
     <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
       <div className="relative mx-auto w-full max-w-[268px] shrink-0" style={{ width: size }}>
-        <svg viewBox={`0 0 ${size} ${size}`} className="h-auto w-full overflow-visible" role="img">
+        <svg
+          viewBox={`-${EXPLODE_MAX} -${EXPLODE_MAX} ${size + EXPLODE_MAX * 2} ${size + EXPLODE_MAX * 2}`}
+          className="h-auto w-full overflow-visible"
+          role="img"
+        >
           <title>Gastos por categoria</title>
-          <circle cx={cx} cy={cx} r={outerR} fill="#f8fafc" className="dark:fill-slate-900" />
           {total > 0 ? (
             segments.map((d) => (
-              <g key={d.key}>
-                <path d={d.path} fill={d.color} stroke="white" strokeWidth="2">
+              <g key={d.key} transform={`translate(${d.dx} ${d.dy})`}>
+                <path d={d.path} fill={d.color} stroke="white" strokeWidth="2.5">
                   <title>{`${d.label}: ${format(d.value)}`}</title>
                 </path>
-                {d.pct >= 7 && (
+                {d.pct >= 4 && (
                   <text
-                    x={d.x}
-                    y={d.y}
+                    x={d.x - d.dx}
+                    y={d.y - d.dy}
                     textAnchor="middle"
                     dominantBaseline="middle"
                     fill="white"
-                    fontSize="10"
+                    fontSize={d.pct >= 8 ? 17 : 14}
                     fontWeight="700"
                   >
-                    <tspan x={d.x} dy={d.pct >= 12 ? -5 : 0}>
-                      {d.pct}%
+                    <tspan x={d.x - d.dx} dy={d.pct >= 8 ? -8 : 0}>
+                      {d.symbol ?? '•'}
                     </tspan>
-                    {d.pct >= 12 && (
-                      <tspan x={d.x} dy="12" fontSize="7" fontWeight="600">
-                        {shortLabel(d.label)}
+                    {d.pct >= 8 && (
+                      <tspan x={d.x - d.dx} dy="16" fontSize="11" fontWeight="800">
+                        {d.pct}%
                       </tspan>
                     )}
                   </text>
@@ -118,7 +122,15 @@ export function Donut({
           ) : (
             <path d={ringPath(cx, cx, outerR, innerR, -90, 269.99)} fill="#e2e8f0" />
           )}
-          <circle cx={cx} cy={cx} r={innerR - 7} fill="white" stroke="#e2e8f0" strokeWidth="2" className="dark:fill-slate-950 dark:stroke-slate-800" />
+          <circle
+            cx={cx}
+            cy={cx}
+            r={innerR - 7}
+            fill="white"
+            stroke="#e2e8f0"
+            strokeWidth="2"
+            className="dark:fill-slate-950 dark:stroke-slate-800"
+          />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Categorías</span>
@@ -129,12 +141,17 @@ export function Donut({
       </div>
 
       <ul className="w-full space-y-2">
-        {data.map((d) => {
+        {wheelData.map((d) => {
           const pct = total > 0 ? Math.round((d.value / total) * 100) : 0
           return (
             <li key={d.label} className="text-sm">
               <div className="mb-1 flex items-center gap-2">
-                <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
+                <span
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm"
+                  style={{ backgroundColor: d.color }}
+                >
+                  {d.symbol ?? '•'}
+                </span>
                 <span className="min-w-0 flex-1 truncate text-slate-600 dark:text-slate-300">{d.label}</span>
                 <span className="tabular-nums text-slate-500 dark:text-slate-400">{format(d.value)}</span>
                 <span className="w-9 text-right tabular-nums text-xs text-slate-400">{pct}%</span>
