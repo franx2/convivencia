@@ -569,7 +569,7 @@ function sumByCurrency(items: Indexed[]): CurTotals {
   let ars = 0
   let usd = 0
   for (const it of items) {
-    const a = it.r.amount > 0 ? it.r.amount : 0
+    const a = Number.isFinite(it.r.amount) ? it.r.amount : 0 // incluye reintegros (negativos)
     if (it.r.currency === 'USD') usd += a
     else ars += a
   }
