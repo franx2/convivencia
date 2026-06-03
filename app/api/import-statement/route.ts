@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { EXPENSE_CATEGORIES } from '@/lib/categories'
 
 // Parsear un resumen no necesita el modelo mas caro. Si algun banco viene muy
 // dificil, subir a 'claude-sonnet-4-6' o 'claude-opus-4-8'.
@@ -6,18 +7,7 @@ const ANTHROPIC_MODEL = 'claude-haiku-4-5'
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? 'gpt-5'
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash'
 
-// Categorias validas (deben coincidir con lib/categories.ts).
-const CATEGORIES = [
-  'supermercado',
-  'alquiler',
-  'servicios',
-  'comida',
-  'transporte',
-  'hogar',
-  'salud',
-  'ocio',
-  'otros',
-] as const
+const CATEGORIES = EXPENSE_CATEGORIES.map((c) => c.value)
 
 export const runtime = 'nodejs'
 export const maxDuration = 60

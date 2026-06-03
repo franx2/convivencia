@@ -9,13 +9,10 @@ import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
 import { CURRENCIES, formatMoney } from '@/lib/currencies'
 import type { Group } from '@/lib/types'
 
-type Tab = 'personal' | 'compartido'
-
 export default function HomePage() {
   const { user, loading } = useRequireAuth()
   const [groups, setGroups] = useState<Group[]>([])
   const [totals, setTotals] = useState<Record<string, number>>({})
-  const [tab, setTab] = useState<Tab>('personal')
   const [fetching, setFetching] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
@@ -99,7 +96,7 @@ export default function HomePage() {
     if (!user || group.owner_id !== user.id || deletingId) return
     const userId = user.id
     const ok = window.confirm(
-      `¿Borrar "${group.name}"? Se eliminan sus gastos, miembros, pagos, presupuestos y categorías.`
+      `¿Borrar "${group.name}"? Se eliminan sus gastos, miembros, pagos, ingresos, presupuestos y categorías.`
     )
     if (!ok) return
 
@@ -115,7 +112,7 @@ export default function HomePage() {
       }
       for (const table of ['payments', 'budgets', 'templates', 'categories', 'incomes', 'expenses', 'members'] as const) {
         const { error } = await supabase.from(table).delete().eq('group_id', group.id)
-        if (error) throw error
+        if (error && !(table === 'incomes' && isMissingRelationError(error))) throw error
       }
       const { error } = await supabase.from('groups').delete().eq('id', group.id).eq('owner_id', userId)
       if (error) throw error
@@ -131,7 +128,7 @@ export default function HomePage() {
 
   const personalGroups = groups.filter((g) => g.is_personal)
   const sharedGroups = groups.filter((g) => !g.is_personal)
-  const shown = tab === 'personal' ? personalGroups : sharedGroups
+  const personalGroup = personalGroups[0]
 
   function groupCard(g: Group) {
     const month = totals[g.id] ?? 0
@@ -174,98 +171,87 @@ export default function HomePage() {
     <>
       <Header />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-24 pt-6">
-        {tab === 'personal' ? (
-          <>
-            <h1 className="mb-4 text-xl font-semibold">Mi espacio</h1>
-            {deleteError && <p className="mb-2 text-sm text-red-600">{deleteError}</p>}
-            {fetching ? (
-              <Spinner />
-            ) : personalGroups.length === 0 ? (
-              <Card className="text-center text-slate-500">Preparando tu espacio personal…</Card>
-            ) : (
-              <div className="space-y-2">{personalGroups.map(groupCard)}</div>
-            )}
-            {personalGroups[0] && (
-              <Link href={`/g/${personalGroups[0].id}/importar`} className="mt-3 inline-block">
-                <Button variant="ghost">Importar resumen de tarjeta</Button>
-              </Link>
-            )}
-          </>
-        ) : (
-          <>
-            <div className="mb-4 flex items-center justify-between">
-              <h1 className="text-xl font-semibold">Grupos compartidos</h1>
-              <Button onClick={() => setShowForm((s) => !s)}>
-                {showForm ? 'Cancelar' : '+ Nuevo grupo'}
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="text-xl font-semibold">Grupos compartidos</h1>
+          <Button onClick={() => setShowForm((s) => !s)}>
+            {showForm ? 'Cancelar' : '+ Nuevo grupo'}
+          </Button>
+        </div>
+
+        {showForm && (
+          <Card className="mb-5">
+            <form onSubmit={createGroup} className="space-y-3">
+              <div>
+                <Label>Nombre del grupo</Label>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Casa, viaje, asado…"
+                  required
+                />
+              </div>
+              <div>
+                <Label>Moneda base</Label>
+                <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                  {CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              {error && <p className="text-sm text-red-600">{error}</p>}
+              <Button type="submit" disabled={busy || !name.trim()}>
+                {busy ? 'Creando…' : 'Crear grupo'}
               </Button>
-            </div>
+            </form>
+          </Card>
+        )}
 
-            {showForm && (
-              <Card className="mb-5">
-                <form onSubmit={createGroup} className="space-y-3">
-                  <div>
-                    <Label>Nombre del grupo</Label>
-                    <Input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Casa, viaje, asado…"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label>Moneda base</Label>
-                    <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                      {CURRENCIES.map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                  {error && <p className="text-sm text-red-600">{error}</p>}
-                  <Button type="submit" disabled={busy || !name.trim()}>
-                    {busy ? 'Creando…' : 'Crear grupo'}
-                  </Button>
-                </form>
-              </Card>
-            )}
-
-            {deleteError && <p className="mb-2 text-sm text-red-600">{deleteError}</p>}
-            {fetching ? (
-              <Spinner />
-            ) : sharedGroups.length === 0 ? (
-              <Card className="text-center text-slate-500">
-                Todavía no tenés grupos compartidos. Creá uno para repartir gastos.
-              </Card>
-            ) : (
-              <div className="space-y-2">{shown.map(groupCard)}</div>
-            )}
-          </>
+        {deleteError && <p className="mb-2 text-sm text-red-600">{deleteError}</p>}
+        {fetching ? (
+          <Spinner />
+        ) : sharedGroups.length === 0 ? (
+          <Card className="text-center text-slate-500">
+            Todavía no tenés grupos compartidos. Creá uno para repartir gastos.
+          </Card>
+        ) : (
+          <div className="space-y-2">{sharedGroups.map(groupCard)}</div>
         )}
       </main>
 
       {/* Barra de navegación inferior */}
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
         <div className="mx-auto flex max-w-3xl">
-          {([
-            { key: 'personal', label: 'Personal', icon: '👤' },
-            { key: 'compartido', label: 'Compartido', icon: '👥' },
-          ] as const).map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium ${
-                tab === t.key
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-              }`}
+          {personalGroup ? (
+            <Link
+              href={`/g/${personalGroup.id}`}
+              className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
             >
-              <span className="text-lg leading-none">{t.icon}</span>
-              {t.label}
+              <span className="text-lg leading-none">Yo</span>
+              Personal
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="flex flex-1 cursor-not-allowed flex-col items-center gap-0.5 py-2.5 text-xs font-medium text-slate-300"
+            >
+              <span className="text-lg leading-none">Yo</span>
+              Personal
             </button>
-          ))}
+          )}
+          <span className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            <span className="text-lg leading-none">Gr</span>
+            Compartido
+          </span>
         </div>
       </nav>
     </>
   )
+}
+
+function isMissingRelationError(error: { code?: string; message?: string }) {
+  const msg = (error.message ?? '').toLowerCase()
+  return error.code === '42P01' || error.code === 'PGRST205' || msg.includes('could not find') || msg.includes('does not exist')
 }
