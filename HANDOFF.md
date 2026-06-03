@@ -9,24 +9,28 @@ Clon de **Tricount** para **convivientes (parejas / familias que viven juntos)**
 gastos compartidos, ver quién le debe a quién y sugerir transferencias mínimas para saldar.
 Nombre visible de la app: **covivencia.** (con punto final).
 
-## Estado actual critico (2026-06-01)
+## Estado actual critico (2026-06-03)
 
 ### Git / codigo
 
 - Branch local: `main`.
-- Working tree estaba limpio antes de editar este handoff.
-- Despues de esta actualizacion, puede quedar solo `HANDOFF.md` modificado localmente.
-  No pushear por ahora para no agregar mas deploys a la cola de Vercel.
+- Working tree estaba limpio antes de editar este handoff. Despues de esta actualizacion,
+  puede quedar solo `HANDOFF.md` modificado localmente.
 - Remoto GitHub: `origin` = `https://github.com/franx2/convivencia.git`.
-- `origin/main` apunta a `d6229fa6f8bb85f880d008535695bd54eecba14f`.
+- `origin/main` queda en el commit HEAD que contiene este handoff tras el push
+  (`git log -1 --oneline` para SHA exacto).
 - Ultimos commits relevantes:
-  - `d6229fa` - commit vacio: `Retry Vercel production deploy` (solo disparo de deploy).
-  - `d285b3d` - commit vacio: `Trigger Vercel deploy`.
-  - `2a34584` - `Clarify ChatGPT quota errors`.
-  - `1557caf` - `Rename app and allow deleting groups`.
-  - `da886b2` - `Let users provide ChatGPT API keys`.
-  - `c4b85dd` - `Add ChatGPT statement import provider`.
-  - `e691eeb` - `Fix personal space import setup`.
+  - `HEAD` - `feat: improve category chart with echarts`.
+  - `7b42224` - `feat: add exploded category chart symbols`.
+  - `b4f9fe8` - `feat: expand categories and personal shortcut`.
+  - `e39f108` - `feat(balances): filtros mes/persona, ingresos por miembro y balance mensual`.
+  - `0e87d95` - `feat(import): soporte de PDF con contraseña + parser afinado a Banco Patagonia`.
+  - `caac530` - `feat(import): parser local afinado a Galicia VISA (saca todo sin API)`.
+  - `52bc212` - `feat(import): consumos USD, control del total y lector local mejorado`.
+  - `46fd044` - `fix(import): mandar el TEXTO extraído a la IA en vez del PDF (evita 429 y abarata)`.
+  - `ae63561` - `feat(import): proveedor Gemini (free tier, API key del usuario)`.
+  - `4246916` - `feat(import): banco y tarjeta por gasto + vista previa agrupada`.
+  - `81447e0` - `feat: dashboard con barra inferior, espacio personal por defecto y dólar oficial automático`.
 
 ### Vercel / produccion
 
@@ -35,6 +39,9 @@ Nombre visible de la app: **covivencia.** (con punto final).
 - En las capturas, el ultimo deploy `Ready` marcado como `Production` para `convivencia-kzfk`
   era `da886b2` (`Let users provide ChatGPT API keys`). Es probable que produccion siga en ese
   rollback aunque GitHub `main` tenga commits mas nuevos.
+- El 2026-06-03 se hicieron pushes reales a `main`: `b4f9fe8` y `7b42224`. Deberian disparar
+  auto-deploy si la integracion GitHub/Vercel esta normal, pero desde Codex no se pudo verificar:
+  no habia `VERCEL_TOKEN`, `vercel` CLI ni carpeta `.vercel` linkeada en este proceso.
 - La pantalla **All Projects -> Deployments** muestra cola acumulada en varios proyectos:
   `convivencia`, `convivencia-hvoh`, `convivencia-kzfk`. No seguir pusheando commits vacios:
   eso solo agrega mas filas `Queued`.
@@ -67,17 +74,17 @@ Nombre visible de la app: **covivencia.** (con punto final).
    individual del deployment.
 3. Mantener produccion en el rollback `Ready` que funcione.
 4. Cuando la cola quede limpia, redeployar manualmente **un solo commit**:
-   - Si se quiere lo ultimo del repo: `d6229fa` (incluye todos los cambios hasta `2a34584`; `d6229fa`
-     y `d285b3d` son commits vacios).
-   - Si se quiere nombre `covivencia.` + borrar grupos, pero sin los cambios posteriores de error quota:
-     `1557caf`.
-   - Si se quiere la version estable que se ve Ready en captura: `da886b2`.
+   - Si se quiere lo ultimo del repo: `HEAD` (`feat: improve category chart with echarts`).
+  - Si se quiere la version anterior a ECharts: `7b42224`.
+  - Si se quiere la version anterior al grafico explotado/simbolos: `b4f9fe8`.
+   - Si se quiere volver al rollback estable que se veia Ready en captura: `da886b2`.
 5. Tras deploy listo, revisar si Vercel quedo en modo rollback; si si, usar `Undo Rollback` o
    promover manualmente el deployment correcto a Production.
 
 ## Stack
 
 - **Next.js 16.2.6** (App Router) + **React 19** + **Tailwind CSS v4**.
+- Gráficos: **ECharts** para categorías (cliente, carga dinámica) + CSS/SVG simple para barras mensuales.
 - **Supabase** (Auth + Postgres + RLS). Proyecto ref: `ebyldojhwdupvsgzqmpg`.
 - Deploy en **Vercel** (auto-deploy en cada push a `main`). Repo: `franx2/convivencia`.
 - URL producción: `https://convivencia-kzfk.vercel.app`.
@@ -103,12 +110,13 @@ Nombre visible de la app: **covivencia.** (con punto final).
 | `groups` | `name`, `base_currency`, `owner_id`, `invite_token`, **`is_personal`** (espacio personal: gastos propios sin repartir), `created_at` |
 | `group_users` | (group_id, user_id) — quién puede acceder. Controla RLS. |
 | `members` | participantes (texto libre, no necesitan cuenta). **`weight`** (peso default reparto, default 1), **`alias`** (alias/CBU para cobrar, opcional) |
-| `expenses` | `title`, `amount`, `currency`, `rate_to_base`, `paid_by`, `date`, `category`, `created_by` |
+| `expenses` | `title`, `amount`, `currency`, `rate_to_base`, `paid_by`, `date`, `category`, `bank`, `card`, `created_by` |
 | `expense_shares` | (expense_id, member_id) — entre quiénes se divide. **`weight`** (peso del participante en ese gasto, default 1) |
-| `categories` | categorías **personalizadas** por grupo: `value` (slug), `label`, `color` (clases tailwind), `hex`. Los presets viven en `lib/categories.ts` |
+| `categories` | categorías **personalizadas** por grupo: `value` (slug), `label`, `color` (clases tailwind), `hex`. Los presets viven en `lib/categories.ts`; el símbolo/emoji se genera en código, no en DB. |
 | `payments` | pagos/saldados: `from_member`, `to_member`, `amount` (moneda base), `date`, `note`. Reducen la deuda en balances/liquidación |
 | `templates` | gastos típicos (de un tap): `label`, `category`, `amount` (opcional). Abren el form precargado via query params |
 | `budgets` | presupuesto mensual por categoría: `category`, `amount`. `unique(group_id, category)` |
+| `incomes` | ingresos por miembro: `group_id`, `member_id`, `amount`, `date`, `note`. Solo afecta el balance mensual, no la liquidación. |
 
 - Funciones `SECURITY DEFINER`: `is_group_member(gid)`, `join_group(token)` (RPC para invitación),
   y trigger `add_owner_to_group` (suma al dueño a `group_users` al crear grupo).
@@ -122,11 +130,14 @@ Nombre visible de la app: **covivencia.** (con punto final).
 - `/login` — registro / ingreso (email + password). Respeta `?next=`. Tiene modo
   **"olvidé mi contraseña"** (manda link a `/reset` con `resetPasswordForEmail`).
 - `/reset` — setear nueva contraseña al volver del email (sesión `PASSWORD_RECOVERY`).
-- `/` — lista de mis grupos + crear grupo + borrar grupos propios.
+- `/` — abre directamente en **grupos compartidos** + crear grupo + borrar grupos propios.
+  La barra inferior tiene acceso **Personal** que entra directo a `/g/{mi-espacio}`; no muestra
+  una pestaña/lista intermedia del espacio personal.
 - `/g/[id]` — grupo, tabs:
   - **Gastos**: tarjeta de **gastos típicos** (chips de un tap + "Editar" para crear plantillas),
-    filtro por categoría, lista con editar (✎) / borrar (✕).
-  - **Balances**: total + **donut por categoría** + **barras por mes** (SVG, sin libs) + saldos.
+    filtro por categoría, lista con editar (✎) / borrar (✕). Categorías visibles con emoji.
+  - **Balances**: filtros mes/persona, ingresos del mes, gasto del mes, balance mensual,
+    **gráfico radial explotado top 6 por categoría con emoji** + barras por mes + presupuestos + saldos.
   - **Liquidación**: transferencias mínimas + **marcar pagado** / alta de pago manual + historial.
   - **Miembros**: alta/baja, **peso** por miembro (reparto proporcional), link de invitación.
 - `/g/[id]/nuevo` — agregar gasto. Acepta prefill por query params (`title`/`category`/`amount`)
@@ -135,33 +146,39 @@ Nombre visible de la app: **covivencia.** (con punto final).
 - `/g/[id]/importar` — importar un resumen de tarjeta (PDF). Solo en espacios personales.
 - `/join?token=…` — sumarse a un grupo por invitación (llama RPC `join_group`).
 
-**Espacio personal** (`groups.is_personal`): se crea desde la home con el check
-"espacio personal"; arranca con un único miembro "Yo" y oculta las tabs Liquidación
-y Miembros. Tiene el botón "Importar resumen".
+**Espacio personal** (`groups.is_personal`): se auto-crea desde la home si no existe,
+arranca con un único miembro "Yo" y oculta las tabs Liquidación y Miembros. En la home,
+el acceso "Personal" entra directo al grupo personal.
 
 **API route** (primer código de servidor): `app/api/import-statement/route.ts`
-(Node runtime) recibe el PDF en base64 y lo manda al proveedor elegido:
-Claude (Anthropic SDK, modelo Haiku 4.5) o ChatGPT/OpenAI (Responses API con
-PDF `input_file` y Structured Outputs). Devuelve transacciones estructuradas.
-Lee `ANTHROPIC_API_KEY` del entorno para Claude. Para ChatGPT, cada usuario pega
-su propia API key en `/g/[id]/importar`; se guarda en `localStorage` del navegador
-y se manda solo al endpoint cuando se usa ChatGPT. `OPENAI_API_KEY` queda como
-fallback server-side opcional (NO `NEXT_PUBLIC`). `OPENAI_MODEL` es opcional;
+(Node runtime) recibe **texto extraído** o PDF en base64 y lo manda al proveedor elegido:
+Claude (Anthropic SDK, modelo Haiku 4.5), ChatGPT/OpenAI (Responses API + Structured Outputs)
+o Gemini (free tier, API key del usuario). Prefiere mandar texto extraído para abaratar y
+evitar 429; cae al PDF solo si no hay texto. Devuelve transacciones estructuradas.
+Lee `ANTHROPIC_API_KEY` del entorno para Claude. Para ChatGPT/Gemini, cada usuario pega
+su propia API key en `/g/[id]/importar`; se guarda en `localStorage` del navegador y se
+manda solo al endpoint cuando se usa ese proveedor. `OPENAI_API_KEY`/`GEMINI_API_KEY`
+quedan como fallback server-side opcional (NO `NEXT_PUBLIC`). `OPENAI_MODEL` es opcional;
 default `gpt-5`.
 
 ## Features hechas
 
 - Auth (con **recuperación de contraseña** vía `/reset`), grupos (moneda base), miembros,
   gastos **multi-moneda** (tipo de cambio manual), balances y liquidación (greedy), invitación por link.
-- **Borrar grupos propios** desde la home: limpia gastos/repartos, pagos, presupuestos,
+- **Borrar grupos propios** desde la home: limpia gastos/repartos, pagos, ingresos, presupuestos,
   plantillas, categorías y miembros antes de borrar el grupo. RLS limita el borrado al owner.
-- **Categorías**: presets para convivientes en `lib/categories.ts` (Supermercado, Alquiler,
-  Servicios, Comida/Delivery, Transporte, Hogar, Salud, Ocio, Otros) + **categorías personalizadas
-  por grupo** (tabla `categories`, "+ Nueva categoría" en el form). Helpers `mergeCategories`,
-  `metaFrom`, `slugifyCategory`, `paletteAt`.
+  Es tolerante si falta la tabla `incomes` (migration-safe).
+- **Categorías**: presets ampliados para convivientes en `lib/categories.ts`:
+  Supermercado, Alquiler, Servicios, Comida/Delivery, Transporte, Hogar, Salud, Ocio,
+  Indumentaria, Educación, Mascotas, Viajes, Impuestos, Seguros, Suscripciones, Tecnología,
+  Belleza, Regalos, Deportes, Bebés/Niños, Trabajo, Banco/Comisiones, Otros.
+  Cada categoría tiene emoji fijo; las categorías personalizadas generan emoji automáticamente
+  por nombre y si no hay match usan la inicial. Helpers `mergeCategories`, `metaFrom`,
+  `slugifyCategory`, `paletteAt`, `categorySymbol`.
 - **Editar gastos** (`/g/[id]/editar/[eid]`); form compartido en `components/ExpenseForm.tsx`.
-- **Gráficos** (`components/charts.tsx`, SVG puro sin dependencias): donut por categoría +
-  barras de gasto por mes. Helpers `spendByCategory` / `spendByMonth` en `lib/balances.ts`.
+- **Gráficos** (`components/charts.tsx`): gráfico radial de categorías con **ECharts**
+  (`roseType: radius`, top 6, emojis, tooltip, dos mayores desplazadas/seleccionadas)
+  + barras de gasto por mes en CSS. Helpers `spendByCategory` / `spendByMonth` en `lib/balances.ts`.
 - **Registrar pagos / saldados** (tabla `payments`): marcar pagado sobre una transferencia,
   alta manual e historial. `computeBalances(members, expenses, shares, payments)` resta lo pagado.
 - **Reparto proporcional**: `members.weight` (default editable en Miembros) y `expense_shares.weight`
@@ -172,6 +189,8 @@ default `gpt-5`.
   "alias, $monto" al portapapeles. Alias editable en Miembros.
 - **Presupuesto mensual por categoría** (tabla `budgets`): editable en Balances, barra de
   progreso del gasto del mes vs límite + aviso 80% (ámbar) / 100% (rojo).
+- **Ingresos por miembro** (tabla `incomes`): alta/baja en Balances, filtros por mes/persona,
+  balance mensual = ingresos - gastos. No modifica la liquidación.
 - **Categoría inteligente**: `suggestCategory(title, history)` en `lib/categories.ts` sugiere
   por historial (títulos parecidos) + palabras clave (AR). Editable; no pisa la elección manual.
 - **PWA instalable / agregar al inicio en iPhone**: `app/manifest.ts` + meta apple-web-app +
@@ -180,15 +199,19 @@ default `gpt-5`.
   anti-flash en `layout.tsx`, toggle 🌙/☀️ en `Header` (recordado en localStorage). Dark en los
   primitivos `components/ui.tsx`, Header, tabs y body.
 - **Espacio personal** (`groups.is_personal`): grupo de gastos propios sin repartir, con un
-  único miembro "Yo". Tabs Liquidación/Miembros ocultas. Badge "personal".
+  único miembro "Yo". Tabs Liquidación/Miembros ocultas. Badge "personal". La home ya no muestra
+  la pestaña personal; el acceso inferior entra directo al espacio.
 - **Importar resumen de tarjeta (PDF)** en `/g/[id]/importar` (solo personal):
   - **Parser local** (`lib/import-statement.ts`): extrae texto con `pdfjs-dist` (worker desde
     CDN) y detecta transacciones por heurística (fecha + último monto, formato AR), categoriza
     con `suggestCategory`. Gratis y privado.
-  - **Mejorar con IA**: `app/api/import-statement/route.ts` manda el PDF a Claude o ChatGPT.
-    ChatGPT usa la API key pegada por cada usuario (persistida solo en ese navegador). Más robusto.
-  - Preview editable (fecha/monto/título/categoría) antes de guardar como gastos.
-  - Deps nuevas: `pdfjs-dist@4`, `@anthropic-ai/sdk`.
+  - **Mejorar con IA**: `app/api/import-statement/route.ts` manda texto extraído o PDF fallback
+    a Claude, ChatGPT o Gemini. ChatGPT/Gemini usan API key pegada por cada usuario
+    (persistida solo en ese navegador).
+  - Preview editable agrupada por Mes → Banco → Tarjeta; campos banco/tarjeta por gasto.
+  - Soporta PDFs con contraseña.
+  - Preview editable (fecha/monto/título/categoría/banco/tarjeta) antes de guardar como gastos.
+  - Deps nuevas: `pdfjs-dist@4`, `@anthropic-ai/sdk`, `echarts`.
 
 ## Pasos manuales (Supabase / Vercel)
 
@@ -200,16 +223,20 @@ default `gpt-5`.
    - `supabase/migration_reparto_plantillas.sql` — `members.weight`, `expense_shares.weight`, tabla `templates`.
    - `supabase/migration_alias_presupuesto.sql` — `members.alias`, tabla `budgets`.
    - `supabase/migration_espacio_personal.sql` — `groups.is_personal`.
+   - `supabase/migration_banco_tarjeta.sql` — columnas `expenses.bank` y `expenses.card`.
+   - `supabase/migration_ingresos.sql` — tabla `incomes`.
    El código es **migration-safe**: agregar/editar gasto no rompe aunque falte una migración
-   (el `weight` solo se manda en reparto proporcional; las lecturas caen a `?? []`).
+   (el `weight` solo se manda en reparto proporcional; banco/tarjeta solo se mandan si hay dato;
+   el borrado de grupos ignora tabla `incomes` inexistente).
 2. **Supabase Auth:** desactivar **Confirm email** (Authentication → Sign In/Providers → Email)
    para registro sin confirmación. En **URL Configuration**: Site URL + Redirect URLs con la URL de
    Vercel. **Para reset de contraseña agregar `…/reset`** a Redirect URLs (prod y `localhost:3000/reset`),
    sino el link del email rebota.
 3. **Vercel env vars:** `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` (ver `.env.local`),
-   en Production. Para Claude, agregar `ANTHROPIC_API_KEY`. Para ChatGPT, los usuarios pueden
-   pegar su propia API key en la app; `OPENAI_API_KEY` queda como fallback opcional server-side
-   (`OPENAI_MODEL` opcional). Las `NEXT_PUBLIC_*` se hornean en el build → **Redeploy** tras cargarlas.
+   en Production. Para Claude, agregar `ANTHROPIC_API_KEY`. Para ChatGPT/Gemini, los usuarios pueden
+   pegar su propia API key en la app; `OPENAI_API_KEY` y `GEMINI_API_KEY` quedan como fallback opcional
+   server-side (`OPENAI_MODEL` / `GEMINI_MODEL` opcionales). Las `NEXT_PUBLIC_*` se hornean en el build
+   → **Redeploy** tras cargarlas.
 4. **Vercel Deployment Protection:** apagar **Vercel Authentication** (Settings → Deployment
    Protection) para que externos accedan sin cuenta de Vercel; sino ven "Access Required / Pending Approval".
 
@@ -228,6 +255,9 @@ default `gpt-5`.
 - **URL de prod fija**: `convivencia-kzfk.vercel.app` ya es estable (apunta al último deploy de
   producción); las URLs con hash son por-deploy. Pendiente si se quiere dominio propio o sacar el `-kzfk`.
 - Verificación end-to-end en navegador pendiente de hacer logueado (auth + grupo + gasto + balances).
+- Revisar seguridad de `app/api/import-statement/route.ts`: hoy el endpoint no valida sesión ni pertenencia
+  al grupo antes de llamar proveedores de IA. Riesgo de consumo de cuota server-side si se usa `provider=claude`
+  o fallbacks `OPENAI_API_KEY`/`GEMINI_API_KEY`.
 
 Design docs de la sesión de office-hours en `~/.gstack/projects/convivencia/` (cuña: captura en 3 segundos).
 
@@ -239,7 +269,13 @@ Usar `/browse` para navegar web.
 
 ## Validación conocida
 
-- `node node_modules/typescript/bin/tsc --noEmit`: OK.
-- `node node_modules/eslint/bin/eslint.js .`: OK (la regla `react-hooks/set-state-in-effect`
-  está silenciada solo en los efectos de carga inicial con comentario justificado).
-- `next build` local puede fallar sin red por `next/font/google`; en Vercel anda.
+- 2026-06-03, antes de pushear `b4f9fe8`:
+  - `npm.cmd run lint`: OK.
+  - `npm.cmd run build`: OK.
+- 2026-06-03, antes de pushear `7b42224`:
+  - `npm.cmd run lint`: OK.
+  - `npm.cmd run build`: OK.
+- 2026-06-03, cambio de gráfico de categorías a ECharts:
+  - `npm.cmd run lint`: OK.
+  - `npm.cmd run build`: OK.
+- PowerShell puede bloquear `npm.ps1` por policy; usar `npm.cmd run ...`.

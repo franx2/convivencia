@@ -1,33 +1,12 @@
 'use client'
 
+import { useEffect, useMemo, useRef } from 'react'
+import type { EChartsOption, EChartsType } from 'echarts'
 import type { MonthTotal } from '@/lib/balances'
 
 export type DonutSlice = { label: string; value: number; color: string; symbol?: string }
 
 const MAX_WHEEL_SLICES = 6
-const EXPLODE_MAX = 30
-
-function polarPoint(cx: number, cy: number, r: number, angle: number) {
-  const a = (angle * Math.PI) / 180
-  return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) }
-}
-
-function ringPath(cx: number, cy: number, outerR: number, innerR: number, start: number, end: number) {
-  const safeEnd = Math.min(end, start + 359.99)
-  const outerStart = polarPoint(cx, cy, outerR, start)
-  const outerEnd = polarPoint(cx, cy, outerR, safeEnd)
-  const innerStart = polarPoint(cx, cy, innerR, start)
-  const innerEnd = polarPoint(cx, cy, innerR, safeEnd)
-  const large = safeEnd - start > 180 ? 1 : 0
-
-  return [
-    `M ${outerStart.x} ${outerStart.y}`,
-    `A ${outerR} ${outerR} 0 ${large} 1 ${outerEnd.x} ${outerEnd.y}`,
-    `L ${innerEnd.x} ${innerEnd.y}`,
-    `A ${innerR} ${innerR} 0 ${large} 0 ${innerStart.x} ${innerStart.y}`,
-    'Z',
-  ].join(' ')
-}
 
 function topWheelData(data: DonutSlice[]): DonutSlice[] {
   return data
@@ -36,108 +15,206 @@ function topWheelData(data: DonutSlice[]): DonutSlice[] {
     .slice(0, MAX_WHEEL_SLICES)
 }
 
-/** Grafico radial de categorias, con segmentos explotados segun gasto. */
+type CategoryChartItem = DonutSlice & { pct: number }
+type CategoryChartPayload = {
+  categoryLabel: string
+  value: number
+  pct: number
+  symbol?: string
+}
+
+function formatterData(params: unknown): CategoryChartPayload | undefined {
+  const one = Array.isArray(params) ? params[0] : params
+  if (!one || typeof one !== 'object' || !('data' in one)) return undefined
+  return one.data as CategoryChartPayload | undefined
+}
+
+function buildCategoryChartOption({
+  data,
+  total,
+  format,
+  dark,
+}: {
+  data: CategoryChartItem[]
+  total: number
+  format: (n: number) => string
+  dark: boolean
+}): EChartsOption {
+  const textColor = dark ? '#e2e8f0' : '#334155'
+  const mutedColor = dark ? '#94a3b8' : '#64748b'
+  const borderColor = dark ? '#0f172a' : '#ffffff'
+
+  return {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'item',
+      borderWidth: 0,
+      backgroundColor: dark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.98)',
+      textStyle: { color: textColor, fontFamily: 'inherit' },
+      extraCssText: 'box-shadow: 0 10px 30px rgba(15,23,42,.18); border-radius: 10px;',
+      formatter: (params) => {
+        const item = formatterData(params)
+        if (!item) return ''
+        return `<strong>${item.symbol ?? '•'} ${item.categoryLabel}</strong><br/>${format(item.value)} · ${item.pct}%`
+      },
+    },
+    graphic: [
+      {
+        type: 'text',
+        left: 'center',
+        top: '42%',
+        silent: true,
+        style: {
+          text: 'Top 6',
+          fill: mutedColor,
+          fontSize: 11,
+          fontWeight: 700,
+          align: 'center',
+        },
+      },
+      {
+        type: 'text',
+        left: 'center',
+        top: '50%',
+        silent: true,
+        style: {
+          text: format(total),
+          fill: textColor,
+          fontSize: 14,
+          fontWeight: 800,
+          align: 'center',
+        },
+      },
+    ],
+    series: [
+      {
+        type: 'pie',
+        roseType: 'radius',
+        radius: ['31%', '78%'],
+        center: ['50%', '50%'],
+        clockwise: true,
+        startAngle: 90,
+        minAngle: 8,
+        padAngle: 2,
+        selectedMode: 'multiple',
+        selectedOffset: 12,
+        avoidLabelOverlap: true,
+        stillShowZeroSum: false,
+        itemStyle: {
+          borderColor,
+          borderWidth: 3,
+          borderRadius: 7,
+          shadowColor: dark ? 'rgba(0,0,0,.45)' : 'rgba(15,23,42,.14)',
+          shadowBlur: 12,
+          shadowOffsetY: 4,
+        },
+        emphasis: {
+          scale: true,
+          scaleSize: 8,
+          itemStyle: {
+            shadowBlur: 18,
+            shadowColor: dark ? 'rgba(0,0,0,.55)' : 'rgba(15,23,42,.25)',
+          },
+          label: {
+            show: true,
+            color: textColor,
+          },
+        },
+        label: {
+          show: true,
+          position: 'inside',
+          color: '#ffffff',
+          fontWeight: 800,
+          formatter: (params) => {
+            const item = formatterData(params)
+            if (!item) return ''
+            return item.pct >= 7 ? `{symbol|${item.symbol ?? '•'}}\n{pct|${item.pct}%}` : `{symbol|${item.symbol ?? '•'}}`
+          },
+          rich: {
+            symbol: {
+              fontSize: 18,
+              fontWeight: 800,
+              lineHeight: 20,
+              align: 'center',
+            },
+            pct: {
+              fontSize: 11,
+              fontWeight: 900,
+              lineHeight: 14,
+              align: 'center',
+            },
+          },
+        },
+        labelLine: { show: false },
+        data: data.map((d, i) => ({
+          name: d.label,
+          categoryLabel: d.label,
+          value: d.value,
+          pct: d.pct,
+          symbol: d.symbol,
+          selected: i < 2,
+          itemStyle: { color: d.color },
+        })),
+      },
+    ],
+  }
+}
+
+/** Grafico radial de categorias con ECharts: top 6, rose/exploded, emojis y tooltip. */
 export function Donut({
   data,
   format,
-  size = 268,
-  thickness = 58,
+  size = 292,
 }: {
   data: DonutSlice[]
   format: (n: number) => string
   size?: number
   thickness?: number
 }) {
+  const chartRef = useRef<HTMLDivElement | null>(null)
   const total = data.reduce((s, d) => s + d.value, 0)
-  const wheelData = topWheelData(data)
-  const wheelTotal = wheelData.reduce((s, d) => s + d.value, 0)
-  const maxValue = Math.max(1, ...wheelData.map((d) => d.value))
-  const cx = size / 2
-  const outerR = size / 2 - EXPLODE_MAX - 8
-  const innerR = Math.max(48, outerR - thickness)
-  const labelR = innerR + (outerR - innerR) / 2
-  const gap = wheelData.length > 1 ? 4 : 0
+  const wheelData = useMemo(
+    () =>
+      topWheelData(data).map((d) => ({
+        ...d,
+        pct: total > 0 ? Math.round((d.value / total) * 100) : 0,
+      })),
+    [data, total]
+  )
 
-  let angle = -90
-  const segments = wheelData.map((d, i) => {
-    const span = wheelTotal > 0 ? (d.value / wheelTotal) * 360 : 0
-    const start = angle + gap / 2
-    const end = angle + span - gap / 2
-    const mid = start + Math.max(end - start, 0) / 2
-    const p = polarPoint(cx, cx, labelR, mid)
-    const offset = 5 + (d.value / maxValue) * EXPLODE_MAX
-    const shift = polarPoint(0, 0, offset, mid)
-    const pct = total > 0 ? Math.round((d.value / total) * 100) : 0
-    angle += span
+  useEffect(() => {
+    const el = chartRef.current
+    if (!el) return
 
-    return {
-      ...d,
-      key: `${d.label}-${i}`,
-      path: ringPath(cx, cx, outerR, innerR, start, Math.max(end, start + 0.1)),
-      x: p.x + shift.x,
-      y: p.y + shift.y,
-      dx: shift.x,
-      dy: shift.y,
-      pct,
+    let chart: EChartsType | null = null
+    let resizeObserver: ResizeObserver | null = null
+    let cancelled = false
+
+    async function render() {
+      const echarts = await import('echarts')
+      if (cancelled || !el) return
+
+      const dark = document.documentElement.classList.contains('dark')
+      chart = echarts.init(el, dark ? 'dark' : undefined, { renderer: 'svg' })
+      chart.setOption(buildCategoryChartOption({ data: wheelData, total, format, dark }))
+
+      resizeObserver = new ResizeObserver(() => chart?.resize())
+      resizeObserver.observe(el)
     }
-  })
+
+    render()
+
+    return () => {
+      cancelled = true
+      resizeObserver?.disconnect()
+      chart?.dispose()
+    }
+  }, [format, total, wheelData])
 
   return (
     <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
-      <div className="relative mx-auto w-full max-w-[268px] shrink-0" style={{ width: size }}>
-        <svg
-          viewBox={`-${EXPLODE_MAX} -${EXPLODE_MAX} ${size + EXPLODE_MAX * 2} ${size + EXPLODE_MAX * 2}`}
-          className="h-auto w-full overflow-visible"
-          role="img"
-        >
-          <title>Gastos por categoria</title>
-          {total > 0 ? (
-            segments.map((d) => (
-              <g key={d.key} transform={`translate(${d.dx} ${d.dy})`}>
-                <path d={d.path} fill={d.color} stroke="white" strokeWidth="2.5">
-                  <title>{`${d.label}: ${format(d.value)}`}</title>
-                </path>
-                {d.pct >= 4 && (
-                  <text
-                    x={d.x - d.dx}
-                    y={d.y - d.dy}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    fill="white"
-                    fontSize={d.pct >= 8 ? 17 : 14}
-                    fontWeight="700"
-                  >
-                    <tspan x={d.x - d.dx} dy={d.pct >= 8 ? -8 : 0}>
-                      {d.symbol ?? '•'}
-                    </tspan>
-                    {d.pct >= 8 && (
-                      <tspan x={d.x - d.dx} dy="16" fontSize="11" fontWeight="800">
-                        {d.pct}%
-                      </tspan>
-                    )}
-                  </text>
-                )}
-              </g>
-            ))
-          ) : (
-            <path d={ringPath(cx, cx, outerR, innerR, -90, 269.99)} fill="#e2e8f0" />
-          )}
-          <circle
-            cx={cx}
-            cy={cx}
-            r={innerR - 7}
-            fill="white"
-            stroke="#e2e8f0"
-            strokeWidth="2"
-            className="dark:fill-slate-950 dark:stroke-slate-800"
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Categorías</span>
-          <span className="mt-0.5 max-w-[92px] truncate text-center text-sm font-bold text-slate-700 dark:text-slate-100">
-            {format(total)}
-          </span>
-        </div>
+      <div className="relative mx-auto w-full max-w-[292px] shrink-0">
+        <div ref={chartRef} className="h-[292px] w-full" style={{ width: size, maxWidth: '100%' }} />
       </div>
 
       <ul className="w-full space-y-2">
