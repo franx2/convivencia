@@ -19,11 +19,11 @@ const PDFJS_VERSION = '4.10.38'
  * coordenada Y para reconstruir líneas (clave para parsear un resumen). El
  * worker se sirve desde CDN para evitar problemas de bundling con Next.
  */
-export async function extractPdfLines(file: File): Promise<string[]> {
+export async function extractPdfLines(file: File, password?: string): Promise<string[]> {
   const pdfjs = await import('pdfjs-dist')
   pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.mjs`
   const data = await file.arrayBuffer()
-  const pdf = await pdfjs.getDocument({ data }).promise
+  const pdf = await pdfjs.getDocument({ data, password }).promise
   const lines: string[] = []
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p)
@@ -50,6 +50,15 @@ export async function extractPdfLines(file: File): Promise<string[]> {
   return lines
 }
 
+// pdfjs lanza PasswordException cuando el PDF está protegido.
+export function isPasswordError(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { name?: string }).name === 'PasswordException'
+  )
+}
+
 const DATE_NUM_RE = /^(\d{1,2})[/.\-](\d{1,2})(?:[/.\-](\d{2,4}))?\b/
 const MONTHS: Record<string, number> = {
   ene: 1, feb: 2, mar: 3, abr: 4, may: 5, jun: 6,
@@ -58,9 +67,13 @@ const MONTHS: Record<string, number> = {
 const DATE_MON_RE = /^(\d{1,2})[ /.\-]([a-zñ]{3})[a-zñ]*\.?(?:[ /.\-](\d{2,4}))?/i
 // montos formato AR (1.234,56) o simples (1234.56)
 const MONEY_RE = /-?\$?\s?\d{1,3}(?:\.\d{3})*,\d{2}|-?\$?\s?\d+\.\d{2}/g
-// líneas que NO son consumos (pagos, impuestos, totales, intereses)
+// líneas que NO son consumos (pagos, impuestos, totales, intereses, cargos)
 const IGNORE_LINE_RE =
-  /\b(SU PAGO|PAGO MINIMO|PAGO MÍNIMO|SALDO ANTERIOR|SALDO ACTUAL|TOTAL A PAGAR|TOTAL CONSUMOS|TOTAL DE CONSUMOS|TOTAL CONSUMO|DEV\.?\s?IMP|DB\.?\s?RG|CR\.?\s?RG|IMPUESTO|PERCEPCION|PERCEPCIÓN|INTERES|\bIVA\b|REDONDEO|ANTICIPO|ADELANTO|VENCIMIENTO|LIMITE\s+DE\s+COMPRA)\b/i
+  /\b(SU PAGO|PAGO MINIMO|PAGO MÍNIMO|SALDO ANTERIOR|SALDO ACTUAL|TOTAL A PAGAR|TOTAL CONSUMOS|TOTAL DE CONSUMOS|TOTAL CONSUMO|DEV\b|DB\.?\s?RG|CR\.?\s?RG|CR\s?IVA|DB\s?IVA|IMPUESTO|IMP\s+DE\s+SELLOS|SELLOS|PERCEPCION|PERCEPCIÓN|INTERESES?|\bIVA\b|REDONDEO|ANTICIPO|ADELANTO|VENCIMIENTO|LIMITE\s+DE\s+COMPRA|SEGURO|MANTENIMIENTO|\bCARGO\b|COMISION|COMISIÓN)\b/i
+// dónde empieza/termina el detalle de consumos (para no parsear encabezados)
+const DETAIL_START_RE =
+  /(detalle\s+(de\s+)?(transacc|consumo))|(fecha.*(comprobante|referencia).*(pesos|d[oó]lar))/i
+const DETAIL_END_RE = /\b(saldo\s+actual|total\s+a\s+pagar)\b/i
 // marca de moneda extranjera: el consumo se factura en USD (columna dólares)
 const FOREIGN_MARK_RE = /\bCLP\b|\bBRL\b|\bEUR\b|\bUYU\b|\bGBP\b|U\$S|US\$|\bUSD\b|D[OÓ]LARES?|BUSD/i
 const CURRENCY_BEFORE_RE = /(CLP|BRL|EUR|UYU|GBP|U\$S|US\$|USD|BUSD)\s*$/i
@@ -137,6 +150,7 @@ function lastAmount(line: string): number | null {
 
 function cleanTitle(s: string): string {
   const t = s
+    .replace(/^\s*\d{4,}[*K]?\s*/i, '') // comprobante al inicio (838593K, 000001*)
     .replace(/^\s*[*K]\s+/i, '') // marca * / K
     .replace(/\b\d{1,3}(?:\.\d{3})*,\d{2}\b/g, '') // montos sobrantes (original)
     .replace(/\b\d+\.\d{2}\b/g, '')
@@ -181,8 +195,14 @@ export function parseTransactions(lines: string[], fallbackYear: number): Parsed
   const card = detectCard(lines)
   const out: ParsedTx[] = []
 
-  for (let i = 0; i < lines.length; i++) {
+  // Si hay encabezado de "DETALLE", parseamos solo desde ahí (evita líneas de
+  // cabecera que arrancan con fecha pero no son consumos).
+  const headerIdx = lines.findIndex((l) => DETAIL_START_RE.test(l))
+  const start = headerIdx >= 0 ? headerIdx + 1 : 0
+
+  for (let i = start; i < lines.length; i++) {
     const line = lines[i]
+    if (DETAIL_END_RE.test(line)) break
     if (IGNORE_LINE_RE.test(line)) continue
 
     const d = parseDate(line, fallbackYear)

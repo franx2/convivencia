@@ -13,6 +13,7 @@ import { mergeCategories, type CatMeta } from '@/lib/categories'
 import {
   extractPdfLines,
   extractTotals,
+  isPasswordError,
   parseTransactions,
   type ParsedTx,
   type StatementTotals,
@@ -41,6 +42,8 @@ export default function ImportarPage() {
   const [showText, setShowText] = useState(false)
   const [totals, setTotals] = useState<StatementTotals>({ ars: null, usd: null })
   const [fileName, setFileName] = useState('')
+  const [password, setPassword] = useState('')
+  const [needsPassword, setNeedsPassword] = useState(false)
   const [parsing, setParsing] = useState(false)
   const [rows, setRows] = useState<ParsedTx[]>([])
   const [parseError, setParseError] = useState<string | null>(null)
@@ -111,26 +114,38 @@ export default function ImportarPage() {
     if (!f) return
     setFile(f)
     setFileName(f.name)
+    setPassword('')
+    await parsePdf(f, '')
+  }
+
+  async function parsePdf(f: File, pwd: string) {
     setParseError(null)
     setAiError(null)
     setRows([])
     setPdfText('')
     setTotals({ ars: null, usd: null })
+    setNeedsPassword(false)
     setParsing(true)
     try {
-      const lines = await extractPdfLines(f)
+      const lines = await extractPdfLines(f, pwd || undefined)
       setPdfText(lines.join('\n'))
       setTotals(extractTotals(lines))
-      const year = guessYear(f.name)
-      const txs = parseTransactions(lines, year)
+      const txs = parseTransactions(lines, guessYear(f.name))
       if (txs.length === 0) {
-        setParseError(
-          'No detecté transacciones automáticamente. Probá “Mejorar con IA”.'
-        )
+        setParseError('No detecté transacciones automáticamente. Probá “Mejorar con IA”.')
       }
       setRows(txs)
     } catch (err) {
-      setParseError(err instanceof Error ? err.message : 'No se pudo leer el PDF.')
+      if (isPasswordError(err)) {
+        setNeedsPassword(true)
+        setParseError(
+          pwd
+            ? 'Contraseña incorrecta. Probá de nuevo.'
+            : 'Este PDF tiene contraseña. Ingresala abajo y procesá.'
+        )
+      } else {
+        setParseError(err instanceof Error ? err.message : 'No se pudo leer el PDF.')
+      }
     } finally {
       setParsing(false)
     }
@@ -383,6 +398,32 @@ export default function ImportarPage() {
           {fileName && <p className="mt-2 text-xs text-slate-400">{fileName}</p>}
           {parsing && <p className="mt-2 text-sm text-slate-500">Leyendo el PDF…</p>}
           {parseError && <p className="mt-2 text-sm text-amber-600">{parseError}</p>}
+
+          {needsPassword && file && (
+            <div className="mt-2 flex gap-2">
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    parsePdf(file, password)
+                  }
+                }}
+                placeholder="Contraseña del PDF"
+                autoComplete="off"
+              />
+              <Button
+                type="button"
+                onClick={() => parsePdf(file, password)}
+                disabled={parsing || !password}
+                className="shrink-0"
+              >
+                Procesar
+              </Button>
+            </div>
+          )}
 
           {file && (
             <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
