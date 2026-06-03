@@ -27,6 +27,7 @@ type Tx = {
   title: string
   amount: number
   category: string
+  currency: 'ARS' | 'USD'
   bank: string | null
   card: string | null
 }
@@ -41,7 +42,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const SYSTEM_RULES = `Sos un asistente que extrae transacciones de un resumen de tarjeta de credito argentino (en espanol).
 Reglas:
 - Extrae SOLO consumos/compras reales. Ignora totales, subtotales, saldos, pagos, "su pago", impuestos de sellos, percepciones, intereses y lineas de encabezado.
-- amount: importe POSITIVO en pesos. Converti el formato argentino (1.234,56) a numero decimal (1234.56). Si una linea esta en dolares, no la conviertas: usa el importe en pesos de la misma fila si existe; si no hay importe en pesos, omiti la fila.
+- amount: importe POSITIVO. Converti el formato argentino (1.234,56) a numero decimal (1234.56).
+- currency: "ARS" si el consumo es en pesos, "USD" si es en dolares. Los consumos en dolares (seccion "consumos en dolares" o marca U$S/USD) NO los conviertas: dejá el importe TAL CUAL en dolares y poné currency="USD". Ignora consumos en otras monedas (EUR, BRL, etc.).
 - date: formato YYYY-MM-DD. Inferi el ano del periodo del resumen si la fila trae solo dia/mes.
 - title: el nombre del comercio o descripcion, limpio.
 - category: elegi la mas adecuada entre las permitidas segun el comercio.
@@ -68,10 +70,11 @@ const OPENAI_TRANSACTIONS_SCHEMA = {
           title: { type: 'string', description: 'Comercio o descripcion del consumo' },
           amount: { type: 'number', description: 'Importe positivo en pesos (ej: 1234.56)' },
           category: { type: 'string', enum: CATEGORIES as unknown as string[] },
+          currency: { type: 'string', enum: ['ARS', 'USD'] },
           bank: { type: ['string', 'null'], description: 'Banco/emisor del resumen, o null' },
           card: { type: ['string', 'null'], description: 'Tarjeta del consumo (ej: Visa ****1234, Titular, Adicional), o null' },
         },
-        required: ['date', 'title', 'amount', 'category', 'bank', 'card'],
+        required: ['date', 'title', 'amount', 'category', 'currency', 'bank', 'card'],
       },
     },
   },
@@ -94,10 +97,11 @@ const GEMINI_SCHEMA = {
           title: { type: 'STRING' },
           amount: { type: 'NUMBER' },
           category: { type: 'STRING', enum: CATEGORIES as unknown as string[] },
+          currency: { type: 'STRING', enum: ['ARS', 'USD'] },
           bank: { type: 'STRING', nullable: true },
           card: { type: 'STRING', nullable: true },
         },
-        required: ['date', 'title', 'amount', 'category'],
+        required: ['date', 'title', 'amount', 'category', 'currency'],
       },
     },
   },
@@ -119,6 +123,7 @@ const TOOL: Anthropic.Tool = {
             title: { type: 'string', description: 'Comercio o descripcion del consumo' },
             amount: { type: 'number', description: 'Importe positivo en pesos (ej: 1234.56)' },
             category: { type: 'string', enum: CATEGORIES as unknown as string[] },
+            currency: { type: 'string', enum: ['ARS', 'USD'], description: 'ARS o USD' },
             bank: { type: 'string', description: 'Banco/emisor del resumen (vacio si no se sabe)' },
             card: { type: 'string', description: 'Tarjeta del consumo: ej "Visa ****1234", "Titular", "Adicional" (vacio si no se distingue)' },
           },
@@ -392,7 +397,8 @@ function normalize(rows: unknown[]): Tx[] {
     const category = (CATEGORIES as readonly string[]).includes(cat) ? cat : 'otros'
     const bank = typeof o.bank === 'string' && o.bank.trim() ? o.bank.trim() : null
     const card = typeof o.card === 'string' && o.card.trim() ? o.card.trim() : null
-    out.push({ date, title, amount, category, bank, card })
+    const currency: 'ARS' | 'USD' = o.currency === 'USD' ? 'USD' : 'ARS'
+    out.push({ date, title, amount, category, currency, bank, card })
   }
   return out
 }

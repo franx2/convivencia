@@ -8,8 +8,15 @@ import { useRequireAuth } from '@/components/AuthProvider'
 import { Header } from '@/components/Header'
 import { Button, Card, Input, Select, Spinner } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
+import { fetchDolarOficialVenta } from '@/lib/dolar'
 import { mergeCategories, type CatMeta } from '@/lib/categories'
-import { extractPdfLines, parseTransactions, type ParsedTx } from '@/lib/import-statement'
+import {
+  extractPdfLines,
+  extractTotals,
+  parseTransactions,
+  type ParsedTx,
+  type StatementTotals,
+} from '@/lib/import-statement'
 import type { Category, Group, Member } from '@/lib/types'
 
 type AIProvider = 'claude' | 'chatgpt' | 'gemini'
@@ -31,6 +38,8 @@ export default function ImportarPage() {
 
   const [file, setFile] = useState<File | null>(null)
   const [pdfText, setPdfText] = useState('')
+  const [showText, setShowText] = useState(false)
+  const [totals, setTotals] = useState<StatementTotals>({ ars: null, usd: null })
   const [fileName, setFileName] = useState('')
   const [parsing, setParsing] = useState(false)
   const [rows, setRows] = useState<ParsedTx[]>([])
@@ -106,10 +115,12 @@ export default function ImportarPage() {
     setAiError(null)
     setRows([])
     setPdfText('')
+    setTotals({ ars: null, usd: null })
     setParsing(true)
     try {
       const lines = await extractPdfLines(f)
       setPdfText(lines.join('\n'))
+      setTotals(extractTotals(lines))
       const year = guessYear(f.name)
       const txs = parseTransactions(lines, year)
       if (txs.length === 0) {
@@ -191,8 +202,16 @@ export default function ImportarPage() {
             min="0"
             value={r.amount}
             onChange={(e) => updateRow(i, { amount: Number(e.target.value) })}
-            className="max-w-[130px] text-right"
+            className="max-w-[120px] text-right"
           />
+          <Select
+            value={r.currency}
+            onChange={(e) => updateRow(i, { currency: e.target.value === 'USD' ? 'USD' : 'ARS' })}
+            className="max-w-[80px]"
+          >
+            <option value="ARS">ARS</option>
+            <option value="USD">USD</option>
+          </Select>
           <button
             onClick={() => removeRow(i)}
             className="px-1 text-slate-300 hover:text-red-500"
@@ -255,7 +274,22 @@ export default function ImportarPage() {
     if (valid.length === 0) return
     setBusy(true)
     setSaveError(null)
+
+    // Consumos en USD: se guardan en USD con el dólar oficial (venta) como
+    // tipo de cambio a la moneda base (pesos).
+    let usdRate = 1
+    if (valid.some((r) => r.currency === 'USD') && group.base_currency === 'ARS') {
+      const d = await fetchDolarOficialVenta()
+      if (!d) {
+        setBusy(false)
+        setSaveError('No se pudo traer el dólar oficial para los consumos en USD. Probá de nuevo.')
+        return
+      }
+      usdRate = d.venta
+    }
+
     const exps = valid.map((r) => {
+      const isUsd = r.currency === 'USD'
       const e: {
         group_id: string
         title: string
@@ -271,8 +305,8 @@ export default function ImportarPage() {
         group_id: groupId,
         title: r.title.trim() || 'Gasto',
         amount: r.amount,
-        currency: group.base_currency,
-        rate_to_base: 1,
+        currency: isUsd ? 'USD' : group.base_currency,
+        rate_to_base: isUsd && group.base_currency === 'ARS' ? usdRate : 1,
         paid_by: memberId,
         date: r.date,
         category: r.category,
@@ -310,10 +344,9 @@ export default function ImportarPage() {
       </>
     )
 
-  const total = rows.reduce((s, r) => s + (r.amount > 0 ? r.amount : 0), 0)
   const noMember = !memberId
   const groups = groupForPreview(rows)
-  const fmt = (n: number) => formatMoney(n, group.base_currency)
+  const detected = sumByCurrency(rows.map((r, i) => ({ r, i })))
 
   return (
     <>
@@ -443,19 +476,45 @@ export default function ImportarPage() {
           )}
         </Card>
 
+        {pdfText && (
+          <div className="mb-4">
+            <button
+              type="button"
+              onClick={() => setShowText((v) => !v)}
+              className="text-xs font-medium text-slate-400 hover:text-slate-600"
+            >
+              {showText ? 'Ocultar texto extraído' : 'Ver texto extraído del PDF'}
+            </button>
+            {showText && (
+              <pre className="mt-2 max-h-64 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+                {pdfText}
+              </pre>
+            )}
+          </div>
+        )}
+
         {rows.length > 0 && (
           <>
-            <div className="mb-2 flex items-center justify-between px-1 text-sm">
-              <span className="text-slate-500">
-                {rows.length} transacciones · {fmt(total)}
-              </span>
-            </div>
+            {/* Control del total: resumen vs detectado */}
+            <Card className="mb-3">
+              <p className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+                Control del total ({rows.length} transacciones)
+              </p>
+              <ReconRow label="Pesos" stmt={totals.ars} detected={detected.ars} currency="ARS" />
+              {(totals.usd !== null || detected.usd > 0) && (
+                <ReconRow label="Dólares" stmt={totals.usd} detected={detected.usd} currency="USD" />
+              )}
+              <p className="mt-1 text-xs text-slate-400">
+                Si la diferencia no es 0, revisá filas faltantes o repetidas antes de guardar.
+              </p>
+            </Card>
+
             <div className="space-y-5">
               {groups.map((mg) => (
                 <div key={mg.key} className="space-y-2">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-1 dark:border-slate-700">
                     <span className="text-sm font-semibold">{mg.label}</span>
-                    <span className="text-xs text-slate-500">{fmt(mg.total)}</span>
+                    <span className="text-xs text-slate-500">{curLabel(mg.totals)}</span>
                   </div>
                   {mg.banks.map((bg) => (
                     <div key={bg.bank} className="space-y-2">
@@ -463,7 +522,7 @@ export default function ImportarPage() {
                         <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
                           🏦 {bg.bank}
                         </span>
-                        <span className="text-xs text-slate-400">{fmt(bg.total)}</span>
+                        <span className="text-xs text-slate-400">{curLabel(bg.totals)}</span>
                       </div>
                       {bg.cards.map((cg) => (
                         <div key={cg.card} className="space-y-2">
@@ -471,7 +530,7 @@ export default function ImportarPage() {
                             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                               💳 {cg.card}
                             </span>
-                            <span className="text-xs text-slate-400">{fmt(cg.total)}</span>
+                            <span className="text-xs text-slate-400">{curLabel(cg.totals)}</span>
                           </div>
                           <div className="space-y-2">{cg.items.map((it) => itemCard(it.r, it.i))}</div>
                         </div>
@@ -501,11 +560,28 @@ function guessYear(fileName: string): number {
 }
 
 type Indexed = { r: ParsedTx; i: number }
-type CardGroup = { card: string; total: number; items: Indexed[] }
-type BankGroup = { bank: string; total: number; cards: CardGroup[] }
-type MonthGroup = { key: string; label: string; total: number; banks: BankGroup[] }
+type CurTotals = { ars: number; usd: number }
+type CardGroup = { card: string; totals: CurTotals; items: Indexed[] }
+type BankGroup = { bank: string; totals: CurTotals; cards: CardGroup[] }
+type MonthGroup = { key: string; label: string; totals: CurTotals; banks: BankGroup[] }
 
-const sumAmt = (items: Indexed[]) => items.reduce((s, it) => s + (it.r.amount > 0 ? it.r.amount : 0), 0)
+function sumByCurrency(items: Indexed[]): CurTotals {
+  let ars = 0
+  let usd = 0
+  for (const it of items) {
+    const a = it.r.amount > 0 ? it.r.amount : 0
+    if (it.r.currency === 'USD') usd += a
+    else ars += a
+  }
+  return { ars, usd }
+}
+
+function curLabel(t: CurTotals): string {
+  const parts: string[] = []
+  if (t.ars > 0) parts.push(formatMoney(t.ars, 'ARS'))
+  if (t.usd > 0) parts.push(formatMoney(t.usd, 'USD'))
+  return parts.join(' · ') || formatMoney(0, 'ARS')
+}
 
 function bucket(items: Indexed[], keyOf: (r: ParsedTx) => string): [string, Indexed[]][] {
   const m = new Map<string, Indexed[]>()
@@ -518,7 +594,7 @@ function bucket(items: Indexed[], keyOf: (r: ParsedTx) => string): [string, Inde
   return [...m.entries()]
 }
 
-// Agrupa la vista previa Mes -> Banco -> Tarjeta, con subtotales.
+// Agrupa la vista previa Mes -> Banco -> Tarjeta, con subtotales por moneda.
 function groupForPreview(rows: ParsedTx[]): MonthGroup[] {
   const indexed: Indexed[] = rows.map((r, i) => ({ r, i }))
   const byMonth = bucket(indexed, (r) => (/^\d{4}-\d{2}/.test(r.date) ? r.date.slice(0, 7) : 'sin-fecha'))
@@ -531,10 +607,10 @@ function groupForPreview(rows: ParsedTx[]): MonthGroup[] {
       .map(([bk, bItems]) => {
         const cards = bucket(bItems, (r) => r.card?.trim() || 'Sin tarjeta')
           .sort((a, b) => a[0].localeCompare(b[0]))
-          .map(([ck, cItems]) => ({ card: ck, total: sumAmt(cItems), items: cItems }))
-        return { bank: bk, total: sumAmt(bItems), cards }
+          .map(([ck, cItems]) => ({ card: ck, totals: sumByCurrency(cItems), items: cItems }))
+        return { bank: bk, totals: sumByCurrency(bItems), cards }
       })
-    return { key: mk, label: monthLabel(mk), total: sumAmt(mItems), banks }
+    return { key: mk, label: monthLabel(mk), totals: sumByCurrency(mItems), banks }
   })
 }
 
@@ -543,6 +619,39 @@ function monthLabel(key: string): string {
   const [y, m] = key.split('-').map(Number)
   const s = new Date(y, m - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
   return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function ReconRow({
+  label,
+  stmt,
+  detected,
+  currency,
+}: {
+  label: string
+  stmt: number | null
+  detected: number
+  currency: string
+}) {
+  const diff = stmt === null ? null : detected - stmt
+  const ok = diff !== null && Math.abs(diff) < 1
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-3 py-0.5 text-sm">
+      <span className="text-slate-500">{label}</span>
+      <span className="flex items-center gap-3">
+        <span className="text-slate-400">
+          {stmt === null ? 'resumen —' : `resumen ${formatMoney(stmt, currency)}`}
+        </span>
+        <span className="tabular-nums text-slate-600 dark:text-slate-300">
+          detectado {formatMoney(detected, currency)}
+        </span>
+        {diff !== null && (
+          <span className={`tabular-nums font-medium ${ok ? 'text-emerald-600' : 'text-red-600'}`}>
+            {ok ? '✓ cuadra' : `dif ${formatMoney(diff, currency)}`}
+          </span>
+        )}
+      </span>
+    </div>
+  )
 }
 
 function providerName(provider: AIProvider): string {
