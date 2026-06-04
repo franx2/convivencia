@@ -14,13 +14,13 @@ Nombre visible de la app: **covivencia.** (con punto final).
 ### Git / codigo
 
 - Branch local: `main`.
-- Working tree estaba limpio antes de editar este handoff. Despues de esta actualizacion,
-  puede quedar solo `HANDOFF.md` modificado localmente.
+- Working tree queda limpio tras commitear/pushear este handoff.
 - Remoto GitHub: `origin` = `https://github.com/franx2/convivencia.git`.
 - `origin/main` queda en el commit HEAD que contiene este handoff tras el push
   (`git log -1 --oneline` para SHA exacto).
 - Ultimos commits relevantes:
-  - `HEAD` - `feat: improve category chart with echarts`.
+  - `HEAD` - `feat: add persistent bottom navigation`.
+  - `6fb35b1` - `feat: improve category chart with echarts`.
   - `7b42224` - `feat: add exploded category chart symbols`.
   - `b4f9fe8` - `feat: expand categories and personal shortcut`.
   - `e39f108` - `feat(balances): filtros mes/persona, ingresos por miembro y balance mensual`.
@@ -74,9 +74,10 @@ Nombre visible de la app: **covivencia.** (con punto final).
    individual del deployment.
 3. Mantener produccion en el rollback `Ready` que funcione.
 4. Cuando la cola quede limpia, redeployar manualmente **un solo commit**:
-   - Si se quiere lo ultimo del repo: `HEAD` (`feat: improve category chart with echarts`).
-  - Si se quiere la version anterior a ECharts: `7b42224`.
-  - Si se quiere la version anterior al grafico explotado/simbolos: `b4f9fe8`.
+   - Si se quiere lo ultimo del repo: `HEAD` (`feat: add persistent bottom navigation`).
+   - Si se quiere la version anterior a la barra inferior persistente: `6fb35b1`.
+   - Si se quiere la version anterior a ECharts: `7b42224`.
+   - Si se quiere la version anterior al grafico explotado/simbolos: `b4f9fe8`.
    - Si se quiere volver al rollback estable que se veia Ready en captura: `da886b2`.
 5. Tras deploy listo, revisar si Vercel quedo en modo rollback; si si, usar `Undo Rollback` o
    promover manualmente el deployment correcto a Production.
@@ -131,8 +132,8 @@ Nombre visible de la app: **covivencia.** (con punto final).
   **"olvidé mi contraseña"** (manda link a `/reset` con `resetPasswordForEmail`).
 - `/reset` — setear nueva contraseña al volver del email (sesión `PASSWORD_RECOVERY`).
 - `/` — abre directamente en **grupos compartidos** + crear grupo + borrar grupos propios.
-  La barra inferior tiene acceso **Personal** que entra directo a `/g/{mi-espacio}`; no muestra
-  una pestaña/lista intermedia del espacio personal.
+  La barra inferior fija tiene accesos **Personal** y **Compartidos** con emoji, entra directo a
+  `/g/{mi-espacio}` y no muestra una pestaña/lista intermedia del espacio personal.
 - `/g/[id]` — grupo, tabs:
   - **Gastos**: tarjeta de **gastos típicos** (chips de un tap + "Editar" para crear plantillas),
     filtro por categoría, lista con editar (✎) / borrar (✕). Categorías visibles con emoji.
@@ -142,8 +143,10 @@ Nombre visible de la app: **covivencia.** (con punto final).
   - **Miembros**: alta/baja, **peso** por miembro (reparto proporcional), link de invitación.
 - `/g/[id]/nuevo` — agregar gasto. Acepta prefill por query params (`title`/`category`/`amount`)
   desde las plantillas. Permite **+ Nueva categoría** y **reparto proporcional** (peso por miembro).
+  Mantiene la barra inferior fija para saltar entre personal y compartidos.
 - `/g/[id]/editar/[eid]` — editar un gasto (mismo form, comparten `components/ExpenseForm.tsx`).
-- `/g/[id]/importar` — importar un resumen de tarjeta (PDF). Solo en espacios personales.
+- `/g/[id]/importar` — importar un resumen de tarjeta (PDF). Solo en espacios personales. Mantiene
+  la barra inferior fija para ir a compartidos sin volver por la home.
 - `/join?token=…` — sumarse a un grupo por invitación (llama RPC `join_group`).
 
 **Espacio personal** (`groups.is_personal`): se auto-crea desde la home si no existe,
@@ -201,6 +204,9 @@ default `gpt-5`.
 - **Espacio personal** (`groups.is_personal`): grupo de gastos propios sin repartir, con un
   único miembro "Yo". Tabs Liquidación/Miembros ocultas. Badge "personal". La home ya no muestra
   la pestaña personal; el acceso inferior entra directo al espacio.
+- **Navegación inferior** (`components/BottomNav.tsx`): barra fija y más grande con emojis
+  `🏡 Personal` / `🤝 Compartidos`, visible en home, grupo, nuevo/editar gasto e importar PDF. En
+  espacios personales permite ir directo a gastos compartidos.
 - **Importar resumen de tarjeta (PDF)** en `/g/[id]/importar` (solo personal):
   - **Parser local** (`lib/import-statement.ts`): extrae texto con `pdfjs-dist` (worker desde
     CDN) y detecta transacciones por heurística (fecha + último monto, formato AR), categoriza
@@ -278,4 +284,8 @@ Usar `/browse` para navegar web.
 - 2026-06-03, cambio de gráfico de categorías a ECharts:
   - `npm.cmd run lint`: OK.
   - `npm.cmd run build`: OK.
+- 2026-06-03, barra inferior persistente:
+  - `npm.cmd run lint`: OK.
+  - `npm.cmd run build`: OK.
+  - Dev server local OK en `http://localhost:3000` (`/login` respondió 200).
 - PowerShell puede bloquear `npm.ps1` por policy; usar `npm.cmd run ...`.

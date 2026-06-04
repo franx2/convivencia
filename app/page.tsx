@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
+import { BottomNav } from '@/components/BottomNav'
 import { Header } from '@/components/Header'
 import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
 import { CURRENCIES, formatMoney } from '@/lib/currencies'
@@ -170,7 +171,7 @@ export default function HomePage() {
   return (
     <>
       <Header />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-24 pt-6">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-36 pt-6">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-xl font-semibold">Grupos compartidos</h1>
           <Button onClick={() => setShowForm((s) => !s)}>
@@ -220,33 +221,7 @@ export default function HomePage() {
         )}
       </main>
 
-      {/* Barra de navegación inferior */}
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
-        <div className="mx-auto flex max-w-3xl">
-          {personalGroup ? (
-            <Link
-              href={`/g/${personalGroup.id}`}
-              className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-            >
-              <span className="text-lg leading-none">Yo</span>
-              Personal
-            </Link>
-          ) : (
-            <button
-              type="button"
-              disabled
-              className="flex flex-1 cursor-not-allowed flex-col items-center gap-0.5 py-2.5 text-xs font-medium text-slate-300"
-            >
-              <span className="text-lg leading-none">Yo</span>
-              Personal
-            </button>
-          )}
-          <span className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-            <span className="text-lg leading-none">Gr</span>
-            Compartido
-          </span>
-        </div>
-      </nav>
+      <BottomNav active="shared" personalHref={personalGroup ? `/g/${personalGroup.id}` : null} />
     </>
   )
 }

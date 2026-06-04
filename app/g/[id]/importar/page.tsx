@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
+import { BottomNav } from '@/components/BottomNav'
 import { Header } from '@/components/Header'
 import { Button, Card, Input, Select, Spinner } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
@@ -366,7 +367,7 @@ export default function ImportarPage() {
   return (
     <>
       <Header />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6">
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-36 pt-6">
         <Link href={`/g/${groupId}`} className="text-sm text-slate-400 hover:text-slate-600">
           ← Volver al grupo
         </Link>
@@ -591,6 +592,7 @@ export default function ImportarPage() {
           </>
         )}
       </main>
+      <BottomNav active="personal" personalHref={`/g/${group.id}`} />
     </>
   )
 }

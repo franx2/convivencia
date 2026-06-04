@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
+import { BottomNav } from '@/components/BottomNav'
 import { Header } from '@/components/Header'
 import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
@@ -137,7 +138,7 @@ export default function GroupPage() {
   return (
     <>
       <Header />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-36 pt-6">
         <div className="mb-4">
           <Link href="/" className="text-sm text-slate-400 hover:text-slate-600">
             ← Mis grupos
@@ -213,6 +214,7 @@ export default function GroupPage() {
           <MiembrosTab group={group} members={members} expenses={expenses} onChanged={load} />
         )}
       </main>
+      <BottomNav active={group.is_personal ? 'personal' : 'shared'} personalHref={group.is_personal ? `/g/${group.id}` : null} />
     </>
   )
 }
