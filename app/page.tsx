@@ -112,7 +112,7 @@ export default function HomePage() {
     if (!user || group.owner_id !== user.id || deletingId) return
     const userId = user.id
     const ok = window.confirm(
-      `¿Borrar "${group.name}"? Se eliminan sus gastos, miembros, pagos, ingresos, presupuestos y categorías.`
+      `¿Borrar "${group.name}"? Se eliminan sus gastos, miembros, pagos, ingresos, ahorros, tarjetas, presupuestos y categorías.`
     )
     if (!ok) return
 
@@ -126,9 +126,13 @@ export default function HomePage() {
         const { error } = await supabase.from('expense_shares').delete().in('expense_id', expenseIds)
         if (error) throw error
       }
-      for (const table of ['payments', 'budgets', 'templates', 'categories', 'incomes', 'expenses', 'members'] as const) {
+      const optionalTables = new Set<string>(['incomes', 'savings', 'cards'])
+      for (const table of ['payments', 'budgets', 'templates', 'categories', 'incomes', 'savings', 'expenses', 'cards', 'members'] as const) {
         const { error } = await supabase.from(table).delete().eq('group_id', group.id)
-        if (error && !(table === 'incomes' && isMissingRelationError(error))) throw error
+        if (error) {
+          if (optionalTables.has(table) && isMissingRelationError(error)) continue
+          throw error
+        }
       }
       const { error } = await supabase.from('groups').delete().eq('id', group.id).eq('owner_id', userId)
       if (error) throw error

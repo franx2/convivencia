@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { BottomNav } from '@/components/BottomNav'
@@ -19,7 +19,7 @@ import {
   type ParsedTx,
   type StatementTotals,
 } from '@/lib/import-statement'
-import type { Category, Group, Member } from '@/lib/types'
+import type { Category, CreditCard, Expense, Group, Member } from '@/lib/types'
 
 type AIProvider = 'claude' | 'chatgpt' | 'gemini'
 const OPENAI_KEY_STORAGE = 'covivencia.openaiApiKey'
@@ -27,13 +27,26 @@ const LEGACY_OPENAI_KEY_STORAGE = 'convivencia.openaiApiKey'
 const GEMINI_KEY_STORAGE = 'covivencia.geminiApiKey'
 
 export default function ImportarPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <ImportarPageClient />
+    </Suspense>
+  )
+}
+
+function ImportarPageClient() {
   const { user, loading } = useRequireAuth()
   const params = useParams<{ id: string }>()
   const groupId = params.id
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const cardIdParam = searchParams.get('cardId') ?? ''
 
   const [group, setGroup] = useState<Group | null>(null)
   const [memberId, setMemberId] = useState<string>('')
+  const [cards, setCards] = useState<CreditCard[]>([])
+  const [selectedCardId, setSelectedCardId] = useState('')
+  const [existingExpenses, setExistingExpenses] = useState<Expense[]>([])
   const [cats, setCats] = useState<CatMeta[]>(() => mergeCategories([]))
   const [fetching, setFetching] = useState(true)
   const [missing, setMissing] = useState(false)
@@ -63,9 +76,11 @@ export default function ImportarPage() {
       return
     }
     setGroup(g as Group)
-    const [{ data: m }, { data: c }] = await Promise.all([
+    const [{ data: m }, { data: c }, { data: crd }, { data: ex }] = await Promise.all([
       supabase.from('members').select('*').eq('group_id', groupId).order('created_at'),
       supabase.from('categories').select('*').eq('group_id', groupId).order('created_at'),
+      supabase.from('cards').select('*').eq('group_id', groupId).order('created_at', { ascending: false }),
+      supabase.from('expenses').select('*').eq('group_id', groupId),
     ])
     const members = (m ?? []) as Member[]
     let defaultMemberId = members[0]?.id ?? ''
@@ -80,6 +95,10 @@ export default function ImportarPage() {
       if (linked && members.some((member) => member.id === linked)) defaultMemberId = linked
     }
     setMemberId(defaultMemberId)
+    const loadedCards = (crd ?? []) as CreditCard[]
+    setCards(loadedCards)
+    setSelectedCardId(loadedCards.some((card) => card.id === cardIdParam) ? cardIdParam : '')
+    setExistingExpenses((ex ?? []) as Expense[])
     setCats(
       mergeCategories(
         ((c ?? []) as Category[]).map((x) => ({
@@ -91,7 +110,7 @@ export default function ImportarPage() {
       )
     )
     setFetching(false)
-  }, [groupId, user])
+  }, [groupId, user, cardIdParam])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial async; setState ocurre tras el await
@@ -316,7 +335,15 @@ export default function ImportarPage() {
       usdRate = d.venta
     }
 
-    const exps = valid.map((r) => {
+    const selectedCard = cards.find((card) => card.id === selectedCardId) ?? null
+    const unique = valid.filter((r) => !looksDuplicate(r, existingExpenses, selectedCardId))
+    if (unique.length === 0) {
+      setBusy(false)
+      setSaveError('No guardé gastos: todos parecen estar ya cargados.')
+      return
+    }
+
+    const exps = unique.map((r) => {
       const isUsd = r.currency === 'USD'
       const e: {
         group_id: string
@@ -329,6 +356,8 @@ export default function ImportarPage() {
         category: string
         bank?: string
         card?: string
+        card_id?: string
+        source?: string
       } = {
         group_id: groupId,
         title: r.title.trim() || 'Gasto',
@@ -340,8 +369,12 @@ export default function ImportarPage() {
         category: r.category,
       }
       // migration-safe: solo mandamos banco/tarjeta cuando hay dato.
-      if (r.bank) e.bank = r.bank
-      if (r.card) e.card = r.card
+      const bank = selectedCard?.bank || r.bank
+      const card = selectedCard?.name || r.card
+      if (bank) e.bank = bank
+      if (card) e.card = card
+      if (selectedCardId) e.card_id = selectedCardId
+      e.source = 'card_import'
       return e
     })
     const { data: inserted, error } = await supabase.from('expenses').insert(exps).select('id')
@@ -349,7 +382,7 @@ export default function ImportarPage() {
       setBusy(false)
       setSaveError(
         /bank|card/.test(error.message)
-          ? 'Falta correr la migración de banco/tarjeta en Supabase (supabase/migration_banco_tarjeta.sql).'
+          ? 'Falta correr la migración de tarjetas/origen en Supabase (supabase/migration_personal_cards_savings.sql).'
           : error.message
       )
       return
@@ -388,6 +421,23 @@ export default function ImportarPage() {
           Subí el PDF del resumen de tu tarjeta. Detecto las transacciones, las podés revisar y
           editar, y se cargan como gastos.
         </p>
+
+        <Card className="mb-4">
+          <span className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">
+            Tarjeta
+          </span>
+          <Select value={selectedCardId} onChange={(e) => setSelectedCardId(e.target.value)}>
+            <option value="">Sin tarjeta asociada</option>
+            {cards.map((card) => (
+              <option key={card.id} value={card.id}>
+                {card.name}{card.bank ? ` · ${card.bank}` : ''}{card.last4 ? ` · ${card.last4}` : ''}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1 text-xs text-slate-400">
+            Si elegís una tarjeta, el resumen queda asociado a ella y se evita duplicar consumos ya cargados.
+          </p>
+        </Card>
 
         {noMember && (
           <Card className="mb-4 text-sm text-amber-600">
@@ -713,6 +763,44 @@ function providerName(provider: AIProvider): string {
   if (provider === 'chatgpt') return 'ChatGPT'
   if (provider === 'gemini') return 'Gemini'
   return 'Claude'
+}
+
+function looksDuplicate(row: ParsedTx, expenses: Expense[], selectedCardId: string): boolean {
+  return expenses.some((expense) => {
+    const sameAmount = Math.abs(Number(expense.amount) - Number(row.amount)) < 0.01
+    if (!sameAmount) return false
+    if (expense.currency !== row.currency) return false
+    if (Math.abs(daysBetween(expense.date, row.date)) > 3) return false
+    const sameCard = selectedCardId && expense.card_id === selectedCardId
+    return Boolean(sameCard) || similarTitle(expense.title, row.title)
+  })
+}
+
+function daysBetween(a: string, b: string): number {
+  const ad = new Date(`${a}T00:00:00`)
+  const bd = new Date(`${b}T00:00:00`)
+  return Math.round((ad.getTime() - bd.getTime()) / 86_400_000)
+}
+
+function similarTitle(a: string, b: string): boolean {
+  const an = normalizeTitle(a)
+  const bn = normalizeTitle(b)
+  if (!an || !bn) return false
+  if (an.includes(bn) || bn.includes(an)) return true
+  const aWords = new Set(an.split(' ').filter((word) => word.length >= 4))
+  const bWords = bn.split(' ').filter((word) => word.length >= 4)
+  if (bWords.length === 0) return false
+  const matches = bWords.filter((word) => aWords.has(word)).length
+  return matches / Math.max(aWords.size, bWords.length) >= 0.5
+}
+
+function normalizeTitle(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
 }
 
 // Convierte el PDF a base64 sin reventar el stack (chunks de 32KB).

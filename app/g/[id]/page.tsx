@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
@@ -17,17 +17,20 @@ import { Donut, MonthlyBars } from '@/components/charts'
 import type {
   Budget,
   Category,
+  CreditCard,
   Expense,
   ExpenseShare,
   Group,
   Income,
   Member,
   Payment,
+  Saving,
   Template,
 } from '@/lib/types'
 
-type Tab = 'gastos' | 'balances' | 'liquidacion' | 'miembros'
-type DashboardTarget = 'gastos' | 'ingresos' | 'resumen' | 'presupuestos'
+type SharedTab = 'gastos' | 'balances' | 'liquidacion' | 'miembros'
+type PersonalTab = 'inicio' | 'ingresos' | 'gastos' | 'ahorros' | 'presupuestos' | 'tarjetas' | 'resumen'
+type Tab = SharedTab | PersonalTab
 
 export default function GroupPage() {
   const { user, loading } = useRequireAuth()
@@ -43,11 +46,12 @@ export default function GroupPage() {
   const [templates, setTemplates] = useState<Template[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [incomes, setIncomes] = useState<Income[]>([])
+  const [savings, setSavings] = useState<Saving[]>([])
+  const [cards, setCards] = useState<CreditCard[]>([])
   const [myMemberId, setMyMemberId] = useState<string | null>(null)
   const [fetching, setFetching] = useState(true)
   const [notFound, setNotFound] = useState(false)
-  const [tab, setTab] = useState<Tab>('gastos')
-  const [dashboardTarget, setDashboardTarget] = useState<DashboardTarget | null>(null)
+  const [tab, setTab] = useState<Tab>('inicio')
 
   const load = useCallback(async () => {
     const { data: g } = await supabase.from('groups').select('*').eq('id', groupId).maybeSingle()
@@ -75,6 +79,8 @@ export default function GroupPage() {
       { data: tpl },
       { data: bud },
       { data: inc },
+      { data: sav },
+      { data: crd },
     ] = await Promise.all([
       supabase.from('members').select('*').eq('group_id', groupId).order('created_at'),
       supabase.from('expenses').select('*').eq('group_id', groupId).order('date', { ascending: false }),
@@ -83,6 +89,8 @@ export default function GroupPage() {
       supabase.from('templates').select('*').eq('group_id', groupId).order('created_at'),
       supabase.from('budgets').select('*').eq('group_id', groupId).order('created_at'),
       supabase.from('incomes').select('*').eq('group_id', groupId).order('date', { ascending: false }),
+      supabase.from('savings').select('*').eq('group_id', groupId).order('date', { ascending: false }),
+      supabase.from('cards').select('*').eq('group_id', groupId).order('created_at', { ascending: false }),
     ])
     setMembers((m ?? []) as Member[])
     setMyMemberId(linkedMemberId)
@@ -91,6 +99,8 @@ export default function GroupPage() {
     setTemplates((tpl ?? []) as Template[])
     setBudgets((bud ?? []) as Budget[])
     setIncomes((inc ?? []) as Income[])
+    setSavings((sav ?? []) as Saving[])
+    setCards((crd ?? []) as CreditCard[])
     const exp = (e ?? []) as Expense[]
     setExpenses(exp)
     if (exp.length) {
@@ -110,16 +120,6 @@ export default function GroupPage() {
     if (user) load()
   }, [user, load])
 
-  useEffect(() => {
-    if (!dashboardTarget) return
-    const targetId = `section-${dashboardTarget}`
-    const timer = window.setTimeout(() => {
-      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      setDashboardTarget(null)
-    }, 120)
-    return () => window.clearTimeout(timer)
-  }, [dashboardTarget, tab])
-
   const memberName = useMemo(() => {
     const map = new Map<string, string>()
     members.forEach((m) => map.set(m.id, m.name))
@@ -134,11 +134,6 @@ export default function GroupPage() {
     [categories]
   )
   const catMeta = useMemo(() => (v: string) => metaFrom(cats, v), [cats])
-
-  function openDashboardTarget(target: DashboardTarget) {
-    setDashboardTarget(target)
-    setTab(target === 'gastos' ? 'gastos' : 'balances')
-  }
 
   if (loading || !user || fetching) return <Spinner />
   if (notFound || !group)
@@ -156,8 +151,13 @@ export default function GroupPage() {
 
   const tabs: { key: Tab; label: string }[] = group.is_personal
     ? [
+        { key: 'inicio', label: 'Inicio' },
+        { key: 'ingresos', label: 'Ingresos' },
         { key: 'gastos', label: 'Gastos' },
-        { key: 'balances', label: 'Balances' },
+        { key: 'ahorros', label: 'Ahorro' },
+        { key: 'presupuestos', label: 'Presupuesto' },
+        { key: 'tarjetas', label: 'Tarjetas' },
+        { key: 'resumen', label: 'Resumen' },
       ]
     : [
         { key: 'gastos', label: 'Gastos' },
@@ -165,6 +165,9 @@ export default function GroupPage() {
         { key: 'liquidacion', label: 'Liquidación' },
         { key: 'miembros', label: 'Miembros' },
       ]
+  const activeTab: Tab = group.is_personal
+    ? (isPersonalTab(tab) ? tab : 'inicio')
+    : (isSharedTab(tab) ? tab : 'gastos')
 
   return (
     <>
@@ -187,14 +190,15 @@ export default function GroupPage() {
           </p>
         </div>
 
-        {group.is_personal && (
+        {group.is_personal && activeTab === 'inicio' && (
           <PersonalDashboard
             group={group}
             expenses={expenses}
             incomes={incomes}
+            savings={savings}
             budgets={budgets}
             catMeta={catMeta}
-            onOpenTarget={openDashboardTarget}
+            onOpenTab={(next) => setTab(next)}
           />
         )}
 
@@ -216,7 +220,7 @@ export default function GroupPage() {
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`flex-1 whitespace-nowrap rounded-md px-3 py-1.5 font-medium ${
-                tab === t.key
+                activeTab === t.key
                   ? 'bg-white shadow-sm dark:bg-slate-700 dark:text-slate-100'
                   : 'text-slate-500 dark:text-slate-400'
               }`}
@@ -226,7 +230,7 @@ export default function GroupPage() {
           ))}
         </div>
 
-        {tab === 'gastos' && (
+        {activeTab === 'gastos' && (
           <GastosTab
             group={group}
             expenses={expenses}
@@ -238,7 +242,47 @@ export default function GroupPage() {
             onChanged={load}
           />
         )}
-        {tab === 'balances' && (
+        {group.is_personal && activeTab === 'ingresos' && (
+          <PersonalIncomesTab
+            group={group}
+            members={members}
+            incomes={incomes}
+            memberName={memberName}
+            onChanged={load}
+          />
+        )}
+        {group.is_personal && activeTab === 'ahorros' && (
+          <SavingsTab
+            group={group}
+            members={members}
+            savings={savings}
+            memberName={memberName}
+            onChanged={load}
+          />
+        )}
+        {group.is_personal && activeTab === 'presupuestos' && (
+          <PersonalBudgetsTab
+            group={group}
+            expenses={expenses}
+            budgets={budgets}
+            cats={cats}
+            catMeta={catMeta}
+            onChanged={load}
+          />
+        )}
+        {group.is_personal && activeTab === 'tarjetas' && (
+          <CardsTab group={group} cards={cards} expenses={expenses} onChanged={load} />
+        )}
+        {group.is_personal && activeTab === 'resumen' && (
+          <PersonalSummaryTab
+            group={group}
+            expenses={expenses}
+            incomes={incomes}
+            savings={savings}
+            catMeta={catMeta}
+          />
+        )}
+        {!group.is_personal && activeTab === 'balances' && (
           <BalancesTab
             group={group}
             members={members}
@@ -253,7 +297,7 @@ export default function GroupPage() {
             onChanged={load}
           />
         )}
-        {tab === 'liquidacion' && (
+        {!group.is_personal && activeTab === 'liquidacion' && (
           <LiquidacionTab
             group={group}
             members={members}
@@ -264,7 +308,7 @@ export default function GroupPage() {
             onChanged={load}
           />
         )}
-        {tab === 'miembros' && (
+        {!group.is_personal && activeTab === 'miembros' && (
           <MiembrosTab group={group} members={members} expenses={expenses} onChanged={load} />
         )}
       </main>
@@ -273,20 +317,30 @@ export default function GroupPage() {
   )
 }
 
+function isPersonalTab(value: Tab): value is PersonalTab {
+  return ['inicio', 'ingresos', 'gastos', 'ahorros', 'presupuestos', 'tarjetas', 'resumen'].includes(value)
+}
+
+function isSharedTab(value: Tab): value is SharedTab {
+  return ['gastos', 'balances', 'liquidacion', 'miembros'].includes(value)
+}
+
 function PersonalDashboard({
   group,
   expenses,
   incomes,
+  savings,
   budgets,
   catMeta,
-  onOpenTarget,
+  onOpenTab,
 }: {
   group: Group
   expenses: Expense[]
   incomes: Income[]
+  savings: Saving[]
   budgets: Budget[]
   catMeta: (v: string) => CatMeta
-  onOpenTarget: (target: DashboardTarget) => void
+  onOpenTab: (tab: PersonalTab) => void
 }) {
   const fmt = (n: number) => formatMoney(n, group.base_currency)
   const baseOf = (e: Expense) => Number(e.amount) * Number(e.rate_to_base)
@@ -297,7 +351,9 @@ function PersonalDashboard({
   const totalIncomes = incomes.reduce((sum, i) => sum + Number(i.amount), 0)
   const monthExpenseTotal = monthExpenses.reduce((sum, e) => sum + baseOf(e), 0)
   const monthIncomeTotal = monthIncomes.reduce((sum, i) => sum + Number(i.amount), 0)
-  const monthSavings = Math.max(0, monthIncomeTotal - monthExpenseTotal)
+  const monthSavings = savings
+    .filter((s) => String(s.date).slice(0, 7) === currentMonth)
+    .reduce((sum, s) => sum + Number(s.amount), 0)
   const balance = totalIncomes - totalExpenses
   const topCategories = spendByCategory(monthExpenses).slice(0, 3)
   const monthByCat = new Map<string, number>()
@@ -327,10 +383,20 @@ function PersonalDashboard({
 
       <div className="-mt-3 rounded-t-[2rem] bg-white px-4 pb-5 pt-5 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         <div className="mb-5 flex rounded-full bg-slate-100 p-1 text-sm font-bold dark:bg-slate-900">
-          <span className="flex-1 rounded-full bg-white py-2 text-center text-emerald-700 shadow-sm dark:bg-slate-800 dark:text-emerald-300">
+          <button
+            type="button"
+            onClick={() => onOpenTab('gastos')}
+            className="flex-1 rounded-full bg-white py-2 text-center text-emerald-700 shadow-sm dark:bg-slate-800 dark:text-emerald-300"
+          >
             Mis gastos
-          </span>
-          <span className="flex-1 py-2 text-center text-slate-400">Mis tarjetas</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenTab('tarjetas')}
+            className="flex-1 py-2 text-center text-slate-400"
+          >
+            Mis tarjetas
+          </button>
         </div>
 
         <div className="mb-5">
@@ -346,34 +412,34 @@ function PersonalDashboard({
             title="Ingresos"
             value={fmt(monthIncomeTotal)}
             className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-            onClick={() => onOpenTarget('ingresos')}
+            onClick={() => onOpenTab('ingresos')}
           />
           <DashboardRow
             icon="↕"
             title="Gastos"
             value={fmt(monthExpenseTotal)}
             className="bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-200"
-            onClick={() => onOpenTarget('gastos')}
+            onClick={() => onOpenTab('gastos')}
           />
           <DashboardRow
             icon="💰"
             title="Ahorros"
             value={fmt(monthSavings)}
             className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-200"
-            onClick={() => onOpenTarget('resumen')}
+            onClick={() => onOpenTab('ahorros')}
           />
         </div>
 
         <div className="mt-6">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-lg font-bold text-emerald-800 dark:text-emerald-300">Mis presupuestos</p>
-            <button type="button" onClick={() => onOpenTarget('presupuestos')} className="text-sm font-bold text-emerald-700">
+            <button type="button" onClick={() => onOpenTab('presupuestos')} className="text-sm font-bold text-emerald-700">
               ver más ›
             </button>
           </div>
           <button
             type="button"
-            onClick={() => onOpenTarget('presupuestos')}
+            onClick={() => onOpenTab('presupuestos')}
             className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm dark:border-slate-800 dark:bg-slate-900"
           >
             {budgets.length === 0 ? (
@@ -397,7 +463,7 @@ function PersonalDashboard({
         <div className="mt-6">
           <button
             type="button"
-            onClick={() => onOpenTarget('resumen')}
+            onClick={() => onOpenTab('resumen')}
             className="mb-3 flex w-full items-center justify-between text-left text-lg font-bold text-emerald-800 dark:text-emerald-300"
           >
             <span>Resumen mensual</span>
@@ -406,13 +472,13 @@ function PersonalDashboard({
           {topCategories.length === 0 ? (
             <button
               type="button"
-              onClick={() => onOpenTarget('resumen')}
+              onClick={() => onOpenTab('resumen')}
               className="w-full rounded-2xl bg-slate-50 p-4 text-left text-sm text-slate-500 dark:bg-slate-900"
             >
               Todavía no hay gastos este mes.
             </button>
           ) : (
-            <button type="button" onClick={() => onOpenTarget('resumen')} className="w-full space-y-2 text-left">
+            <button type="button" onClick={() => onOpenTab('resumen')} className="w-full space-y-2 text-left">
               {topCategories.map((c) => (
                 <div key={c.category} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm dark:bg-slate-900">
                   <span className="font-semibold text-slate-700 dark:text-slate-200">
@@ -473,22 +539,33 @@ function IdentityPrompt({
 }) {
   const [selected, setSelected] = useState(members[0]?.id ?? '')
   const [newName, setNewName] = useState(userDisplayName(user))
+  const [alias, setAlias] = useState(members[0]?.alias ?? userPaymentAlias(user))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const alias = userPaymentAlias(user)
   const creating = selected === '__new__'
+
+  function changeSelected(value: string) {
+    setSelected(value)
+    if (value === '__new__') {
+      setAlias(userPaymentAlias(user))
+      return
+    }
+    const member = members.find((m) => m.id === value)
+    setAlias(member?.alias ?? userPaymentAlias(user))
+  }
 
   async function saveIdentity() {
     setBusy(true)
     setError(null)
     let memberId = selected
     try {
+      const cleanAlias = alias.trim()
       if (creating) {
         const name = newName.trim()
         if (!name) throw new Error('Ingresá tu nombre.')
         const { data, error: memberError } = await supabase
           .from('members')
-          .insert({ group_id: group.id, name, alias: alias || null })
+          .insert({ group_id: group.id, name, alias: cleanAlias || null })
           .select('id')
           .single()
         if (memberError) throw memberError
@@ -496,9 +573,9 @@ function IdentityPrompt({
       }
 
       if (!memberId) throw new Error('Elegí quién sos en este grupo.')
-      const member = members.find((m) => m.id === memberId)
-      if (member && alias && !member.alias) {
-        await supabase.from('members').update({ alias }).eq('id', memberId)
+      if (cleanAlias) {
+        await supabase.from('members').update({ alias: cleanAlias }).eq('id', memberId)
+        await supabase.auth.updateUser({ data: { payment_alias: cleanAlias } })
       }
       const { error: linkError } = await supabase
         .from('group_users')
@@ -530,7 +607,7 @@ function IdentityPrompt({
       </div>
       <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
         <div className="space-y-2">
-          <Select value={selected} onChange={(e) => setSelected(e.target.value)}>
+          <Select value={selected} onChange={(e) => changeSelected(e.target.value)}>
             {members.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
@@ -541,12 +618,19 @@ function IdentityPrompt({
           {creating && (
             <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Tu nombre" />
           )}
+          <Input
+            value={alias}
+            onChange={(e) => setAlias(e.target.value)}
+            placeholder="Alias para cobrar (opcional)"
+          />
         </div>
         <Button type="button" onClick={saveIdentity} disabled={busy || (!selected && !creating)} className="sm:self-start">
           {busy ? 'Guardando…' : 'Guardar'}
         </Button>
       </div>
-      {alias && <p className="mt-2 text-xs text-emerald-700/80 dark:text-emerald-300/80">Alias de tu cuenta: {alias}</p>}
+      <p className="mt-2 text-xs text-emerald-700/80 dark:text-emerald-300/80">
+        Lo guardo para sugerirlo en otros grupos y para copiarlo rapido al liquidar.
+      </p>
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </Card>
   )
@@ -753,11 +837,6 @@ function GastosTab({
         )}
         {hasMembers ? (
           <div className="flex gap-2">
-            {group.is_personal && (
-              <Link href={`/g/${group.id}/importar`}>
-                <Button variant="ghost">Importar resumen</Button>
-              </Link>
-            )}
             <Link href={`/g/${group.id}/nuevo`}>
               <Button>+ Agregar gasto</Button>
             </Link>
@@ -800,6 +879,506 @@ function groupExpensesByMonth(expenses: Expense[], baseOf: (expense: Expense) =>
     map.set(key, current)
   }
   return [...map.values()]
+}
+
+function PersonalIncomesTab({
+  group,
+  members,
+  incomes,
+  memberName,
+  onChanged,
+}: {
+  group: Group
+  members: Member[]
+  incomes: Income[]
+  memberName: (id: string) => string
+  onChanged: () => void
+}) {
+  const [amount, setAmount] = useState('')
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const member = members[0]?.id ?? ''
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault()
+    const amt = Number(amount)
+    if (!member) return setError('Agregá un miembro primero.')
+    if (!(amt > 0)) return setError('Ingresá un monto válido.')
+    setBusy(true)
+    setError(null)
+    const { error: insertError } = await supabase.from('incomes').insert({
+      group_id: group.id,
+      member_id: member,
+      amount: amt,
+      date,
+      note: note.trim() || null,
+    })
+    setBusy(false)
+    if (insertError) {
+      setError(insertError.message)
+      return
+    }
+    setAmount('')
+    setNote('')
+    onChanged()
+  }
+
+  async function remove(id: string) {
+    await supabase.from('incomes').delete().eq('id', id)
+    onChanged()
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <h2 className="mb-3 text-lg font-semibold text-emerald-800 dark:text-emerald-300">Agregar ingreso</h2>
+        <form onSubmit={add} className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder={`Monto (${group.base_currency})`}
+            />
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (ej: Sueldo)" />
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <Button type="submit" disabled={busy}>
+            {busy ? 'Guardando…' : 'Guardar ingreso'}
+          </Button>
+        </form>
+      </Card>
+
+      <HistoryList title="Ingresos previos">
+        {incomes.length === 0 ? (
+          <p className="text-sm text-slate-500">Todavía no hay ingresos cargados.</p>
+        ) : (
+          incomes.map((i) => (
+            <div key={i.id} className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 text-sm last:border-0 dark:border-slate-800">
+              <span className="min-w-0 truncate">
+                <span className="font-medium">{i.note || 'Ingreso'}</span>
+                <span className="text-slate-400"> · {i.date}</span>
+                {members.length > 1 && <span className="text-slate-400"> · {memberName(i.member_id)}</span>}
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="font-semibold text-emerald-600">{formatMoney(Number(i.amount), group.base_currency)}</span>
+                <button onClick={() => remove(i.id)} className="text-slate-300 hover:text-red-500" title="Quitar">
+                  ✕
+                </button>
+              </span>
+            </div>
+          ))
+        )}
+      </HistoryList>
+    </div>
+  )
+}
+
+function SavingsTab({
+  group,
+  members,
+  savings,
+  memberName,
+  onChanged,
+}: {
+  group: Group
+  members: Member[]
+  savings: Saving[]
+  memberName: (id: string) => string
+  onChanged: () => void
+}) {
+  const [amount, setAmount] = useState('')
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const member = members[0]?.id ?? ''
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault()
+    const amt = Number(amount)
+    if (!member) return setError('Agregá un miembro primero.')
+    if (!(amt > 0)) return setError('Ingresá un monto válido.')
+    setBusy(true)
+    setError(null)
+    const { error: insertError } = await supabase.from('savings').insert({
+      group_id: group.id,
+      member_id: member,
+      amount: amt,
+      date,
+      note: note.trim() || null,
+    })
+    setBusy(false)
+    if (insertError) {
+      setError(insertError.message)
+      return
+    }
+    setAmount('')
+    setNote('')
+    onChanged()
+  }
+
+  async function remove(id: string) {
+    await supabase.from('savings').delete().eq('id', id)
+    onChanged()
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <h2 className="mb-3 text-lg font-semibold text-amber-700 dark:text-amber-300">Agregar ahorro</h2>
+        <form onSubmit={add} className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder={`Monto (${group.base_currency})`}
+            />
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (ej: Fondo emergencia)" />
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <Button type="submit" disabled={busy}>
+            {busy ? 'Guardando…' : 'Guardar ahorro'}
+          </Button>
+        </form>
+      </Card>
+
+      <HistoryList title="Ahorros previos">
+        {savings.length === 0 ? (
+          <p className="text-sm text-slate-500">Todavía no hay ahorros cargados.</p>
+        ) : (
+          savings.map((s) => (
+            <div key={s.id} className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 text-sm last:border-0 dark:border-slate-800">
+              <span className="min-w-0 truncate">
+                <span className="font-medium">{s.note || 'Ahorro'}</span>
+                <span className="text-slate-400"> · {s.date}</span>
+                {members.length > 1 && <span className="text-slate-400"> · {memberName(s.member_id)}</span>}
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="font-semibold text-amber-600">{formatMoney(Number(s.amount), group.base_currency)}</span>
+                <button onClick={() => remove(s.id)} className="text-slate-300 hover:text-red-500" title="Quitar">
+                  ✕
+                </button>
+              </span>
+            </div>
+          ))
+        )}
+      </HistoryList>
+    </div>
+  )
+}
+
+function PersonalBudgetsTab({
+  group,
+  expenses,
+  budgets,
+  cats,
+  catMeta,
+  onChanged,
+}: {
+  group: Group
+  expenses: Expense[]
+  budgets: Budget[]
+  cats: CatMeta[]
+  catMeta: (v: string) => CatMeta
+  onChanged: () => void
+}) {
+  const [category, setCategory] = useState('supermercado')
+  const [amount, setAmount] = useState('')
+  const [busy, setBusy] = useState(false)
+  const month = new Date().toISOString().slice(0, 7)
+  const spentByCat = new Map<string, number>()
+  for (const e of expenses) {
+    if (String(e.date).slice(0, 7) !== month) continue
+    const cat = e.category || 'otros'
+    spentByCat.set(cat, (spentByCat.get(cat) ?? 0) + Number(e.amount) * Number(e.rate_to_base))
+  }
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault()
+    const amt = Number(amount)
+    if (!(amt > 0)) return
+    setBusy(true)
+    await supabase
+      .from('budgets')
+      .upsert({ group_id: group.id, category, amount: amt }, { onConflict: 'group_id,category' })
+    setAmount('')
+    setBusy(false)
+    onChanged()
+  }
+
+  async function remove(id: string) {
+    await supabase.from('budgets').delete().eq('id', id)
+    onChanged()
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <h2 className="mb-3 text-lg font-semibold text-emerald-800 dark:text-emerald-300">Agregar presupuesto</h2>
+        <form onSubmit={save} className="grid gap-2 sm:grid-cols-[1fr_140px_auto]">
+          <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+            {cats.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.symbol} {c.label}
+              </option>
+            ))}
+          </Select>
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="Límite"
+          />
+          <Button type="submit" disabled={busy || !(Number(amount) > 0)}>
+            Guardar
+          </Button>
+        </form>
+      </Card>
+
+      <HistoryList title="Presupuestos">
+        {budgets.length === 0 ? (
+          <p className="text-sm text-slate-500">Todavía no hay presupuestos cargados.</p>
+        ) : (
+          <div className="space-y-3">
+            {budgets.map((b) => {
+              const spent = spentByCat.get(b.category) ?? 0
+              const limit = Number(b.amount)
+              const ratio = limit > 0 ? spent / limit : 0
+              const pct = Math.min(100, Math.round(ratio * 100))
+              const bar = ratio >= 1 ? 'bg-red-500' : ratio >= 0.8 ? 'bg-amber-500' : 'bg-emerald-500'
+              return (
+                <div key={b.id}>
+                  <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${catMeta(b.category).color}`}>
+                      {catMeta(b.category).symbol} {catMeta(b.category).label}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span className="text-slate-500">
+                        {formatMoney(spent, group.base_currency)} / {formatMoney(limit, group.base_currency)}
+                      </span>
+                      <button onClick={() => remove(b.id)} className="text-slate-300 hover:text-red-500" title="Quitar">
+                        ✕
+                      </button>
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                    <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </HistoryList>
+    </div>
+  )
+}
+
+function CardsTab({
+  group,
+  cards,
+  expenses,
+  onChanged,
+}: {
+  group: Group
+  cards: CreditCard[]
+  expenses: Expense[]
+  onChanged: () => void
+}) {
+  const [name, setName] = useState('')
+  const [bank, setBank] = useState('')
+  const [last4, setLast4] = useState('')
+  const [closingDay, setClosingDay] = useState('')
+  const [dueDay, setDueDay] = useState('')
+  const [busy, setBusy] = useState(false)
+  const month = new Date().toISOString().slice(0, 7)
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault()
+    if (!name.trim()) return
+    setBusy(true)
+    await supabase.from('cards').insert({
+      group_id: group.id,
+      name: name.trim(),
+      bank: bank.trim() || null,
+      last4: last4.trim() || null,
+      closing_day: Number(closingDay) || null,
+      due_day: Number(dueDay) || null,
+    })
+    setName('')
+    setBank('')
+    setLast4('')
+    setClosingDay('')
+    setDueDay('')
+    setBusy(false)
+    onChanged()
+  }
+
+  async function remove(id: string) {
+    if (!confirm('¿Borrar esta tarjeta? Los gastos importados quedan guardados.')) return
+    await supabase.from('cards').delete().eq('id', id)
+    onChanged()
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <h2 className="mb-3 text-lg font-semibold text-emerald-800 dark:text-emerald-300">Crear tarjeta</h2>
+        <form onSubmit={add} className="space-y-3">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre (ej: Visa Galicia)" />
+            <Input value={bank} onChange={(e) => setBank(e.target.value)} placeholder="Banco" />
+            <Input value={last4} onChange={(e) => setLast4(e.target.value)} placeholder="Últimos 4" maxLength={4} />
+            <div className="grid grid-cols-2 gap-2">
+              <Input type="number" min="1" max="31" value={closingDay} onChange={(e) => setClosingDay(e.target.value)} placeholder="Cierre" />
+              <Input type="number" min="1" max="31" value={dueDay} onChange={(e) => setDueDay(e.target.value)} placeholder="Vto." />
+            </div>
+          </div>
+          <Button type="submit" disabled={busy || !name.trim()}>
+            {busy ? 'Guardando…' : 'Guardar tarjeta'}
+          </Button>
+        </form>
+      </Card>
+
+      <HistoryList title="Mis tarjetas">
+        {cards.length === 0 ? (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-500">Todavía no hay tarjetas creadas.</p>
+            <Link href={`/g/${group.id}/importar`}>
+              <Button variant="ghost">Importar resumen sin tarjeta</Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {cards.map((card) => {
+              const cardExpenses = expenses.filter((e) => e.card_id === card.id && String(e.date).slice(0, 7) === month)
+              const total = cardExpenses.reduce((sum, e) => sum + Number(e.amount) * Number(e.rate_to_base), 0)
+              return (
+                <div key={card.id} className="rounded-xl border border-slate-100 p-3 dark:border-slate-800">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">{card.name}</p>
+                      <p className="text-xs text-slate-400">
+                        {[card.bank, card.last4 ? `•••• ${card.last4}` : null].filter(Boolean).join(' · ') || 'Sin datos extra'}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">Este mes: {formatMoney(total, group.base_currency)}</p>
+                    </div>
+                    <button onClick={() => remove(card.id)} className="text-slate-300 hover:text-red-500" title="Borrar">
+                      ✕
+                    </button>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Link href={`/g/${group.id}/importar?cardId=${card.id}`}>
+                      <Button variant="ghost">Importar resumen</Button>
+                    </Link>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </HistoryList>
+    </div>
+  )
+}
+
+function PersonalSummaryTab({
+  group,
+  expenses,
+  incomes,
+  savings,
+  catMeta,
+}: {
+  group: Group
+  expenses: Expense[]
+  incomes: Income[]
+  savings: Saving[]
+  catMeta: (v: string) => CatMeta
+}) {
+  const fmt = (n: number) => formatMoney(n, group.base_currency)
+  const month = new Date().toISOString().slice(0, 7)
+  const baseOf = (e: Expense) => Number(e.amount) * Number(e.rate_to_base)
+  const monthExpenses = expenses.filter((e) => String(e.date).slice(0, 7) === month)
+  const monthIncomes = incomes.filter((i) => String(i.date).slice(0, 7) === month)
+  const monthSavings = savings.filter((s) => String(s.date).slice(0, 7) === month)
+  const expenseTotal = monthExpenses.reduce((sum, e) => sum + baseOf(e), 0)
+  const incomeTotal = monthIncomes.reduce((sum, i) => sum + Number(i.amount), 0)
+  const savingTotal = monthSavings.reduce((sum, s) => sum + Number(s.amount), 0)
+  const byCat = spendByCategory(monthExpenses)
+  const categoryChart = byCat.map((c) => ({
+    label: catMeta(c.category).label,
+    value: c.total,
+    color: catMeta(c.category).hex,
+    symbol: catMeta(c.category).symbol,
+  }))
+  const manualTotal = monthExpenses
+    .filter((e) => (e.source ?? 'manual') !== 'card_import')
+    .reduce((sum, e) => sum + baseOf(e), 0)
+  const cardTotal = monthExpenses
+    .filter((e) => (e.source ?? 'manual') === 'card_import')
+    .reduce((sum, e) => sum + baseOf(e), 0)
+  const sourceChart = [
+    { label: 'Manual', value: manualTotal, color: '#10b981', symbol: '✍️' },
+    { label: 'Tarjeta', value: cardTotal, color: '#f43f5e', symbol: '💳' },
+  ]
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-2 sm:grid-cols-3">
+        <MetricCard label="Ingresos" value={fmt(incomeTotal)} tone="text-emerald-600" />
+        <MetricCard label="Gastos" value={fmt(expenseTotal)} tone="text-rose-600" />
+        <MetricCard label="Ahorros" value={fmt(savingTotal)} tone="text-amber-600" />
+      </div>
+
+      <Card>
+        <p className="mb-4 text-sm font-medium text-slate-600">Gastos por categoría · {monthLabelEs(month)}</p>
+        {categoryChart.length > 0 ? (
+          <Donut data={categoryChart} format={fmt} />
+        ) : (
+          <p className="text-sm text-slate-500">Sin gastos este mes.</p>
+        )}
+      </Card>
+
+      <Card>
+        <p className="mb-4 text-sm font-medium text-slate-600">Origen del gasto · {monthLabelEs(month)}</p>
+        {manualTotal > 0 || cardTotal > 0 ? (
+          <Donut data={sourceChart} format={fmt} />
+        ) : (
+          <p className="text-sm text-slate-500">Sin gastos este mes.</p>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+function MetricCard({ label, value, tone }: { label: string; value: string; tone: string }) {
+  return (
+    <Card>
+      <p className="text-xs text-slate-400">{label}</p>
+      <p className={`mt-1 text-xl font-bold ${tone}`}>{value}</p>
+    </Card>
+  )
+}
+
+function HistoryList({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Card>
+      <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">{title}</h3>
+      {children}
+    </Card>
+  )
 }
 
 function BalancesTab({

@@ -36,6 +36,8 @@ export type Expense = {
   category: string
   bank: string | null
   card: string | null
+  card_id: string | null
+  source: 'manual' | 'card_import'
   created_by: string | null
   created_at: string
 }
@@ -71,6 +73,28 @@ export type Income = {
   date: string
   note: string | null
   created_by: string | null
+  created_at: string
+}
+
+export type Saving = {
+  id: string
+  group_id: string
+  member_id: string
+  amount: number
+  date: string
+  note: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export type CreditCard = {
+  id: string
+  group_id: string
+  name: string
+  bank: string | null
+  last4: string | null
+  closing_day: number | null
+  due_day: number | null
   created_at: string
 }
 

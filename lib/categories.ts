@@ -23,6 +23,11 @@ export const EXPENSE_CATEGORIES = [
   { value: 'bebes-ninos', label: 'Bebés / Niños', symbol: '🧸', color: 'bg-orange-100 text-orange-700', hex: '#fb923c' },
   { value: 'trabajo', label: 'Trabajo', symbol: '💼', color: 'bg-stone-100 text-stone-700', hex: '#78716c' },
   { value: 'banco-comisiones', label: 'Banco / Comisiones', symbol: '🏦', color: 'bg-zinc-100 text-zinc-700', hex: '#71717a' },
+  { value: 'cafe', label: 'Café / Bar', symbol: '☕', color: 'bg-amber-100 text-amber-800', hex: '#b45309' },
+  { value: 'eventos', label: 'Eventos / Fiestas', symbol: '🎉', color: 'bg-pink-100 text-pink-700', hex: '#ec4899' },
+  { value: 'prestamos', label: 'Préstamos / Deudas', symbol: '💳', color: 'bg-rose-100 text-rose-700', hex: '#e11d48' },
+  { value: 'inversiones', label: 'Inversiones', symbol: '📈', color: 'bg-emerald-100 text-emerald-700', hex: '#059669' },
+  { value: 'donaciones', label: 'Donaciones', symbol: '🤝', color: 'bg-teal-100 text-teal-700', hex: '#0d9488' },
   { value: 'otros', label: 'Otros', symbol: '•', color: 'bg-slate-100 text-slate-600', hex: '#94a3b8' },
 ] as const
 
@@ -82,6 +87,11 @@ const SYMBOL_RULES: { symbol: string; words: string[] }[] = [
   { symbol: '🧸', words: ['bebe', 'nino', 'niño', 'chico', 'jardin', 'pañal', 'panal'] },
   { symbol: '💼', words: ['trabajo', 'oficina', 'cowork', 'hosting', 'dominio'] },
   { symbol: '🏦', words: ['banco', 'comision', 'comisión', 'cajero', 'atm'] },
+  { symbol: '☕', words: ['cafe', 'café', 'starbucks', 'bar', 'cerveza', 'birra'] },
+  { symbol: '🎉', words: ['evento', 'fiesta', 'cumple', 'casamiento', 'salon'] },
+  { symbol: '💳', words: ['prestamo', 'préstamo', 'cuota', 'deuda', 'credito', 'crédito'] },
+  { symbol: '📈', words: ['inversion', 'inversión', 'plazo fijo', 'fci', 'acciones', 'cripto', 'dolar'] },
+  { symbol: '🤝', words: ['donacion', 'donación', 'caridad', 'ong', 'colecta'] },
 ]
 
 export function categorySymbol(value: string, label = value): string {
@@ -151,6 +161,11 @@ const CATEGORY_KEYWORDS: { cat: CategoryValue; words: string[] }[] = [
   { cat: 'bebes-ninos', words: ['bebe', 'bebé', 'pañal', 'panal', 'jardin', 'jardín', 'niño', 'nino', 'chicos', 'juguete'] },
   { cat: 'trabajo', words: ['oficina', 'cowork', 'libreria', 'papeleria', 'insumo', 'honorario', 'hosting', 'dominio'] },
   { cat: 'banco-comisiones', words: ['comision', 'comisión', 'mantenimiento cuenta', 'interes', 'interés', 'banco', 'atm', 'cajero'] },
+  { cat: 'cafe', words: ['cafe', 'café', 'starbucks', 'cerveceria', 'cerveza', 'birra', 'havanna', 'bar '] },
+  { cat: 'eventos', words: ['evento', 'fiesta', 'casamiento', 'salon de fiestas', 'catering', 'cotillon'] },
+  { cat: 'prestamos', words: ['prestamo', 'préstamo', 'cuota prestamo', 'deuda', 'refinanciacion', 'tarjeta credito'] },
+  { cat: 'inversiones', words: ['inversion', 'inversión', 'plazo fijo', 'fci', 'acciones', 'cripto', 'binance', 'cocos', 'broker'] },
+  { cat: 'donaciones', words: ['donacion', 'donación', 'caridad', 'ong', 'colecta', 'unicef', 'cruz roja'] },
   { cat: 'ocio', words: ['cine', 'teatro', 'salida', 'regalo', 'viaje', 'finde', 'entrada', 'juego', 'gimnasio', 'gym', 'recital'] },
 ]
 
