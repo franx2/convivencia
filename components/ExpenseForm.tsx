@@ -356,7 +356,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Monto</Label>
-                <AmountCalculator value={amount} currency={currency} onChange={setAmount} />
+                <AmountCalculator value={amount} currency={currency} onChange={setAmount} autoOpen={!isEdit} />
               </div>
               <div>
                 <Label>Moneda</Label>

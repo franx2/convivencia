@@ -1,16 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 type Props = {
   value: string
   currency: string
   onChange: (value: string) => void
+  /** Abre la calculadora automáticamente al montar (carga de un nuevo registro). */
+  autoOpen?: boolean
 }
 
 const ops = new Set(['+', '-', '×', '÷'])
 
-export function AmountCalculator({ value, currency, onChange }: Props) {
+export function AmountCalculator({ value, currency, onChange, autoOpen = false }: Props) {
   const [open, setOpen] = useState(false)
   const [expr, setExpr] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -20,6 +22,12 @@ export function AmountCalculator({ value, currency, onChange }: Props) {
     setError(null)
     setOpen(true)
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- abrir la calculadora al cargar un nuevo registro
+    if (autoOpen) openCalc()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- abrir solo al montar / al cambiar autoOpen
+  }, [autoOpen])
 
   function push(key: string) {
     setError(null)
@@ -112,21 +120,6 @@ export function AmountCalculator({ value, currency, onChange }: Props) {
             </div>
 
             <div className="-mt-6 rounded-t-[28px] bg-white px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-6 dark:bg-slate-950">
-              <div className="mb-6 flex gap-2 overflow-x-auto">
-                {['Gastos', 'Tarjetas', 'Ingresos', 'Ahorros'].map((label, index) => (
-                  <span
-                    key={label}
-                    className={`shrink-0 rounded-full border px-4 py-2 text-sm font-bold ${
-                      index === 0
-                        ? 'border-rose-400 bg-rose-400 text-white'
-                        : 'border-slate-200 bg-white text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300'
-                    }`}
-                  >
-                    {label}
-                  </span>
-                ))}
-              </div>
-
               <div className="grid grid-cols-4 gap-4">
                 {['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '-', '0', ',', '=', '+'].map((key) => (
                   <button

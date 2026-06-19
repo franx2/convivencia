@@ -13,7 +13,19 @@ type BottomNavProps = {
 export function BottomNav({ active, personalHref }: BottomNavProps) {
   const { user } = useAuth()
   const [fetchedPersonalHref, setFetchedPersonalHref] = useState<string | null>(null)
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
   const resolvedPersonalHref = personalHref ?? fetchedPersonalHref
+
+  // En iOS el teclado empuja hacia arriba los elementos `position: fixed` y la
+  // barra "se levanta" tapando el contenido. Mientras hay teclado, la ocultamos.
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null
+    if (!vv) return
+    const onResize = () => setKeyboardOpen(window.innerHeight - vv.height > 150)
+    onResize()
+    vv.addEventListener('resize', onResize)
+    return () => vv.removeEventListener('resize', onResize)
+  }, [])
 
   useEffect(() => {
     if (personalHref) return
@@ -35,6 +47,8 @@ export function BottomNav({ active, personalHref }: BottomNavProps) {
       cancelled = true
     }
   }, [personalHref, user])
+
+  if (keyboardOpen) return null
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2 shadow-[0_-12px_28px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">

@@ -2,17 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { BottomNav } from '@/components/BottomNav'
 import { Header } from '@/components/Header'
 import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
 import { CURRENCIES, formatMoney } from '@/lib/currencies'
-import { userPaymentAlias } from '@/lib/profile'
+import { userDisplayName, userPaymentAlias } from '@/lib/profile'
 import type { Group } from '@/lib/types'
 
 export default function HomePage() {
   const { user, loading } = useRequireAuth()
+  const router = useRouter()
   const [groups, setGroups] = useState<Group[]>([])
   const [totals, setTotals] = useState<Record<string, number>>({})
   const [fetching, setFetching] = useState(true)
@@ -90,6 +92,7 @@ export default function HomePage() {
 
   async function createGroup(e: React.FormEvent) {
     e.preventDefault()
+    if (!user) return
     setBusy(true)
     setError(null)
     const { data, error } = await supabase
@@ -97,15 +100,31 @@ export default function HomePage() {
       .insert({ name: name.trim(), base_currency: currency })
       .select()
       .single()
-    if (error) {
+    if (error || !data) {
       setBusy(false)
-      setError(error.message)
+      setError(error?.message ?? 'No se pudo crear el grupo.')
       return
+    }
+    const group = data as Group
+    // Auto-agregar al creador como miembro y fijarlo como su identidad en el grupo,
+    // así queda preseleccionado como "quién soy" / pagador por defecto (items 7/8).
+    const { data: member } = await supabase
+      .from('members')
+      .insert({ group_id: group.id, name: userDisplayName(user), alias: userPaymentAlias(user) || null })
+      .select('id')
+      .single()
+    if (member) {
+      await supabase
+        .from('group_users')
+        .update({ member_id: (member as { id: string }).id })
+        .eq('group_id', group.id)
+        .eq('user_id', user.id)
     }
     setBusy(false)
     setName('')
     setShowForm(false)
-    if (data) setGroups((g) => [data as Group, ...g])
+    // Onboarding: primero sumar integrantes, después compartir el link de invitación.
+    router.push(`/g/${group.id}/invitar`)
   }
 
   async function deleteGroup(group: Group) {

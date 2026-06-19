@@ -320,6 +320,18 @@ alter table public.groups
   add column if not exists is_personal boolean not null default false;
 
 -- ============================================================
+-- Saldo inicial / ajuste del balance acumulado (ver migration_balance_baseline.sql)
+-- baseline_date null = se cuenta todo desde el principio. Si tiene fecha, el balance
+-- acumulado arranca en baseline_amount y solo suma movimientos con date >= baseline_date.
+-- No borra historial: los movimientos previos siguen en las listas.
+-- ============================================================
+
+alter table public.groups
+  add column if not exists baseline_amount numeric not null default 0;
+alter table public.groups
+  add column if not exists baseline_date date;
+
+-- ============================================================
 -- Banco y tarjeta por gasto (ver migration_banco_tarjeta.sql)
 -- ============================================================
 

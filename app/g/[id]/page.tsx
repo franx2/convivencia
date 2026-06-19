@@ -1,11 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
+import { AmountCalculator } from '@/components/AmountCalculator'
 import { BottomNav } from '@/components/BottomNav'
 import { Header } from '@/components/Header'
 import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
@@ -120,6 +121,13 @@ export default function GroupPage() {
     if (user) load()
   }, [user, load])
 
+  // Desplaza la pestaña activa a la vista al cambiar (la barra es scrolleable en mobile).
+  const tabsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = tabsRef.current?.querySelector<HTMLElement>('[data-active="true"]')
+    el?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+  }, [tab])
+
   const memberName = useMemo(() => {
     const map = new Map<string, string>()
     members.forEach((m) => map.set(m.id, m.name))
@@ -173,21 +181,29 @@ export default function GroupPage() {
     <>
       <Header />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-36 pt-6">
-        <div className="mb-4">
-          <Link href="/" className="text-sm text-slate-400 hover:text-slate-600">
-            ← Mis grupos
-          </Link>
-          <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold">
-            {group.name}
-            {group.is_personal && (
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                personal
-              </span>
-            )}
-          </h1>
-          <p className="text-sm text-slate-500">
-            {group.is_personal ? 'Espacio personal · ' : ''}Moneda base: {group.base_currency}
-          </p>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h1 className="flex items-center gap-2 text-2xl font-bold">
+              {group.name}
+              {group.is_personal && (
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                  personal
+                </span>
+              )}
+            </h1>
+            <p className="text-sm text-slate-500">
+              {group.is_personal ? 'Espacio personal · ' : ''}Moneda base: {group.base_currency}
+            </p>
+          </div>
+          {group.is_personal && (
+            <Link
+              href="/configuracion"
+              aria-label="Configuración"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-slate-200 text-xl text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+            >
+              ⚙️
+            </Link>
+          )}
         </div>
 
         {group.is_personal && activeTab === 'inicio' && (
@@ -199,6 +215,7 @@ export default function GroupPage() {
             budgets={budgets}
             catMeta={catMeta}
             onOpenTab={(next) => setTab(next)}
+            onChanged={load}
           />
         )}
 
@@ -214,10 +231,11 @@ export default function GroupPage() {
           />
         )}
 
-        <div className="mb-5 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1 text-sm dark:bg-slate-800">
+        <div ref={tabsRef} className="mb-5 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1 text-sm dark:bg-slate-800">
           {tabs.map((t) => (
             <button
               key={t.key}
+              data-active={activeTab === t.key}
               onClick={() => setTab(t.key)}
               className={`flex-1 whitespace-nowrap rounded-md px-3 py-1.5 font-medium ${
                 activeTab === t.key
@@ -333,6 +351,7 @@ function PersonalDashboard({
   budgets,
   catMeta,
   onOpenTab,
+  onChanged,
 }: {
   group: Group
   expenses: Expense[]
@@ -341,20 +360,58 @@ function PersonalDashboard({
   budgets: Budget[]
   catMeta: (v: string) => CatMeta
   onOpenTab: (tab: PersonalTab) => void
+  onChanged: () => void
 }) {
   const fmt = (n: number) => formatMoney(n, group.base_currency)
+  const fmtDate = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString('es-AR')
   const baseOf = (e: Expense) => Number(e.amount) * Number(e.rate_to_base)
-  const currentMonth = new Date().toISOString().slice(0, 7)
+  const today = new Date().toISOString().slice(0, 10)
+  const currentMonth = today.slice(0, 7)
   const monthExpenses = expenses.filter((e) => String(e.date).slice(0, 7) === currentMonth)
   const monthIncomes = incomes.filter((i) => String(i.date).slice(0, 7) === currentMonth)
-  const totalExpenses = expenses.reduce((sum, e) => sum + baseOf(e), 0)
-  const totalIncomes = incomes.reduce((sum, i) => sum + Number(i.amount), 0)
   const monthExpenseTotal = monthExpenses.reduce((sum, e) => sum + baseOf(e), 0)
   const monthIncomeTotal = monthIncomes.reduce((sum, i) => sum + Number(i.amount), 0)
   const monthSavings = savings
     .filter((s) => String(s.date).slice(0, 7) === currentMonth)
     .reduce((sum, s) => sum + Number(s.amount), 0)
-  const balance = totalIncomes - totalExpenses
+
+  // Balance acumulado con saldo inicial / ajuste opcional (item 10): si hay
+  // baseline_date, arranca en baseline_amount y solo cuenta movimientos con
+  // date >= baseline_date. Sin baseline, cuenta todo. No borra historial.
+  const baselineDate = group.baseline_date ?? null
+  const baselineAmount = Number(group.baseline_amount ?? 0)
+  const countedIncomes = baselineDate ? incomes.filter((i) => String(i.date) >= baselineDate) : incomes
+  const countedExpenses = baselineDate ? expenses.filter((e) => String(e.date) >= baselineDate) : expenses
+  const sumCountedIncomes = countedIncomes.reduce((sum, i) => sum + Number(i.amount), 0)
+  const sumCountedExpenses = countedExpenses.reduce((sum, e) => sum + baseOf(e), 0)
+  const balance = baselineAmount + sumCountedIncomes - sumCountedExpenses
+
+  const [showBalance, setShowBalance] = useState(false)
+  const [resetAmount, setResetAmount] = useState('')
+  const [resetDate, setResetDate] = useState(today)
+  const [savingReset, setSavingReset] = useState(false)
+
+  function openBalanceInfo() {
+    setResetAmount(String(Math.round(balance * 100) / 100))
+    setResetDate(baselineDate ?? today)
+    setShowBalance(true)
+  }
+  async function applyBaseline() {
+    setSavingReset(true)
+    const amt = Number(resetAmount.replace(',', '.')) || 0
+    await supabase.from('groups').update({ baseline_amount: amt, baseline_date: resetDate }).eq('id', group.id)
+    setSavingReset(false)
+    setShowBalance(false)
+    onChanged()
+  }
+  async function clearBaseline() {
+    setSavingReset(true)
+    await supabase.from('groups').update({ baseline_amount: 0, baseline_date: null }).eq('id', group.id)
+    setSavingReset(false)
+    setShowBalance(false)
+    onChanged()
+  }
+
   const topCategories = spendByCategory(monthExpenses).slice(0, 3)
   const monthByCat = new Map<string, number>()
   for (const e of monthExpenses) {
@@ -399,12 +456,101 @@ function PersonalDashboard({
           </button>
         </div>
 
-        <div className="mb-5">
-          <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">Balance acumulado</p>
-          <p className={`mt-1 text-5xl font-bold tracking-normal ${balance >= 0 ? 'text-emerald-700' : 'text-rose-500'}`}>
+        <button type="button" onClick={openBalanceInfo} className="mb-5 block w-full text-left">
+          <span className="flex items-center gap-1.5 text-sm font-bold text-emerald-800 dark:text-emerald-300">
+            Balance acumulado
+            <span className="grid h-4 w-4 place-items-center rounded-full bg-emerald-100 text-[11px] font-bold text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+              i
+            </span>
+          </span>
+          <span className={`mt-1 block text-5xl font-bold tracking-normal ${balance >= 0 ? 'text-emerald-700' : 'text-rose-500'}`}>
             {fmt(balance)}
-          </p>
-        </div>
+          </span>
+          {baselineDate && (
+            <span className="mt-1 block text-xs text-slate-400">
+              desde {fmtDate(baselineDate)} · saldo inicial {fmt(baselineAmount)}
+            </span>
+          )}
+        </button>
+
+        {showBalance && (
+          <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/50 px-0 text-slate-900 sm:items-center sm:px-4 dark:text-slate-100">
+            <div className="w-full max-w-md overflow-hidden rounded-t-[28px] bg-white shadow-2xl dark:bg-slate-950 sm:rounded-[28px]">
+              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                <h3 className="text-lg font-bold">Balance acumulado</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowBalance(false)}
+                  className="text-2xl leading-none text-slate-400"
+                  aria-label="Cerrar"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="space-y-4 px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-5">
+                <p className="text-sm text-slate-500">
+                  Es lo que te queda sumando ingresos y restando gastos
+                  {baselineDate ? ' desde el saldo inicial que fijaste.' : ' desde el principio.'}
+                </p>
+                <div className="space-y-2 rounded-2xl bg-slate-50 p-4 text-sm dark:bg-slate-900">
+                  {baselineDate && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Saldo inicial ({fmtDate(baselineDate)})</span>
+                      <span className="font-semibold">{fmt(baselineAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Ingresos contados</span>
+                    <span className="font-semibold text-emerald-600">+ {fmt(sumCountedIncomes)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Gastos contados</span>
+                    <span className="font-semibold text-rose-500">− {fmt(sumCountedExpenses)}</span>
+                  </div>
+                  <div className="border-t border-slate-200 pt-2 dark:border-slate-700">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold">Balance</span>
+                      <span className={`text-lg font-bold ${balance >= 0 ? 'text-emerald-700' : 'text-rose-500'}`}>
+                        {fmt(balance)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                  <p className="text-sm font-bold">Fijar saldo inicial</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Poné cuánto tenés hoy. El balance arranca de ese número y suma/resta solo lo nuevo. No se borra nada del
+                    historial.
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold text-slate-500">Monto</span>
+                      <Input value={resetAmount} onChange={(e) => setResetAmount(e.target.value)} inputMode="decimal" placeholder="0" />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold text-slate-500">Desde</span>
+                      <Input type="date" value={resetDate} onChange={(e) => setResetDate(e.target.value)} />
+                    </label>
+                  </div>
+                  <Button onClick={applyBaseline} disabled={savingReset} className="mt-3 w-full">
+                    {savingReset ? 'Guardando…' : 'Guardar saldo inicial'}
+                  </Button>
+                  {baselineDate && (
+                    <button
+                      type="button"
+                      onClick={clearBaseline}
+                      disabled={savingReset}
+                      className="mt-2 w-full text-center text-sm text-slate-400 hover:text-slate-600"
+                    >
+                      Quitar ajuste y contar todo
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3">
           <DashboardRow
@@ -899,6 +1045,7 @@ function PersonalIncomesTab({
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
   const member = members[0]?.id ?? ''
 
   async function add(e: React.FormEvent) {
@@ -922,6 +1069,7 @@ function PersonalIncomesTab({
     }
     setAmount('')
     setNote('')
+    setAdding(false)
     onChanged()
   }
 
@@ -932,27 +1080,31 @@ function PersonalIncomesTab({
 
   return (
     <div className="space-y-4">
-      <Card>
-        <h2 className="mb-3 text-lg font-semibold text-emerald-800 dark:text-emerald-300">Agregar ingreso</h2>
-        <form onSubmit={add} className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder={`Monto (${group.base_currency})`}
-            />
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      {adding ? (
+        <Card>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-emerald-800 dark:text-emerald-300">Agregar ingreso</h2>
+            <button type="button" onClick={() => setAdding(false)} className="text-sm text-slate-400 hover:text-slate-600">
+              Cancelar
+            </button>
           </div>
-          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (ej: Sueldo)" />
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <Button type="submit" disabled={busy}>
-            {busy ? 'Guardando…' : 'Guardar ingreso'}
-          </Button>
-        </form>
-      </Card>
+          <form onSubmit={add} className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <AmountCalculator value={amount} currency={group.base_currency} onChange={setAmount} autoOpen />
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (ej: Sueldo)" />
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <Button type="submit" disabled={busy}>
+              {busy ? 'Guardando…' : 'Guardar ingreso'}
+            </Button>
+          </form>
+        </Card>
+      ) : (
+        <Button onClick={() => setAdding(true)} className="w-full">
+          + Agregar ingreso
+        </Button>
+      )}
 
       <HistoryList title="Ingresos previos">
         {incomes.length === 0 ? (
@@ -997,6 +1149,7 @@ function SavingsTab({
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
   const member = members[0]?.id ?? ''
 
   async function add(e: React.FormEvent) {
@@ -1020,6 +1173,7 @@ function SavingsTab({
     }
     setAmount('')
     setNote('')
+    setAdding(false)
     onChanged()
   }
 
@@ -1030,27 +1184,31 @@ function SavingsTab({
 
   return (
     <div className="space-y-4">
-      <Card>
-        <h2 className="mb-3 text-lg font-semibold text-amber-700 dark:text-amber-300">Agregar ahorro</h2>
-        <form onSubmit={add} className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder={`Monto (${group.base_currency})`}
-            />
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      {adding ? (
+        <Card>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-amber-700 dark:text-amber-300">Agregar ahorro</h2>
+            <button type="button" onClick={() => setAdding(false)} className="text-sm text-slate-400 hover:text-slate-600">
+              Cancelar
+            </button>
           </div>
-          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (ej: Fondo emergencia)" />
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <Button type="submit" disabled={busy}>
-            {busy ? 'Guardando…' : 'Guardar ahorro'}
-          </Button>
-        </form>
-      </Card>
+          <form onSubmit={add} className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <AmountCalculator value={amount} currency={group.base_currency} onChange={setAmount} autoOpen />
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (ej: Fondo emergencia)" />
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <Button type="submit" disabled={busy}>
+              {busy ? 'Guardando…' : 'Guardar ahorro'}
+            </Button>
+          </form>
+        </Card>
+      ) : (
+        <Button onClick={() => setAdding(true)} className="w-full">
+          + Agregar ahorro
+        </Button>
+      )}
 
       <HistoryList title="Ahorros previos">
         {savings.length === 0 ? (
@@ -1203,6 +1361,7 @@ function CardsTab({
   const [closingDay, setClosingDay] = useState('')
   const [dueDay, setDueDay] = useState('')
   const [busy, setBusy] = useState(false)
+  const [adding, setAdding] = useState(false)
   const month = new Date().toISOString().slice(0, 7)
 
   async function add(e: React.FormEvent) {
@@ -1223,6 +1382,7 @@ function CardsTab({
     setClosingDay('')
     setDueDay('')
     setBusy(false)
+    setAdding(false)
     onChanged()
   }
 
@@ -1234,23 +1394,34 @@ function CardsTab({
 
   return (
     <div className="space-y-4">
-      <Card>
-        <h2 className="mb-3 text-lg font-semibold text-emerald-800 dark:text-emerald-300">Crear tarjeta</h2>
-        <form onSubmit={add} className="space-y-3">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre (ej: Visa Galicia)" />
-            <Input value={bank} onChange={(e) => setBank(e.target.value)} placeholder="Banco" />
-            <Input value={last4} onChange={(e) => setLast4(e.target.value)} placeholder="Últimos 4" maxLength={4} />
-            <div className="grid grid-cols-2 gap-2">
-              <Input type="number" min="1" max="31" value={closingDay} onChange={(e) => setClosingDay(e.target.value)} placeholder="Cierre" />
-              <Input type="number" min="1" max="31" value={dueDay} onChange={(e) => setDueDay(e.target.value)} placeholder="Vto." />
-            </div>
+      {adding ? (
+        <Card>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-emerald-800 dark:text-emerald-300">Crear tarjeta</h2>
+            <button type="button" onClick={() => setAdding(false)} className="text-sm text-slate-400 hover:text-slate-600">
+              Cancelar
+            </button>
           </div>
-          <Button type="submit" disabled={busy || !name.trim()}>
-            {busy ? 'Guardando…' : 'Guardar tarjeta'}
-          </Button>
-        </form>
-      </Card>
+          <form onSubmit={add} className="space-y-3">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre (ej: Visa Galicia)" autoFocus />
+              <Input value={bank} onChange={(e) => setBank(e.target.value)} placeholder="Banco" />
+              <Input value={last4} onChange={(e) => setLast4(e.target.value)} placeholder="Últimos 4" maxLength={4} />
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="number" min="1" max="31" value={closingDay} onChange={(e) => setClosingDay(e.target.value)} placeholder="Cierre" />
+                <Input type="number" min="1" max="31" value={dueDay} onChange={(e) => setDueDay(e.target.value)} placeholder="Vto." />
+              </div>
+            </div>
+            <Button type="submit" disabled={busy || !name.trim()}>
+              {busy ? 'Guardando…' : 'Guardar tarjeta'}
+            </Button>
+          </form>
+        </Card>
+      ) : (
+        <Button onClick={() => setAdding(true)} className="w-full">
+          + Nueva tarjeta
+        </Button>
+      )}
 
       <HistoryList title="Mis tarjetas">
         {cards.length === 0 ? (

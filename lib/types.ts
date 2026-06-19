@@ -5,6 +5,9 @@ export type Group = {
   owner_id: string
   invite_token: string
   is_personal: boolean
+  // Saldo inicial / ajuste del balance acumulado (espacio personal).
+  baseline_amount?: number
+  baseline_date?: string | null
   created_at: string
 }
 
