@@ -27,6 +27,7 @@ import type {
 } from '@/lib/types'
 
 type Tab = 'gastos' | 'balances' | 'liquidacion' | 'miembros'
+type DashboardTarget = 'gastos' | 'ingresos' | 'resumen' | 'presupuestos'
 
 export default function GroupPage() {
   const { user, loading } = useRequireAuth()
@@ -46,6 +47,7 @@ export default function GroupPage() {
   const [fetching, setFetching] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [tab, setTab] = useState<Tab>('gastos')
+  const [dashboardTarget, setDashboardTarget] = useState<DashboardTarget | null>(null)
 
   const load = useCallback(async () => {
     const { data: g } = await supabase.from('groups').select('*').eq('id', groupId).maybeSingle()
@@ -108,6 +110,16 @@ export default function GroupPage() {
     if (user) load()
   }, [user, load])
 
+  useEffect(() => {
+    if (!dashboardTarget) return
+    const targetId = `section-${dashboardTarget}`
+    const timer = window.setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setDashboardTarget(null)
+    }, 120)
+    return () => window.clearTimeout(timer)
+  }, [dashboardTarget, tab])
+
   const memberName = useMemo(() => {
     const map = new Map<string, string>()
     members.forEach((m) => map.set(m.id, m.name))
@@ -122,6 +134,11 @@ export default function GroupPage() {
     [categories]
   )
   const catMeta = useMemo(() => (v: string) => metaFrom(cats, v), [cats])
+
+  function openDashboardTarget(target: DashboardTarget) {
+    setDashboardTarget(target)
+    setTab(target === 'gastos' ? 'gastos' : 'balances')
+  }
 
   if (loading || !user || fetching) return <Spinner />
   if (notFound || !group)
@@ -177,7 +194,7 @@ export default function GroupPage() {
             incomes={incomes}
             budgets={budgets}
             catMeta={catMeta}
-            onOpenBalances={() => setTab('balances')}
+            onOpenTarget={openDashboardTarget}
           />
         )}
 
@@ -262,14 +279,14 @@ function PersonalDashboard({
   incomes,
   budgets,
   catMeta,
-  onOpenBalances,
+  onOpenTarget,
 }: {
   group: Group
   expenses: Expense[]
   incomes: Income[]
   budgets: Budget[]
   catMeta: (v: string) => CatMeta
-  onOpenBalances: () => void
+  onOpenTarget: (target: DashboardTarget) => void
 }) {
   const fmt = (n: number) => formatMoney(n, group.base_currency)
   const baseOf = (e: Expense) => Number(e.amount) * Number(e.rate_to_base)
@@ -329,34 +346,34 @@ function PersonalDashboard({
             title="Ingresos"
             value={fmt(monthIncomeTotal)}
             className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-            onClick={onOpenBalances}
+            onClick={() => onOpenTarget('ingresos')}
           />
           <DashboardRow
             icon="↕"
             title="Gastos"
             value={fmt(monthExpenseTotal)}
             className="bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-200"
-            onClick={onOpenBalances}
+            onClick={() => onOpenTarget('gastos')}
           />
           <DashboardRow
             icon="💰"
             title="Ahorros"
             value={fmt(monthSavings)}
             className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-200"
-            onClick={onOpenBalances}
+            onClick={() => onOpenTarget('resumen')}
           />
         </div>
 
         <div className="mt-6">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-lg font-bold text-emerald-800 dark:text-emerald-300">Mis presupuestos</p>
-            <button type="button" onClick={onOpenBalances} className="text-sm font-bold text-emerald-700">
+            <button type="button" onClick={() => onOpenTarget('presupuestos')} className="text-sm font-bold text-emerald-700">
               ver más ›
             </button>
           </div>
           <button
             type="button"
-            onClick={onOpenBalances}
+            onClick={() => onOpenTarget('presupuestos')}
             className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm dark:border-slate-800 dark:bg-slate-900"
           >
             {budgets.length === 0 ? (
@@ -378,13 +395,24 @@ function PersonalDashboard({
         </div>
 
         <div className="mt-6">
-          <p className="mb-3 text-lg font-bold text-emerald-800 dark:text-emerald-300">Resumen mensual</p>
+          <button
+            type="button"
+            onClick={() => onOpenTarget('resumen')}
+            className="mb-3 flex w-full items-center justify-between text-left text-lg font-bold text-emerald-800 dark:text-emerald-300"
+          >
+            <span>Resumen mensual</span>
+            <span className="text-2xl leading-none">›</span>
+          </button>
           {topCategories.length === 0 ? (
-            <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-900">
+            <button
+              type="button"
+              onClick={() => onOpenTarget('resumen')}
+              className="w-full rounded-2xl bg-slate-50 p-4 text-left text-sm text-slate-500 dark:bg-slate-900"
+            >
               Todavía no hay gastos este mes.
-            </p>
+            </button>
           ) : (
-            <div className="space-y-2">
+            <button type="button" onClick={() => onOpenTarget('resumen')} className="w-full space-y-2 text-left">
               {topCategories.map((c) => (
                 <div key={c.category} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm dark:bg-slate-900">
                   <span className="font-semibold text-slate-700 dark:text-slate-200">
@@ -393,7 +421,7 @@ function PersonalDashboard({
                   <span className="font-bold text-slate-900 dark:text-slate-100">{fmt(c.total)}</span>
                 </div>
               ))}
-            </div>
+            </button>
           )}
         </div>
       </div>
@@ -629,7 +657,7 @@ function GastosTab({
   }
 
   return (
-    <div className="space-y-3">
+    <div id="section-gastos" className="scroll-mt-24 space-y-3">
       {hasMembers && (
         <Card>
           <div className="mb-2 flex items-center justify-between">
@@ -958,20 +986,22 @@ function BalancesTab({
       </Card>
 
       {/* Donut filtrado */}
-      {byCat.length > 0 ? (
-        <Card>
+      <div id="section-resumen" className="scroll-mt-24">
+        {byCat.length > 0 ? (
+          <Card>
           <p className="mb-4 text-sm font-medium text-slate-600">
             Gastos por categoría · {monthLbl}
             {whoLbl ? ` · ${whoLbl}` : ''}
           </p>
           <Donut data={donutData} format={fmt} />
-        </Card>
-      ) : (
-        <Card className="text-center text-sm text-slate-500">Sin gastos en {monthLbl}.</Card>
-      )}
+          </Card>
+        ) : (
+          <Card className="text-center text-sm text-slate-500">Sin gastos en {monthLbl}.</Card>
+        )}
+      </div>
 
       {/* Ingresos del mes */}
-      <Card>
+      <Card className="scroll-mt-24" id="section-ingresos">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Ingresos · {monthLbl}</p>
           <button
@@ -1049,7 +1079,7 @@ function BalancesTab({
         <MonthlyBars data={byMonth} format={fmt} />
       </Card>
 
-      <Card>
+      <Card className="scroll-mt-24" id="section-presupuestos">
         <div className="mb-3 flex items-center justify-between">
           <p className="text-sm font-medium text-slate-600">Presupuesto · {monthLbl}</p>
           <button
