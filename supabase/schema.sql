@@ -52,6 +52,10 @@ create index if not exists idx_members_group   on public.members(group_id);
 create index if not exists idx_expenses_group   on public.expenses(group_id);
 create index if not exists idx_group_users_user on public.group_users(user_id);
 
+alter table public.group_users
+  add column if not exists member_id uuid references public.members(id) on delete set null;
+create index if not exists idx_group_users_member on public.group_users(member_id);
+
 -- ---------- Funciones de apoyo (SECURITY DEFINER, evitan recursion en RLS) ----------
 
 -- ¿el usuario actual pertenece al grupo?
@@ -142,6 +146,26 @@ create policy group_users_select on public.group_users
 drop policy if exists group_users_delete on public.group_users;
 create policy group_users_delete on public.group_users
   for delete using (user_id = auth.uid());
+
+drop policy if exists group_users_update_self on public.group_users;
+create policy group_users_update_self on public.group_users
+  for update using (
+    user_id = auth.uid()
+    and public.is_group_member(group_id)
+  )
+  with check (
+    user_id = auth.uid()
+    and public.is_group_member(group_id)
+    and (
+      member_id is null
+      or exists (
+        select 1
+        from public.members m
+        where m.id = member_id
+          and m.group_id = group_users.group_id
+      )
+    )
+  );
 
 -- members
 drop policy if exists members_all on public.members;

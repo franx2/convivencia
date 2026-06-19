@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/components/AuthProvider'
+import { AmountCalculator } from '@/components/AmountCalculator'
 import { BottomNav } from '@/components/BottomNav'
 import { Header } from '@/components/Header'
 import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
@@ -27,6 +29,8 @@ import type { Category, Expense, ExpenseShare, Group, Member } from '@/lib/types
  */
 export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId?: string }) {
   const router = useRouter()
+  const { user } = useAuth()
+  const userId = user?.id
   const isEdit = Boolean(expenseId)
 
   const [group, setGroup] = useState<Group | null>(null)
@@ -69,6 +73,17 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
     setGroup(g as Group)
     const mm = (m ?? []) as Member[]
     setMembers(mm)
+    let defaultPaidBy = (g as Group).is_personal ? (mm[0]?.id ?? '') : ''
+    if (userId) {
+      const { data: link, error: linkError } = await supabase
+        .from('group_users')
+        .select('member_id')
+        .eq('group_id', groupId)
+        .eq('user_id', userId)
+        .maybeSingle()
+      const linked = !linkError ? ((link ?? {}) as { member_id?: string | null }).member_id : null
+      if (linked && mm.some((member) => member.id === linked)) defaultPaidBy = linked
+    }
 
     const { data: c } = await supabase
       .from('categories')
@@ -133,7 +148,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
       setWeights(wBase)
     } else {
       setCurrency((g as Group).base_currency)
-      setPaidBy(mm[0]?.id ?? '')
+      setPaidBy(defaultPaidBy)
       setSelected(new Set(mm.map((x) => x.id)))
       setWeights(wBase)
       // Prefill desde una plantilla (gasto típico) via query params.
@@ -151,7 +166,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
       }
     }
     setFetching(false)
-  }, [groupId, expenseId, isEdit])
+  }, [groupId, expenseId, isEdit, userId])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial async; setState ocurre tras el await
@@ -341,15 +356,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Monto</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  required
-                />
+                <AmountCalculator value={amount} currency={currency} onChange={setAmount} />
               </div>
               <div>
                 <Label>Moneda</Label>
@@ -396,6 +403,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
               <div>
                 <Label>Pagó</Label>
                 <Select value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
+                  <option value="">Elegí</option>
                   {members.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.name}

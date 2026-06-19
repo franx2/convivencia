@@ -17,6 +17,13 @@ export type Member = {
   created_at: string
 }
 
+export type GroupUser = {
+  group_id: string
+  user_id: string
+  member_id: string | null // miembro que representa a este usuario dentro del grupo
+  created_at: string
+}
+
 export type Expense = {
   id: string
   group_id: string

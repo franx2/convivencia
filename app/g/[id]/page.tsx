@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { BottomNav } from '@/components/BottomNav'
@@ -11,6 +12,7 @@ import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { mergeCategories, metaFrom, type CatMeta } from '@/lib/categories'
 import { computeBalances, settle, spendByCategory, spendByMonth } from '@/lib/balances'
+import { userDisplayName, userPaymentAlias } from '@/lib/profile'
 import { Donut, MonthlyBars } from '@/components/charts'
 import type {
   Budget,
@@ -40,6 +42,7 @@ export default function GroupPage() {
   const [templates, setTemplates] = useState<Template[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [incomes, setIncomes] = useState<Income[]>([])
+  const [myMemberId, setMyMemberId] = useState<string | null>(null)
   const [fetching, setFetching] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [tab, setTab] = useState<Tab>('gastos')
@@ -52,6 +55,16 @@ export default function GroupPage() {
       return
     }
     setGroup(g as Group)
+    let linkedMemberId: string | null = null
+    if (user) {
+      const { data: link, error: linkError } = await supabase
+        .from('group_users')
+        .select('member_id')
+        .eq('group_id', groupId)
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (!linkError) linkedMemberId = ((link ?? {}) as { member_id?: string | null }).member_id ?? null
+    }
     const [
       { data: m },
       { data: e },
@@ -70,6 +83,7 @@ export default function GroupPage() {
       supabase.from('incomes').select('*').eq('group_id', groupId).order('date', { ascending: false }),
     ])
     setMembers((m ?? []) as Member[])
+    setMyMemberId(linkedMemberId)
     setCategories((c ?? []) as Category[])
     setPayments((p ?? []) as Payment[])
     setTemplates((tpl ?? []) as Template[])
@@ -87,7 +101,7 @@ export default function GroupPage() {
       setShares([])
     }
     setFetching(false)
-  }, [groupId])
+  }, [groupId, user])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial async; setState ocurre tras el await
@@ -156,6 +170,29 @@ export default function GroupPage() {
           </p>
         </div>
 
+        {group.is_personal && (
+          <PersonalDashboard
+            group={group}
+            expenses={expenses}
+            incomes={incomes}
+            budgets={budgets}
+            catMeta={catMeta}
+            onOpenBalances={() => setTab('balances')}
+          />
+        )}
+
+        {!group.is_personal && members.length > 0 && !members.some((m) => m.id === myMemberId) && (
+          <IdentityPrompt
+            group={group}
+            members={members}
+            user={user}
+            onSaved={(id) => {
+              setMyMemberId(id)
+              load()
+            }}
+          />
+        )}
+
         <div className="mb-5 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1 text-sm dark:bg-slate-800">
           {tabs.map((t) => (
             <button
@@ -216,6 +253,274 @@ export default function GroupPage() {
       </main>
       <BottomNav active={group.is_personal ? 'personal' : 'shared'} personalHref={group.is_personal ? `/g/${group.id}` : null} />
     </>
+  )
+}
+
+function PersonalDashboard({
+  group,
+  expenses,
+  incomes,
+  budgets,
+  catMeta,
+  onOpenBalances,
+}: {
+  group: Group
+  expenses: Expense[]
+  incomes: Income[]
+  budgets: Budget[]
+  catMeta: (v: string) => CatMeta
+  onOpenBalances: () => void
+}) {
+  const fmt = (n: number) => formatMoney(n, group.base_currency)
+  const baseOf = (e: Expense) => Number(e.amount) * Number(e.rate_to_base)
+  const currentMonth = new Date().toISOString().slice(0, 7)
+  const monthExpenses = expenses.filter((e) => String(e.date).slice(0, 7) === currentMonth)
+  const monthIncomes = incomes.filter((i) => String(i.date).slice(0, 7) === currentMonth)
+  const totalExpenses = expenses.reduce((sum, e) => sum + baseOf(e), 0)
+  const totalIncomes = incomes.reduce((sum, i) => sum + Number(i.amount), 0)
+  const monthExpenseTotal = monthExpenses.reduce((sum, e) => sum + baseOf(e), 0)
+  const monthIncomeTotal = monthIncomes.reduce((sum, i) => sum + Number(i.amount), 0)
+  const monthSavings = Math.max(0, monthIncomeTotal - monthExpenseTotal)
+  const balance = totalIncomes - totalExpenses
+  const topCategories = spendByCategory(monthExpenses).slice(0, 3)
+  const monthByCat = new Map<string, number>()
+  for (const e of monthExpenses) {
+    const cat = e.category || 'otros'
+    monthByCat.set(cat, (monthByCat.get(cat) ?? 0) + baseOf(e))
+  }
+  const budgetLimit = budgets.reduce((sum, b) => sum + Number(b.amount), 0)
+  const budgetSpent = budgets.reduce((sum, b) => sum + (monthByCat.get(b.category) ?? 0), 0)
+  const budgetPct = budgetLimit > 0 ? Math.min(100, Math.round((budgetSpent / budgetLimit) * 100)) : 0
+
+  return (
+    <section className="mb-5 overflow-hidden rounded-3xl bg-emerald-800 text-white shadow-sm dark:bg-emerald-950">
+      <div className="flex items-center justify-between px-5 pb-8 pt-5">
+        <div>
+          <p className="text-sm font-semibold text-emerald-100">{monthLabelEs(currentMonth)}</p>
+          <h2 className="mt-1 text-xl font-bold">Mis cuentas</h2>
+        </div>
+        <Link
+          href={`/g/${group.id}/nuevo`}
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-4xl leading-none text-emerald-700 shadow-sm"
+          aria-label="Agregar gasto"
+        >
+          +
+        </Link>
+      </div>
+
+      <div className="-mt-3 rounded-t-[2rem] bg-white px-4 pb-5 pt-5 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+        <div className="mb-5 flex rounded-full bg-slate-100 p-1 text-sm font-bold dark:bg-slate-900">
+          <span className="flex-1 rounded-full bg-white py-2 text-center text-emerald-700 shadow-sm dark:bg-slate-800 dark:text-emerald-300">
+            Mis gastos
+          </span>
+          <span className="flex-1 py-2 text-center text-slate-400">Mis tarjetas</span>
+        </div>
+
+        <div className="mb-5">
+          <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">Balance acumulado</p>
+          <p className={`mt-1 text-5xl font-bold tracking-normal ${balance >= 0 ? 'text-emerald-700' : 'text-rose-500'}`}>
+            {fmt(balance)}
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <DashboardRow
+            icon="💵"
+            title="Ingresos"
+            value={fmt(monthIncomeTotal)}
+            className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+            onClick={onOpenBalances}
+          />
+          <DashboardRow
+            icon="↕"
+            title="Gastos"
+            value={fmt(monthExpenseTotal)}
+            className="bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-200"
+            onClick={onOpenBalances}
+          />
+          <DashboardRow
+            icon="💰"
+            title="Ahorros"
+            value={fmt(monthSavings)}
+            className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-200"
+            onClick={onOpenBalances}
+          />
+        </div>
+
+        <div className="mt-6">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-lg font-bold text-emerald-800 dark:text-emerald-300">Mis presupuestos</p>
+            <button type="button" onClick={onOpenBalances} className="text-sm font-bold text-emerald-700">
+              ver más ›
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenBalances}
+            className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          >
+            {budgets.length === 0 ? (
+              <span className="flex items-center justify-between text-lg font-bold text-emerald-700">
+                Agregá un presupuesto <span className="text-4xl">+</span>
+              </span>
+            ) : (
+              <span className="block">
+                <span className="mb-2 flex items-center justify-between text-sm font-semibold text-slate-500">
+                  <span>{fmt(budgetSpent)}</span>
+                  <span>{fmt(budgetLimit)}</span>
+                </span>
+                <span className="block h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                  <span className="block h-full rounded-full bg-emerald-600" style={{ width: `${budgetPct}%` }} />
+                </span>
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className="mt-6">
+          <p className="mb-3 text-lg font-bold text-emerald-800 dark:text-emerald-300">Resumen mensual</p>
+          {topCategories.length === 0 ? (
+            <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-900">
+              Todavía no hay gastos este mes.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {topCategories.map((c) => (
+                <div key={c.category} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm dark:bg-slate-900">
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">
+                    {catMeta(c.category).symbol} {catMeta(c.category).label}
+                  </span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{fmt(c.total)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function DashboardRow({
+  icon,
+  title,
+  value,
+  className,
+  onClick,
+}: {
+  icon: string
+  title: string
+  value: string
+  className: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center justify-between rounded-2xl px-4 py-4 text-left ${className}`}
+    >
+      <span className="flex items-center gap-4">
+        <span className="text-3xl">{icon}</span>
+        <span>
+          <span className="block text-lg font-bold">{title}</span>
+          <span className="mt-1 block text-2xl font-bold tracking-normal">{value}</span>
+        </span>
+      </span>
+      <span className="text-4xl leading-none">›</span>
+    </button>
+  )
+}
+
+function IdentityPrompt({
+  group,
+  members,
+  user,
+  onSaved,
+}: {
+  group: Group
+  members: Member[]
+  user: User
+  onSaved: (memberId: string) => void
+}) {
+  const [selected, setSelected] = useState(members[0]?.id ?? '')
+  const [newName, setNewName] = useState(userDisplayName(user))
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const alias = userPaymentAlias(user)
+  const creating = selected === '__new__'
+
+  async function saveIdentity() {
+    setBusy(true)
+    setError(null)
+    let memberId = selected
+    try {
+      if (creating) {
+        const name = newName.trim()
+        if (!name) throw new Error('Ingresá tu nombre.')
+        const { data, error: memberError } = await supabase
+          .from('members')
+          .insert({ group_id: group.id, name, alias: alias || null })
+          .select('id')
+          .single()
+        if (memberError) throw memberError
+        memberId = (data as { id: string }).id
+      }
+
+      if (!memberId) throw new Error('Elegí quién sos en este grupo.')
+      const member = members.find((m) => m.id === memberId)
+      if (member && alias && !member.alias) {
+        await supabase.from('members').update({ alias }).eq('id', memberId)
+      }
+      const { error: linkError } = await supabase
+        .from('group_users')
+        .update({ member_id: memberId })
+        .eq('group_id', group.id)
+        .eq('user_id', user.id)
+      if (linkError) {
+        throw new Error(
+          /member_id|group_users/.test(linkError.message)
+            ? 'Falta correr la migración de identidad de usuarios en Supabase.'
+            : linkError.message
+        )
+      }
+      onSaved(memberId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar tu identidad.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card className="mb-5 border-emerald-200 bg-emerald-50/80 dark:border-emerald-900 dark:bg-emerald-950/30">
+      <div className="mb-3">
+        <p className="text-base font-bold text-emerald-800 dark:text-emerald-200">¿Quién sos en este grupo?</p>
+        <p className="mt-1 text-sm text-emerald-700/80 dark:text-emerald-300/80">
+          Así los nuevos gastos quedan pagados por vos automáticamente.
+        </p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+        <div className="space-y-2">
+          <Select value={selected} onChange={(e) => setSelected(e.target.value)}>
+            {members.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+            <option value="__new__">No estoy en la lista</option>
+          </Select>
+          {creating && (
+            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Tu nombre" />
+          )}
+        </div>
+        <Button type="button" onClick={saveIdentity} disabled={busy || (!selected && !creating)} className="sm:self-start">
+          {busy ? 'Guardando…' : 'Guardar'}
+        </Button>
+      </div>
+      {alias && <p className="mt-2 text-xs text-emerald-700/80 dark:text-emerald-300/80">Alias de tu cuenta: {alias}</p>}
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+    </Card>
   )
 }
 
@@ -281,6 +586,47 @@ function GastosTab({
 
   const usedCats = Array.from(new Set(expenses.map((e) => e.category || 'otros')))
   const shown = filter === 'all' ? expenses : expenses.filter((e) => (e.category || 'otros') === filter)
+  const grouped = groupExpensesByMonth(shown, (e) => Number(e.amount) * Number(e.rate_to_base))
+
+  function expenseCard(e: Expense) {
+    return (
+      <Card key={e.id} className="flex items-center justify-between">
+        <div>
+          <p className="font-medium">{e.title}</p>
+          <p className="mt-0.5 flex items-center gap-2 text-sm text-slate-500">
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${catMeta(e.category).color}`}>
+              {catMeta(e.category).symbol} {catMeta(e.category).label}
+            </span>
+            Pagó {memberName(e.paid_by)} · {e.date}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <p className="font-semibold">{formatMoney(Number(e.amount), e.currency)}</p>
+            {e.currency !== group.base_currency && (
+              <p className="text-xs text-slate-400">
+                ≈ {formatMoney(Number(e.amount) * Number(e.rate_to_base), group.base_currency)}
+              </p>
+            )}
+          </div>
+          <Link
+            href={`/g/${group.id}/editar/${e.id}`}
+            className="text-slate-300 hover:text-emerald-600"
+            title="Editar"
+          >
+            ✎
+          </Link>
+          <button
+            onClick={() => remove(e.id)}
+            className="text-slate-300 hover:text-red-500"
+            title="Borrar"
+          >
+            ✕
+          </button>
+        </div>
+      </Card>
+    )
+  }
 
   return (
     <div className="space-y-3">
@@ -395,47 +741,37 @@ function GastosTab({
 
       {expenses.length === 0 ? (
         <Card className="text-center text-slate-500">Todavía no hay gastos.</Card>
+      ) : grouped.length === 0 ? (
+        <Card className="text-center text-slate-500">No hay gastos para este filtro.</Card>
       ) : (
-        shown.map((e) => (
-          <Card key={e.id} className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">{e.title}</p>
-              <p className="mt-0.5 flex items-center gap-2 text-sm text-slate-500">
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${catMeta(e.category).color}`}>
-                  {catMeta(e.category).symbol} {catMeta(e.category).label}
-                </span>
-                Pagó {memberName(e.paid_by)} · {e.date}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="font-semibold">{formatMoney(Number(e.amount), e.currency)}</p>
-                {e.currency !== group.base_currency && (
-                  <p className="text-xs text-slate-400">
-                    ≈ {formatMoney(Number(e.amount) * Number(e.rate_to_base), group.base_currency)}
-                  </p>
-                )}
+        grouped.map((month) => (
+          <section key={month.key} className="space-y-2">
+            <div className="flex items-center gap-3 px-1 pt-2">
+              <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                {month.label} · {formatMoney(month.total, group.base_currency)}
               </div>
-              <Link
-                href={`/g/${group.id}/editar/${e.id}`}
-                className="text-slate-300 hover:text-emerald-600"
-                title="Editar"
-              >
-                ✎
-              </Link>
-              <button
-                onClick={() => remove(e.id)}
-                className="text-slate-300 hover:text-red-500"
-                title="Borrar"
-              >
-                ✕
-              </button>
+              <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
             </div>
-          </Card>
+            {month.items.map(expenseCard)}
+          </section>
         ))
       )}
     </div>
   )
+}
+
+function groupExpensesByMonth(expenses: Expense[], baseOf: (expense: Expense) => number) {
+  const map = new Map<string, { key: string; label: string; total: number; items: Expense[] }>()
+  for (const expense of expenses) {
+    const key = /^\d{4}-\d{2}/.test(expense.date) ? expense.date.slice(0, 7) : 'sin-fecha'
+    const label = key === 'sin-fecha' ? 'Sin fecha' : monthLabelEs(key)
+    const current = map.get(key) ?? { key, label, total: 0, items: [] }
+    current.total += baseOf(expense)
+    current.items.push(expense)
+    map.set(key, current)
+  }
+  return [...map.values()]
 }
 
 function BalancesTab({
@@ -872,11 +1208,11 @@ function LiquidacionTab({
 
   const aliasOf = (id: string) => members.find((m) => m.id === id)?.alias ?? null
 
-  async function copyPay(key: string, toId: string, amt: number) {
+  async function copyAlias(key: string, toId: string) {
     const alias = aliasOf(toId)
-    const text = `${alias ? alias + ', ' : ''}${fmt(amt)}`
+    if (!alias) return
     try {
-      await navigator.clipboard.writeText(text)
+      await navigator.clipboard.writeText(alias)
       setCopiedKey(key)
       setTimeout(() => setCopiedKey(null), 1500)
     } catch {
@@ -940,8 +1276,8 @@ function LiquidacionTab({
                 <span className="font-semibold">{fmt(t.amount)}</span>
               </div>
               <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => copyPay(`t${i}`, t.toId, t.amount)}>
-                  {copiedKey === `t${i}` ? '¡Copiado!' : 'Copiar alias + monto'}
+                <Button variant="ghost" disabled={!aliasOf(t.toId)} onClick={() => copyAlias(`t${i}`, t.toId)}>
+                  {copiedKey === `t${i}` ? '¡Copiado!' : aliasOf(t.toId) ? 'Copiar alias' : 'Sin alias'}
                 </Button>
                 <Button variant="ghost" disabled={busy} onClick={() => pay(t.fromId, t.toId, t.amount)}>
                   Marcar pagado

@@ -67,7 +67,19 @@ export default function ImportarPage() {
       supabase.from('members').select('*').eq('group_id', groupId).order('created_at'),
       supabase.from('categories').select('*').eq('group_id', groupId).order('created_at'),
     ])
-    setMemberId(((m ?? []) as Member[])[0]?.id ?? '')
+    const members = (m ?? []) as Member[]
+    let defaultMemberId = members[0]?.id ?? ''
+    if (user) {
+      const { data: link, error: linkError } = await supabase
+        .from('group_users')
+        .select('member_id')
+        .eq('group_id', groupId)
+        .eq('user_id', user.id)
+        .maybeSingle()
+      const linked = !linkError ? ((link ?? {}) as { member_id?: string | null }).member_id : null
+      if (linked && members.some((member) => member.id === linked)) defaultMemberId = linked
+    }
+    setMemberId(defaultMemberId)
     setCats(
       mergeCategories(
         ((c ?? []) as Category[]).map((x) => ({
@@ -79,7 +91,7 @@ export default function ImportarPage() {
       )
     )
     setFetching(false)
-  }, [groupId])
+  }, [groupId, user])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial async; setState ocurre tras el await

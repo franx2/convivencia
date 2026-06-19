@@ -109,7 +109,7 @@ Nombre visible de la app: **covivencia.** (con punto final).
 | Tabla | Notas |
 |---|---|
 | `groups` | `name`, `base_currency`, `owner_id`, `invite_token`, **`is_personal`** (espacio personal: gastos propios sin repartir), `created_at` |
-| `group_users` | (group_id, user_id) — quién puede acceder. Controla RLS. |
+| `group_users` | (group_id, user_id), **`member_id`** opcional — quién puede acceder y qué miembro representa a ese usuario dentro del grupo. Controla RLS. |
 | `members` | participantes (texto libre, no necesitan cuenta). **`weight`** (peso default reparto, default 1), **`alias`** (alias/CBU para cobrar, opcional) |
 | `expenses` | `title`, `amount`, `currency`, `rate_to_base`, `paid_by`, `date`, `category`, `bank`, `card`, `created_by` |
 | `expense_shares` | (expense_id, member_id) — entre quiénes se divide. **`weight`** (peso del participante en ese gasto, default 1) |
@@ -121,14 +121,15 @@ Nombre visible de la app: **covivencia.** (con punto final).
 
 - Funciones `SECURITY DEFINER`: `is_group_member(gid)`, `join_group(token)` (RPC para invitación),
   y trigger `add_owner_to_group` (suma al dueño a `group_users` al crear grupo).
-- **OJO — el creador NO se agrega como `member`** (solo a `group_users`). Deuda pendiente.
+- **OJO — en grupos compartidos el creador NO se agrega automáticamente como `member`**:
+  al entrar, la app pregunta "quién sos" y permite elegir un miembro existente o crearlo.
 - **IMPORTANTE — GRANTs:** RLS filtra filas, pero el rol `authenticated` necesita ADEMÁS
   `GRANT` de tabla. Sin eso, da `42501 permission denied` aun logueado. Los grants están
   al final de `schema.sql` (solo a `authenticated`; `anon` queda sin acceso a propósito).
 
 ## Páginas
 
-- `/login` — registro / ingreso (email + password). Respeta `?next=`. Tiene modo
+- `/login` — registro / ingreso (email + password + alias/CBU al registrarse). Respeta `?next=`. Tiene modo
   **"olvidé mi contraseña"** (manda link a `/reset` con `resetPasswordForEmail`).
 - `/reset` — setear nueva contraseña al volver del email (sesión `PASSWORD_RECOVERY`).
 - `/` — abre directamente en **grupos compartidos** + crear grupo + borrar grupos propios.
@@ -136,14 +137,17 @@ Nombre visible de la app: **covivencia.** (con punto final).
   `/g/{mi-espacio}` y no muestra una pestaña/lista intermedia del espacio personal.
 - `/g/[id]` — grupo, tabs:
   - **Gastos**: tarjeta de **gastos típicos** (chips de un tap + "Editar" para crear plantillas),
-    filtro por categoría, lista con editar (✎) / borrar (✕). Categorías visibles con emoji.
+    filtro por categoría, lista con editar (✎) / borrar (✕) y separadores por mes. Categorías visibles con emoji.
   - **Balances**: filtros mes/persona, ingresos del mes, gasto del mes, balance mensual,
     **gráfico radial explotado top 6 por categoría con emoji** + barras por mes + presupuestos + saldos.
   - **Liquidación**: transferencias mínimas + **marcar pagado** / alta de pago manual + historial.
   - **Miembros**: alta/baja, **peso** por miembro (reparto proporcional), link de invitación.
+- En grupos compartidos, si `group_users.member_id` está vacío o apunta a un miembro borrado, se muestra
+  el prompt **"¿Quién sos en este grupo?"**. Al guardar, los nuevos gastos quedan precargados con ese miembro.
 - `/g/[id]/nuevo` — agregar gasto. Acepta prefill por query params (`title`/`category`/`amount`)
   desde las plantillas. Permite **+ Nueva categoría** y **reparto proporcional** (peso por miembro).
-  Mantiene la barra inferior fija para saltar entre personal y compartidos.
+  Mantiene la barra inferior fija para saltar entre personal y compartidos. El monto abre
+  `components/AmountCalculator.tsx`; `paid_by` se precarga con `group_users.member_id`.
 - `/g/[id]/editar/[eid]` — editar un gasto (mismo form, comparten `components/ExpenseForm.tsx`).
 - `/g/[id]/importar` — importar un resumen de tarjeta (PDF). Solo en espacios personales. Mantiene
   la barra inferior fija para ir a compartidos sin volver por la home.
@@ -151,7 +155,8 @@ Nombre visible de la app: **covivencia.** (con punto final).
 
 **Espacio personal** (`groups.is_personal`): se auto-crea desde la home si no existe,
 arranca con un único miembro "Yo" y oculta las tabs Liquidación y Miembros. En la home,
-el acceso "Personal" entra directo al grupo personal.
+el acceso "Personal" entra directo al grupo personal. Si el usuario se registró con alias/CBU,
+el miembro "Yo" se crea con ese alias y se vincula a `group_users.member_id`.
 
 **API route** (primer código de servidor): `app/api/import-statement/route.ts`
 (Node runtime) recibe **texto extraído** o PDF en base64 y lo manda al proveedor elegido:
@@ -179,6 +184,12 @@ default `gpt-5`.
   por nombre y si no hay match usan la inicial. Helpers `mergeCategories`, `metaFrom`,
   `slugifyCategory`, `paletteAt`, `categorySymbol`.
 - **Editar gastos** (`/g/[id]/editar/[eid]`); form compartido en `components/ExpenseForm.tsx`.
+- **Calculadora de monto** (`components/AmountCalculator.tsx`): modal inferior estilo mobile
+  para cargar el monto con teclado numérico y operaciones básicas (+, -, ×, ÷, =).
+- **Identidad por grupo** (`group_users.member_id`): en grupos compartidos se pregunta "quién sos"
+  y esa respuesta se usa como pagador por defecto en nuevos gastos/importaciones.
+- **Dashboard personal** en `/g/[id]` cuando `is_personal=true`: resumen visual de balance
+  acumulado, ingresos/gastos/ahorros del mes, presupuestos y top categorías del mes.
 - **Gráficos** (`components/charts.tsx`): gráfico radial de categorías con **ECharts**
   (`roseType: radius`, top 6, emojis, tooltip, dos mayores desplazadas/seleccionadas)
   + barras de gasto por mes en CSS. Helpers `spendByCategory` / `spendByMonth` en `lib/balances.ts`.
@@ -188,8 +199,9 @@ default `gpt-5`.
   (por gasto). El form tiene toggle "Reparto proporcional". `computeBalances` reparte por peso.
 - **Gastos típicos de un tap** (tabla `templates`): chips en la tab Gastos que abren el form
   precargado. Alta/baja con "Editar".
-- **Pagar con alias** (`members.alias`): en Liquidación, "Copiar alias + monto" copia
-  "alias, $monto" al portapapeles. Alias editable en Miembros.
+- **Pagar con alias** (`members.alias`): en Liquidación, "Copiar alias" copia **solo el alias**
+  al portapapeles. El monto queda visible en pantalla. Alias editable en Miembros y se puede
+  precargar desde el alias/CBU del usuario al elegir identidad.
 - **Presupuesto mensual por categoría** (tabla `budgets`): editable en Balances, barra de
   progreso del gasto del mes vs límite + aviso 80% (ámbar) / 100% (rojo).
 - **Ingresos por miembro** (tabla `incomes`): alta/baja en Balances, filtros por mes/persona,
@@ -231,9 +243,11 @@ default `gpt-5`.
    - `supabase/migration_espacio_personal.sql` — `groups.is_personal`.
    - `supabase/migration_banco_tarjeta.sql` — columnas `expenses.bank` y `expenses.card`.
    - `supabase/migration_ingresos.sql` — tabla `incomes`.
+   - `supabase/migration_user_member.sql` — columna `group_users.member_id` + policy update self.
    El código es **migration-safe**: agregar/editar gasto no rompe aunque falte una migración
    (el `weight` solo se manda en reparto proporcional; banco/tarjeta solo se mandan si hay dato;
-   el borrado de grupos ignora tabla `incomes` inexistente).
+   el borrado de grupos ignora tabla `incomes` inexistente). Para que el prompt "quién soy" pueda
+   guardar la respuesta, sí hace falta correr `migration_user_member.sql`.
 2. **Supabase Auth:** desactivar **Confirm email** (Authentication → Sign In/Providers → Email)
    para registro sin confirmación. En **URL Configuration**: Site URL + Redirect URLs con la URL de
    Vercel. **Para reset de contraseña agregar `…/reset`** a Redirect URLs (prod y `localhost:3000/reset`),
@@ -288,4 +302,8 @@ Usar `/browse` para navegar web.
   - `npm.cmd run lint`: OK.
   - `npm.cmd run build`: OK.
   - Dev server local OK en `http://localhost:3000` (`/login` respondió 200).
+- 2026-06-19, mejoras gastos/personales/identidad:
+  - `npm.cmd run lint`: OK.
+  - `npm.cmd run build`: OK.
+  - Dev server local OK en `http://localhost:3000` (`/` y `/login` respondieron 200).
 - PowerShell puede bloquear `npm.ps1` por policy; usar `npm.cmd run ...`.

@@ -8,6 +8,7 @@ import { BottomNav } from '@/components/BottomNav'
 import { Header } from '@/components/Header'
 import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
 import { CURRENCIES, formatMoney } from '@/lib/currencies'
+import { userPaymentAlias } from '@/lib/profile'
 import type { Group } from '@/lib/types'
 
 export default function HomePage() {
@@ -25,6 +26,8 @@ export default function HomePage() {
   const ensuredPersonal = useRef(false)
 
   const load = useCallback(async () => {
+    if (!user) return
+    const userId = user.id
     const { data } = await supabase
       .from('groups')
       .select('*')
@@ -40,7 +43,19 @@ export default function HomePage() {
         .select()
         .single()
       if (pg) {
-        await supabase.from('members').insert({ group_id: (pg as Group).id, name: 'Yo' })
+        const alias = userPaymentAlias(user)
+        const { data: member } = await supabase
+          .from('members')
+          .insert({ group_id: (pg as Group).id, name: 'Yo', alias: alias || null })
+          .select('id')
+          .single()
+        if (member) {
+          await supabase
+            .from('group_users')
+            .update({ member_id: (member as { id: string }).id })
+            .eq('group_id', (pg as Group).id)
+            .eq('user_id', userId)
+        }
         gs = [pg as Group, ...gs]
       }
     }
@@ -67,7 +82,7 @@ export default function HomePage() {
       setTotals(t)
     }
     setFetching(false)
-  }, [])
+  }, [user])
 
   useEffect(() => {
     if (user) load()
