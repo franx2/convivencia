@@ -121,6 +121,38 @@ export default function GroupPage() {
     if (user) load()
   }, [user, load])
 
+  // F6 — mantener los datos al día entre dispositivos: refetch al volver el
+  // foco/visibilidad, poll liviano mientras la pestaña está visible y, si la
+  // publicación realtime está habilitada en Supabase, refetch ante cambios.
+  useEffect(() => {
+    if (!user) return
+    const refresh = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      load()
+    }
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    const interval = window.setInterval(refresh, 25000)
+
+    // Realtime best-effort: si la tabla no está publicada, simplemente no llegan
+    // eventos (no rompe nada). El poll/foco son el respaldo confiable.
+    const channel = supabase
+      .channel(`group-${groupId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `group_id=eq.${groupId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `group_id=eq.${groupId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members', filter: `group_id=eq.${groupId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incomes', filter: `group_id=eq.${groupId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'savings', filter: `group_id=eq.${groupId}` }, refresh)
+      .subscribe()
+
+    return () => {
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+      window.clearInterval(interval)
+      supabase.removeChannel(channel)
+    }
+  }, [groupId, user, load])
+
   // Desplaza la pestaña activa a la vista al cambiar (la barra es scrolleable en mobile).
   const tabsRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -2202,11 +2234,54 @@ function MiembrosTab({
 
   async function remove(id: string) {
     if (usedMemberIds.has(id)) {
-      alert('No se puede borrar: este miembro pagó algún gasto.')
+      alert('No se puede borrar: este miembro pagó algún gasto. Borrá o reasigná esos gastos primero.')
       return
     }
-    await supabase.from('members').delete().eq('id', id)
+    // Las FKs hacia members son ON DELETE CASCADE (shares/incomes/savings/pagos):
+    // borrar arrastraría ese historial en silencio y corrompería los balances.
+    // Bloqueamos si el miembro está referenciado en algún lado.
+    const refs = await memberReferences(id)
+    if (refs) {
+      alert(`No se puede borrar: ${refs}. Quitá esos registros primero.`)
+      return
+    }
+    const { data, error } = await supabase.from('members').delete().eq('id', id).select('id')
+    if (error) {
+      alert('No se pudo borrar el miembro.')
+      return
+    }
+    // RLS permite borrar miembros solo al dueño del grupo: si no se borró ninguna
+    // fila (y no hubo error), fue por permisos.
+    if (!data || data.length === 0) {
+      alert('Solo el dueño del grupo puede borrar miembros.')
+      return
+    }
     onChanged()
+  }
+
+  // Cuenta referencias del miembro en tablas con cascade para evitar pérdida de
+  // datos. Si una tabla opcional no existe (migración pendiente), cuenta 0.
+  async function memberReferences(memberId: string): Promise<string | null> {
+    const count = async (table: string, col: string) => {
+      const { count: n, error } = await supabase
+        .from(table)
+        .select('*', { count: 'exact', head: true })
+        .eq(col, memberId)
+      return error ? 0 : n ?? 0
+    }
+    const [shares, incomes, savings, payFrom, payTo] = await Promise.all([
+      count('expense_shares', 'member_id'),
+      count('incomes', 'member_id'),
+      count('savings', 'member_id'),
+      count('payments', 'from_member'),
+      count('payments', 'to_member'),
+    ])
+    const parts: string[] = []
+    if (shares) parts.push('participa en gastos')
+    if (incomes) parts.push('tiene ingresos cargados')
+    if (savings) parts.push('tiene ahorros cargados')
+    if (payFrom + payTo) parts.push('tiene pagos registrados')
+    return parts.length ? parts.join(', ') : null
   }
 
   async function updateWeight(id: string, val: string) {

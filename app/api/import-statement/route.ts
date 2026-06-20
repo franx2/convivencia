@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@supabase/supabase-js'
 import { EXPENSE_CATEGORIES } from '@/lib/categories'
 
 // Parsear un resumen no necesita el modelo mas caro. Si algun banco viene muy
@@ -11,6 +12,45 @@ const CATEGORIES = EXPENSE_CATEGORIES.map((c) => c.value)
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
+
+// Límites para evitar abuso del endpoint (quema de cuota / DoS por payload).
+const MAX_TEXT_CHARS = 200_000 // ~200 KB de texto extraído
+const MAX_PDF_B64_CHARS = 9_000_000 // ~6.7 MB de PDF en base64
+const RATE_LIMIT = 12 // requests por ventana y por usuario
+const RATE_WINDOW_MS = 60_000
+// Best-effort: en serverless cada instancia tiene su propio mapa, pero igual
+// corta los loops desde una misma instancia. Para límite duro usar un store
+// externo (Upstash/Redis).
+const rateHits = new Map<string, number[]>()
+
+function rateLimited(userId: string): boolean {
+  const now = Date.now()
+  const recent = (rateHits.get(userId) ?? []).filter((t) => now - t < RATE_WINDOW_MS)
+  recent.push(now)
+  rateHits.set(userId, recent)
+  return recent.length > RATE_LIMIT
+}
+
+// Valida el JWT de Supabase del header Authorization. Sin esto, cualquiera
+// podía llamar al endpoint y quemar la ANTHROPIC_API_KEY del servidor.
+async function requireUser(req: Request): Promise<{ id: string } | null> {
+  const header = req.headers.get('authorization') ?? ''
+  const token = /^bearer\s+/i.test(header) ? header.replace(/^bearer\s+/i, '').trim() : ''
+  if (!token) return null
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return null
+  try {
+    const supabase = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+    const { data, error } = await supabase.auth.getUser(token)
+    if (error || !data.user) return null
+    return { id: data.user.id }
+  } catch {
+    return null
+  }
+}
 
 type Tx = {
   date: string
@@ -126,6 +166,13 @@ const TOOL: Anthropic.Tool = {
 }
 
 export async function POST(req: Request) {
+  // Solo usuarios logueados: corta el abuso anónimo de la cuota del servidor.
+  const user = await requireUser(req)
+  if (!user) return Response.json({ error: 'Iniciá sesión para usar la importación con IA.' }, { status: 401 })
+  if (rateLimited(user.id)) {
+    return Response.json({ error: 'Demasiados intentos. Esperá un minuto e intentá de nuevo.' }, { status: 429 })
+  }
+
   let pdf: string | undefined
   let text: string | undefined
   let provider: AIProvider = 'claude'
@@ -155,6 +202,10 @@ export async function POST(req: Request) {
   // evita el limite de cuota gratis). El PDF queda como fallback.
   if (!pdf && !text) {
     return Response.json({ error: 'Falta el resumen (texto o PDF).' }, { status: 400 })
+  }
+  // Límite de tamaño: evita payloads gigantes que disparan costo/memoria.
+  if ((text && text.length > MAX_TEXT_CHARS) || (pdf && pdf.length > MAX_PDF_B64_CHARS)) {
+    return Response.json({ error: 'El resumen es demasiado grande para procesar.' }, { status: 413 })
   }
   const src: Source = { pdf, text }
 

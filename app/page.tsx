@@ -29,7 +29,6 @@ export default function HomePage() {
 
   const load = useCallback(async () => {
     if (!user) return
-    const userId = user.id
     const { data } = await supabase
       .from('groups')
       .select('*')
@@ -37,29 +36,17 @@ export default function HomePage() {
     let gs = (data ?? []) as Group[]
 
     // Auto-crear el espacio personal a quien no tenga (una sola vez).
+    // Atómico vía RPC: grupo + miembro "Yo" + identidad en una transacción.
     if (!ensuredPersonal.current && !gs.some((g) => g.is_personal)) {
       ensuredPersonal.current = true
-      const { data: pg } = await supabase
-        .from('groups')
-        .insert({ name: 'Mi espacio', is_personal: true })
-        .select()
-        .single()
-      if (pg) {
-        const alias = userPaymentAlias(user)
-        const { data: member } = await supabase
-          .from('members')
-          .insert({ group_id: (pg as Group).id, name: 'Yo', alias: alias || null })
-          .select('id')
-          .single()
-        if (member) {
-          await supabase
-            .from('group_users')
-            .update({ member_id: (member as { id: string }).id })
-            .eq('group_id', (pg as Group).id)
-            .eq('user_id', userId)
-        }
-        gs = [pg as Group, ...gs]
-      }
+      const { data: pg } = await supabase.rpc('create_group', {
+        p_name: 'Mi espacio',
+        p_base_currency: 'ARS',
+        p_member_name: 'Yo',
+        p_alias: userPaymentAlias(user) || null,
+        p_is_personal: true,
+      })
+      if (pg) gs = [pg as Group, ...gs]
     }
     setGroups(gs)
 
@@ -95,31 +82,22 @@ export default function HomePage() {
     if (!user) return
     setBusy(true)
     setError(null)
-    const { data, error } = await supabase
-      .from('groups')
-      .insert({ name: name.trim(), base_currency: currency })
-      .select()
-      .single()
+    // Atómico vía RPC: crea el grupo, agrega al creador como miembro y fija su
+    // identidad (member_id) en una sola transacción. Antes eran 3 awaits sueltos
+    // que podían dejar un grupo a medio crear (sin identidad / sin miembro).
+    const { data, error } = await supabase.rpc('create_group', {
+      p_name: name.trim(),
+      p_base_currency: currency,
+      p_member_name: userDisplayName(user),
+      p_alias: userPaymentAlias(user) || null,
+      p_is_personal: false,
+    })
     if (error || !data) {
       setBusy(false)
       setError(error?.message ?? 'No se pudo crear el grupo.')
       return
     }
     const group = data as Group
-    // Auto-agregar al creador como miembro y fijarlo como su identidad en el grupo,
-    // así queda preseleccionado como "quién soy" / pagador por defecto (items 7/8).
-    const { data: member } = await supabase
-      .from('members')
-      .insert({ group_id: group.id, name: userDisplayName(user), alias: userPaymentAlias(user) || null })
-      .select('id')
-      .single()
-    if (member) {
-      await supabase
-        .from('group_users')
-        .update({ member_id: (member as { id: string }).id })
-        .eq('group_id', group.id)
-        .eq('user_id', user.id)
-    }
     setBusy(false)
     setName('')
     setShowForm(false)

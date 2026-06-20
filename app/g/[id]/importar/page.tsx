@@ -202,9 +202,15 @@ function ImportarPageClient() {
       // límite de cuota gratis). Solo caemos al PDF si no se pudo extraer texto.
       const text = pdfText.trim()
       const pdf = text ? undefined : arrayBufferToBase64(await file.arrayBuffer())
+      // El endpoint exige sesión: mandamos el access token de Supabase.
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
       const res = await fetch('/api/import-statement', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           text: text || undefined,
           pdf,

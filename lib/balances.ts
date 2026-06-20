@@ -98,13 +98,16 @@ export function computeBalances(
   }
 
   for (const e of expenses) {
+    const participants = sharesByExpense.get(e.id) ?? []
+    const totalWeight = participants.reduce((s, p) => s + p.weight, 0)
+    // Gasto sin participantes (p. ej. tras borrar al único que lo compartía):
+    // ignorarlo por completo. Si solo acreditáramos al pagador, los balances
+    // dejarían de sumar cero y aparecería plata de la nada.
+    if (totalWeight <= 0) continue
     const base = Number(e.amount) * Number(e.rate_to_base)
     // quien pago suma lo que puso
     paid.set(e.paid_by, (paid.get(e.paid_by) ?? 0) + base)
     // reparto proporcional al peso de cada participante
-    const participants = sharesByExpense.get(e.id) ?? []
-    const totalWeight = participants.reduce((s, p) => s + p.weight, 0)
-    if (totalWeight <= 0) continue
     for (const p of participants) {
       owed.set(p.id, (owed.get(p.id) ?? 0) + base * (p.weight / totalWeight))
     }
