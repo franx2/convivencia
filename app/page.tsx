@@ -39,14 +39,15 @@ export default function HomePage() {
     // Atómico vía RPC: grupo + miembro "Yo" + identidad en una transacción.
     if (!ensuredPersonal.current && !gs.some((g) => g.is_personal)) {
       ensuredPersonal.current = true
-      const { data: pg } = await supabase.rpc('create_group', {
-        p_name: 'Mi espacio',
-        p_base_currency: 'ARS',
-        p_member_name: 'Yo',
-        p_alias: userPaymentAlias(user) || null,
-        p_is_personal: true,
-      })
-      if (pg) gs = [pg as Group, ...gs]
+      const pg = await createGroupWithOwner({
+        name: 'Mi espacio',
+        baseCurrency: 'ARS',
+        memberName: 'Yo',
+        alias: userPaymentAlias(user) || null,
+        isPersonal: true,
+        userId: user.id,
+      }).catch(() => null)
+      if (pg) gs = [pg, ...gs]
     }
     setGroups(gs)
 
@@ -82,22 +83,23 @@ export default function HomePage() {
     if (!user) return
     setBusy(true)
     setError(null)
-    // Atómico vía RPC: crea el grupo, agrega al creador como miembro y fija su
-    // identidad (member_id) en una sola transacción. Antes eran 3 awaits sueltos
-    // que podían dejar un grupo a medio crear (sin identidad / sin miembro).
-    const { data, error } = await supabase.rpc('create_group', {
-      p_name: name.trim(),
-      p_base_currency: currency,
-      p_member_name: userDisplayName(user),
-      p_alias: userPaymentAlias(user) || null,
-      p_is_personal: false,
-    })
-    if (error || !data) {
+    let group: Group
+    try {
+      const g = await createGroupWithOwner({
+        name: name.trim(),
+        baseCurrency: currency,
+        memberName: userDisplayName(user),
+        alias: userPaymentAlias(user) || null,
+        isPersonal: false,
+        userId: user.id,
+      })
+      if (!g) throw new Error('No se pudo crear el grupo.')
+      group = g
+    } catch (err) {
       setBusy(false)
-      setError(error?.message ?? 'No se pudo crear el grupo.')
+      setError(err instanceof Error ? err.message : 'No se pudo crear el grupo.')
       return
     }
-    const group = data as Group
     setBusy(false)
     setName('')
     setShowForm(false)
@@ -245,4 +247,58 @@ export default function HomePage() {
 function isMissingRelationError(error: { code?: string; message?: string }) {
   const msg = (error.message ?? '').toLowerCase()
   return error.code === '42P01' || error.code === 'PGRST205' || msg.includes('could not find') || msg.includes('does not exist')
+}
+
+function isMissingFunctionError(error: { code?: string; message?: string }) {
+  const msg = (error.message ?? '').toLowerCase()
+  return error.code === 'PGRST202' || msg.includes('could not find the function')
+}
+
+// Crea grupo + miembro creador + identidad. Usa la RPC atómica create_group; si
+// la función aún no existe (migración sin correr en este entorno), cae al método
+// por pasos para no dejar la creación de grupos rota entre deploy y migración.
+// ponytail: fallback por ordering deploy-antes-que-SQL; borrar cuando la
+// migración esté corrida en todos los entornos.
+async function createGroupWithOwner(opts: {
+  name: string
+  baseCurrency: string
+  memberName: string | null
+  alias: string | null
+  isPersonal: boolean
+  userId: string
+}): Promise<Group | null> {
+  const { name, baseCurrency, memberName, alias, isPersonal, userId } = opts
+  const rpc = await supabase.rpc('create_group', {
+    p_name: name,
+    p_base_currency: baseCurrency,
+    p_member_name: memberName,
+    p_alias: alias,
+    p_is_personal: isPersonal,
+  })
+  if (!rpc.error && rpc.data) return rpc.data as Group
+  if (rpc.error && !isMissingFunctionError(rpc.error)) throw rpc.error
+
+  // Fallback no atómico (RPC ausente).
+  const { data: g, error } = await supabase
+    .from('groups')
+    .insert({ name, base_currency: baseCurrency, is_personal: isPersonal })
+    .select()
+    .single()
+  if (error || !g) throw error ?? new Error('No se pudo crear el grupo.')
+  const group = g as Group
+  if (memberName) {
+    const { data: member } = await supabase
+      .from('members')
+      .insert({ group_id: group.id, name: memberName, alias: alias || null })
+      .select('id')
+      .single()
+    if (member) {
+      await supabase
+        .from('group_users')
+        .update({ member_id: (member as { id: string }).id })
+        .eq('group_id', group.id)
+        .eq('user_id', userId)
+    }
+  }
+  return group
 }
