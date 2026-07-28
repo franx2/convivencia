@@ -2221,6 +2221,7 @@ function ListaComprasTab({
 }) {
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
+  const [searchFor, setSearchFor] = useState<ShoppingItem | null>(null)
 
   const pending = items.filter((i) => !i.checked)
   const bought = items.filter((i) => i.checked)
@@ -2277,6 +2278,12 @@ function ListaComprasTab({
                   <input type="checkbox" checked={false} onChange={() => toggle(item)} className="h-5 w-5 shrink-0" />
                   <span className="truncate">{item.text}</span>
                 </label>
+                <button
+                  onClick={() => setSearchFor(item)}
+                  className="shrink-0 text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+                >
+                  Precio
+                </button>
                 <button onClick={() => remove(item.id)} className="shrink-0 text-slate-300 hover:text-red-500" title="Borrar">
                   ✕
                 </button>
@@ -2309,8 +2316,114 @@ function ListaComprasTab({
           )}
         </>
       )}
+
+      {searchFor && <PriceSearchModal initialTerm={searchFor.text} onClose={() => setSearchFor(null)} />}
     </div>
   )
+}
+
+function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string; onClose: () => void }) {
+  const [term, setTerm] = useState(initialTerm)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [results, setResults] = useState<PriceResult[]>([])
+
+  const search = useCallback(async () => {
+    if (!term.trim()) return
+    setLoading(true)
+    setError(null)
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    const token = session?.access_token
+    try {
+      const res = await fetch(`/api/price-search?q=${encodeURIComponent(term.trim())}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const data = (await res.json()) as { results?: PriceResult[]; error?: string }
+      if (!res.ok) throw new Error(data.error || 'No se pudo buscar el precio.')
+      setResults(data.results ?? [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo buscar el precio.')
+    } finally {
+      setLoading(false)
+    }
+  }, [term])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- primera búsqueda automática al abrir el modal
+    search()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar, no en cada tecla
+  }, [])
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 px-0 sm:items-center sm:px-4">
+      <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-[28px] bg-white shadow-2xl dark:bg-slate-950 sm:rounded-[28px]">
+        <div className="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-950">
+          <h3 className="text-lg font-bold">Buscar precio</h3>
+          <button onClick={onClose} className="text-2xl leading-none text-slate-400" aria-label="Cerrar">
+            ×
+          </button>
+        </div>
+        <div className="space-y-4 px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              search()
+            }}
+            className="flex gap-2"
+          >
+            <Input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Qué buscar…" autoFocus />
+            <Button type="submit" disabled={loading || !term.trim()}>
+              {loading ? '…' : 'Buscar'}
+            </Button>
+          </form>
+          <p className="text-xs text-slate-400">Precios de Vea y Changomas, orientativos.</p>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          {loading ? (
+            <Spinner />
+          ) : results.length === 0 ? (
+            <p className="text-center text-sm text-slate-500">Sin resultados.</p>
+          ) : (
+            <div className="space-y-2">
+              {results.map((r, i) => (
+                <a
+                  key={i}
+                  href={r.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-3 rounded-xl border border-slate-100 p-2.5 hover:border-emerald-300 dark:border-slate-800"
+                >
+                  {r.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- thumbnail externo de un catálogo de terceros, no vale la pena el pipeline de next/image
+                    <img src={r.image} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+                  ) : (
+                    <div className="h-12 w-12 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{r.name}</p>
+                    <p className="text-xs text-slate-400">{r.store}</p>
+                  </div>
+                  <span className="shrink-0 font-bold text-emerald-700 dark:text-emerald-400">
+                    {r.price != null ? formatMoney(r.price, 'ARS') : '—'}
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type PriceResult = {
+  store: string
+  name: string
+  price: number | null
+  image: string | null
+  url: string
 }
 
 function MiembrosTab({
