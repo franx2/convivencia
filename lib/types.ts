@@ -111,6 +111,15 @@ export type Category = {
   created_at: string
 }
 
+export type ShoppingItem = {
+  id: string
+  group_id: string
+  text: string
+  checked: boolean
+  created_by: string | null
+  created_at: string
+}
+
 export type Payment = {
   id: string
   group_id: string

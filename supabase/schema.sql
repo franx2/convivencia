@@ -435,6 +435,31 @@ create policy savings_all on public.savings
 grant select, insert, update, delete on public.savings to authenticated;
 
 -- ============================================================
+-- Lista de compras del supermercado (ver migration_shopping_list.sql)
+-- Lista única persistente por grupo compartido: se cargan productos a mano,
+-- se marcan como comprados y se pueden limpiar con un botón. Sin precio /
+-- búsqueda online por ahora (fase futura).
+-- ============================================================
+
+create table if not exists public.shopping_items (
+  id         uuid primary key default gen_random_uuid(),
+  group_id   uuid not null references public.groups(id) on delete cascade,
+  text       text not null,
+  checked    boolean not null default false,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_shopping_items_group on public.shopping_items(group_id);
+
+alter table public.shopping_items enable row level security;
+drop policy if exists shopping_items_all on public.shopping_items;
+create policy shopping_items_all on public.shopping_items
+  for all using (public.is_group_member(group_id))
+  with check (public.is_group_member(group_id));
+
+grant select, insert, update, delete on public.shopping_items to authenticated;
+
+-- ============================================================
 -- Creación de grupo atómica (F5, ver migration_phase2_security.sql)
 -- Crea grupo + miembro creador + identidad en una sola transacción. Se define
 -- acá (al final) porque usa members.alias / groups.is_personal, agregados arriba.
@@ -493,7 +518,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['expenses', 'expense_shares', 'payments', 'members', 'incomes', 'savings'] loop
+  foreach t in array array['expenses', 'expense_shares', 'payments', 'members', 'incomes', 'savings', 'shopping_items'] loop
     begin
       execute format('alter publication supabase_realtime add table public.%I', t);
     exception when others then

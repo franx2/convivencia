@@ -26,10 +26,11 @@ import type {
   Member,
   Payment,
   Saving,
+  ShoppingItem,
   Template,
 } from '@/lib/types'
 
-type SharedTab = 'gastos' | 'balances' | 'liquidacion' | 'miembros'
+type SharedTab = 'gastos' | 'lista' | 'balances' | 'liquidacion' | 'miembros'
 type PersonalTab = 'inicio' | 'ingresos' | 'gastos' | 'ahorros' | 'presupuestos' | 'tarjetas' | 'resumen'
 type Tab = SharedTab | PersonalTab
 
@@ -49,6 +50,7 @@ export default function GroupPage() {
   const [incomes, setIncomes] = useState<Income[]>([])
   const [savings, setSavings] = useState<Saving[]>([])
   const [cards, setCards] = useState<CreditCard[]>([])
+  const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([])
   const [myMemberId, setMyMemberId] = useState<string | null>(null)
   const [fetching, setFetching] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -82,6 +84,7 @@ export default function GroupPage() {
       { data: inc },
       { data: sav },
       { data: crd },
+      { data: shop },
     ] = await Promise.all([
       supabase.from('members').select('*').eq('group_id', groupId).order('created_at'),
       supabase.from('expenses').select('*').eq('group_id', groupId).order('date', { ascending: false }),
@@ -92,6 +95,7 @@ export default function GroupPage() {
       supabase.from('incomes').select('*').eq('group_id', groupId).order('date', { ascending: false }),
       supabase.from('savings').select('*').eq('group_id', groupId).order('date', { ascending: false }),
       supabase.from('cards').select('*').eq('group_id', groupId).order('created_at', { ascending: false }),
+      supabase.from('shopping_items').select('*').eq('group_id', groupId).order('created_at'),
     ])
     setMembers((m ?? []) as Member[])
     setMyMemberId(linkedMemberId)
@@ -102,6 +106,7 @@ export default function GroupPage() {
     setIncomes((inc ?? []) as Income[])
     setSavings((sav ?? []) as Saving[])
     setCards((crd ?? []) as CreditCard[])
+    setShoppingItems((shop ?? []) as ShoppingItem[])
     const exp = (e ?? []) as Expense[]
     setExpenses(exp)
     if (exp.length) {
@@ -143,6 +148,7 @@ export default function GroupPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'members', filter: `group_id=eq.${groupId}` }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'incomes', filter: `group_id=eq.${groupId}` }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'savings', filter: `group_id=eq.${groupId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shopping_items', filter: `group_id=eq.${groupId}` }, refresh)
       .subscribe()
 
     return () => {
@@ -201,6 +207,7 @@ export default function GroupPage() {
       ]
     : [
         { key: 'gastos', label: 'Gastos' },
+        { key: 'lista', label: 'Lista' },
         { key: 'balances', label: 'Balances' },
         { key: 'liquidacion', label: 'Liquidación' },
         { key: 'miembros', label: 'Miembros' },
@@ -358,6 +365,9 @@ export default function GroupPage() {
             onChanged={load}
           />
         )}
+        {!group.is_personal && activeTab === 'lista' && (
+          <ListaComprasTab groupId={group.id} items={shoppingItems} onChanged={load} />
+        )}
         {!group.is_personal && activeTab === 'miembros' && (
           <MiembrosTab group={group} members={members} expenses={expenses} onChanged={load} />
         )}
@@ -372,7 +382,7 @@ function isPersonalTab(value: Tab): value is PersonalTab {
 }
 
 function isSharedTab(value: Tab): value is SharedTab {
-  return ['gastos', 'balances', 'liquidacion', 'miembros'].includes(value)
+  return ['gastos', 'lista', 'balances', 'liquidacion', 'miembros'].includes(value)
 }
 
 function PersonalDashboard({
@@ -2195,6 +2205,109 @@ function LiquidacionTab({
             </Card>
           ))}
         </div>
+      )}
+    </div>
+  )
+}
+
+function ListaComprasTab({
+  groupId,
+  items,
+  onChanged,
+}: {
+  groupId: string
+  items: ShoppingItem[]
+  onChanged: () => void
+}) {
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const pending = items.filter((i) => !i.checked)
+  const bought = items.filter((i) => i.checked)
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault()
+    if (!text.trim()) return
+    setBusy(true)
+    await supabase.from('shopping_items').insert({ group_id: groupId, text: text.trim() })
+    setText('')
+    setBusy(false)
+    onChanged()
+  }
+
+  async function toggle(item: ShoppingItem) {
+    await supabase.from('shopping_items').update({ checked: !item.checked }).eq('id', item.id)
+    onChanged()
+  }
+
+  async function remove(id: string) {
+    await supabase.from('shopping_items').delete().eq('id', id)
+    onChanged()
+  }
+
+  async function clearBought() {
+    await supabase.from('shopping_items').delete().eq('group_id', groupId).eq('checked', true)
+    onChanged()
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <form onSubmit={add} className="flex gap-2">
+          <Input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Leche, pan, detergente…"
+            autoFocus
+          />
+          <Button type="submit" disabled={busy || !text.trim()}>
+            Agregar
+          </Button>
+        </form>
+      </Card>
+
+      {items.length === 0 ? (
+        <Card className="text-center text-slate-500">Todavía no hay nada en la lista.</Card>
+      ) : (
+        <>
+          <div className="space-y-2">
+            {pending.map((item) => (
+              <Card key={item.id} className="flex items-center justify-between gap-3 py-2.5">
+                <label className="flex min-w-0 flex-1 items-center gap-3">
+                  <input type="checkbox" checked={false} onChange={() => toggle(item)} className="h-5 w-5 shrink-0" />
+                  <span className="truncate">{item.text}</span>
+                </label>
+                <button onClick={() => remove(item.id)} className="shrink-0 text-slate-300 hover:text-red-500" title="Borrar">
+                  ✕
+                </button>
+              </Card>
+            ))}
+          </div>
+
+          {bought.length > 0 && (
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-400">Comprado ({bought.length})</p>
+                <button onClick={clearBought} className="text-sm font-medium text-slate-400 hover:text-red-500">
+                  Vaciar
+                </button>
+              </div>
+              <div className="space-y-2">
+                {bought.map((item) => (
+                  <Card key={item.id} className="flex items-center justify-between gap-3 py-2.5 opacity-60">
+                    <label className="flex min-w-0 flex-1 items-center gap-3">
+                      <input type="checkbox" checked={true} onChange={() => toggle(item)} className="h-5 w-5 shrink-0" />
+                      <span className="truncate line-through">{item.text}</span>
+                    </label>
+                    <button onClick={() => remove(item.id)} className="shrink-0 text-slate-300 hover:text-red-500" title="Borrar">
+                      ✕
+                    </button>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
