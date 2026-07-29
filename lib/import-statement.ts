@@ -65,14 +65,17 @@ const MONTHS: Record<string, number> = {
   jul: 7, ago: 8, sep: 9, set: 9, oct: 10, nov: 11, dic: 12,
 }
 const DATE_MON_RE = /^(\d{1,2})[ /.\-]([a-zñ]{3})[a-zñ]*\.?(?:[ /.\-](\d{2,4}))?/i
-// montos formato AR (1.234,56) o simples (1234.56)
-const MONEY_RE = /-?\$?\s?\d{1,3}(?:\.\d{3})*,\d{2}|-?\$?\s?\d+\.\d{2}/g
+// montos formato AR con miles (1.234,56), AR sin separador de miles (1234,56,
+// como las filas de detalle de Banco Nación) o simples con punto (1234.56)
+const MONEY_RE = /-?\$?\s?\d{1,3}(?:\.\d{3})*,\d{2}|-?\$?\s?\d+,\d{2}|-?\$?\s?\d+\.\d{2}/g
 // líneas que NO son consumos (pagos, impuestos, totales, intereses, cargos)
 const IGNORE_LINE_RE =
   /\b(SU PAGO|PAGO MINIMO|PAGO MÍNIMO|SALDO ANTERIOR|SALDO ACTUAL|TOTAL A PAGAR|TOTAL CONSUMOS|TOTAL DE CONSUMOS|TOTAL CONSUMO|DEV\b|DB\.?\s?RG|CR\.?\s?RG|CR\s?IVA|DB\s?IVA|IMPUESTO|IMP\s+DE\s+SELLOS|SELLOS|PERCEPCION|PERCEPCIÓN|INTERESES?|\bIVA\b|REDONDEO|ANTICIPO|ADELANTO|VENCIMIENTO|LIMITE\s+DE\s+COMPRA|SEGURO|MANTENIMIENTO|\bCARGO\b|COMISION|COMISIÓN)\b/i
 // dónde empieza/termina el detalle de consumos (para no parsear encabezados)
+// "detalles?" cubre singular/plural (Galicia: "detalle de consumos", Nación:
+// "detalles del mes").
 const DETAIL_START_RE =
-  /(detalle\s+(de\s+)?(transacc|consumo))|(fecha.*(comprobante|referencia).*(pesos|d[oó]lar))/i
+  /(detalles?\s+(del\s+mes|de\s+(transacc|consumo)))|(fecha.*(comprobante|referencia).*(pesos|d[oó]lar))/i
 const DETAIL_END_RE = /\b(saldo\s+actual|total\s+a\s+pagar)\b/i
 // marca de moneda extranjera: el consumo se factura en USD (columna dólares)
 const FOREIGN_MARK_RE = /\bCLP\b|\bBRL\b|\bEUR\b|\bUYU\b|\bGBP\b|U\$S|US\$|\bUSD\b|D[OÓ]LARES?|BUSD/i
@@ -132,7 +135,9 @@ function parseDate(line: string, fallbackYear: number): { date: string; rest: st
 // En un consumo en el exterior, el importe FACTURADO en USD es el monto que NO
 // está precedido por el código de moneda (ese es el monto original).
 function billedUsdAmount(line: string): number | null {
-  const re = /-?\$?\s?\d{1,3}(?:\.\d{3})*,\d{2}|-?\$?\s?\d+\.\d{2}/g
+  // Instancia propia (no MONEY_RE directamente): con flag global, reusar el
+  // mismo objeto de regex entre llamadas mutaría su lastIndex compartido.
+  const re = new RegExp(MONEY_RE.source, 'g')
   let m: RegExpExecArray | null
   let billed: number | null = null
   while ((m = re.exec(line))) {
@@ -153,6 +158,7 @@ function cleanTitle(s: string): string {
     .replace(/^\s*\d{4,}[*K]?\s*/i, '') // comprobante al inicio (838593K, 000001*)
     .replace(/^\s*[*K]\s+/i, '') // marca * / K
     .replace(/\b\d{1,3}(?:\.\d{3})*,\d{2}\b/g, '') // montos sobrantes (original)
+    .replace(/\b\d+,\d{2}\b/g, '') // montos AR sin separador de miles (Nación)
     .replace(/\b\d+\.\d{2}\b/g, '')
     .replace(/\bCLP\b|\bBRL\b|\bEUR\b|\bUYU\b|\bGBP\b|U\$S|US\$|\bUSD\b|BUSD|D[OÓ]LARES?/gi, '')
     .replace(/\b\d{2}\/\d{2}\b/g, '') // cuota 04/06
