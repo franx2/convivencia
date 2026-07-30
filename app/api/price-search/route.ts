@@ -14,6 +14,7 @@ const RESULTS_PER_STORE = 5
 const STORES: { store: string; host: string }[] = [
   { store: 'Vea', host: 'www.vea.com.ar' },
   { store: 'Changomas', host: 'www.masonline.com.ar' },
+  { store: 'Carrefour', host: 'www.carrefour.com.ar' },
 ]
 
 const BROWSER_UA =

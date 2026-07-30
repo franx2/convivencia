@@ -13,6 +13,7 @@ import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { mergeCategories, metaFrom, type CatMeta } from '@/lib/categories'
 import { computeBalances, settle, spendByCategory, spendByMonth } from '@/lib/balances'
+import { correctGroceryTerm } from '@/lib/grocery-glossary'
 import { userDisplayName, userPaymentAlias } from '@/lib/profile'
 import { Donut, MonthlyBars } from '@/components/charts'
 import type {
@@ -181,6 +182,15 @@ export default function GroupPage() {
   )
   const catMeta = useMemo(() => (v: string) => metaFrom(cats, v), [cats])
 
+  // Para destacar Lista/Gastos en el visual del grupo compartido (hero + badge de tab).
+  const pendingShopping = useMemo(() => shoppingItems.filter((i) => !i.checked).length, [shoppingItems])
+  const monthExpenseTotal = useMemo(() => {
+    const currentMonth = new Date().toISOString().slice(0, 7)
+    return expenses
+      .filter((e) => String(e.date).slice(0, 7) === currentMonth)
+      .reduce((sum, e) => sum + Number(e.amount) * Number(e.rate_to_base), 0)
+  }, [expenses])
+
   if (loading || !user || fetching) return <Spinner />
   if (notFound || !group)
     return (
@@ -207,7 +217,7 @@ export default function GroupPage() {
       ]
     : [
         { key: 'gastos', label: 'Gastos' },
-        { key: 'lista', label: 'Lista' },
+        { key: 'lista', label: pendingShopping > 0 ? `Lista (${pendingShopping})` : 'Lista' },
         { key: 'balances', label: 'Balances' },
         { key: 'liquidacion', label: 'Liquidación' },
         { key: 'miembros', label: 'Miembros' },
@@ -244,6 +254,31 @@ export default function GroupPage() {
             </Link>
           )}
         </div>
+
+        {!group.is_personal && (
+          <div className="mb-5 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setTab('lista')}
+              className="rounded-2xl bg-amber-500 p-4 text-left text-white shadow-sm transition hover:brightness-95 dark:bg-amber-600"
+            >
+              <span className="text-3xl">🛒</span>
+              <span className="mt-2 block text-sm font-semibold text-amber-50">Lista de compras</span>
+              <span className="mt-0.5 block text-xl font-bold">
+                {pendingShopping > 0 ? `${pendingShopping} pendiente${pendingShopping === 1 ? '' : 's'}` : 'Todo listo ✓'}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('gastos')}
+              className="rounded-2xl bg-emerald-700 p-4 text-left text-white shadow-sm transition hover:brightness-95 dark:bg-emerald-800"
+            >
+              <span className="text-3xl">💸</span>
+              <span className="mt-2 block text-sm font-semibold text-emerald-50">Gastos del mes</span>
+              <span className="mt-0.5 block text-xl font-bold">{formatMoney(monthExpenseTotal, group.base_currency)}</span>
+            </button>
+          </div>
+        )}
 
         {group.is_personal && activeTab === 'inicio' && (
           <PersonalDashboard
@@ -2330,6 +2365,10 @@ function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string; onClo
 
   const search = useCallback(async () => {
     if (!term.trim()) return
+    // Corrige apodos/diminutivos conocidos (ej. "vinito" -> "vino") antes de
+    // buscar; si cambió algo, lo mostramos en el campo para que se vea la corrección.
+    const corrected = correctGroceryTerm(term.trim())
+    if (corrected !== term.trim()) setTerm(corrected)
     setLoading(true)
     setError(null)
     const {
@@ -2337,7 +2376,7 @@ function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string; onClo
     } = await supabase.auth.getSession()
     const token = session?.access_token
     try {
-      const res = await fetch(`/api/price-search?q=${encodeURIComponent(term.trim())}`, {
+      const res = await fetch(`/api/price-search?q=${encodeURIComponent(corrected)}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       const data = (await res.json()) as { results?: PriceResult[]; error?: string }
@@ -2378,7 +2417,7 @@ function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string; onClo
               {loading ? '…' : 'Buscar'}
             </Button>
           </form>
-          <p className="text-xs text-slate-400">Precios de Vea y Changomas, orientativos.</p>
+          <p className="text-xs text-slate-400">Precios de Vea, Changomas y Carrefour, orientativos.</p>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
           {loading ? (

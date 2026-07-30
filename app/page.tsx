@@ -17,6 +17,7 @@ export default function HomePage() {
   const router = useRouter()
   const [groups, setGroups] = useState<Group[]>([])
   const [totals, setTotals] = useState<Record<string, number>>({})
+  const [pending, setPending] = useState<Record<string, number>>({})
   const [fetching, setFetching] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
@@ -70,6 +71,18 @@ export default function HomePage() {
         t[e.group_id] = (t[e.group_id] ?? 0) + Number(e.amount) * Number(e.rate_to_base)
       }
       setTotals(t)
+
+      // Pendientes de la lista de compras por grupo, para destacarla en la home.
+      const { data: shop } = await supabase
+        .from('shopping_items')
+        .select('group_id')
+        .in('group_id', ids)
+        .eq('checked', false)
+      const p: Record<string, number> = {}
+      for (const s of (shop ?? []) as { group_id: string }[]) {
+        p[s.group_id] = (p[s.group_id] ?? 0) + 1
+      }
+      setPending(p)
     }
     setFetching(false)
   }, [user])
@@ -166,8 +179,13 @@ export default function HomePage() {
                 </span>
               )}
             </span>
-            <span className="mt-0.5 block text-xs text-slate-400">
+            <span className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
               Este mes: {formatMoney(month, g.base_currency)}
+              {!g.is_personal && (pending[g.id] ?? 0) > 0 && (
+                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                  🛒 {pending[g.id]}
+                </span>
+              )}
             </span>
           </span>
           <span className="shrink-0 text-sm text-slate-400">{g.base_currency}</span>
