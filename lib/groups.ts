@@ -10,8 +10,6 @@ function isMissingFunctionError(error: { code?: string; message?: string }) {
  * Crea grupo + miembro creador + identidad. Usa la RPC atómica create_group; si
  * la función aún no existe (migración sin correr en este entorno), cae al método
  * por pasos para no dejar la creación de grupos rota entre deploy y migración.
- * ponytail: fallback por ordering deploy-antes-que-SQL; borrar cuando la
- * migración esté corrida en todos los entornos.
  */
 export async function createGroupWithOwner(opts: {
   name: string
@@ -33,6 +31,9 @@ export async function createGroupWithOwner(opts: {
   })
   if (!rpc.error && rpc.data) return rpc.data as Group
   if (rpc.error && !isMissingFunctionError(rpc.error)) throw rpc.error
+  if (kind === 'viaje') {
+    throw new Error('Falta correr supabase/migration_group_kind.sql para crear grupos de viaje.')
+  }
 
   // Fallback no atómico (RPC ausente). No manda `kind`: si la columna existe
   // toma su default ('convivencia'); si no existe tampoco, no rompe el insert.

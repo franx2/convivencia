@@ -1,8 +1,9 @@
 import { rateLimited, requireUser } from '@/lib/api-auth'
 
-// Vea y Changomas corren sobre VTEX y exponen la API de catálogo pública que
-// usa su propio buscador (sin auth, sin scraping/browser headless: es la misma
-// data que ve cualquier visitante en la búsqueda del sitio).
+// Todos corren sobre VTEX y exponen la API de catálogo pública que usa su
+// propio buscador (sin auth, sin scraping/browser headless: es la misma data
+// que ve cualquier visitante en la búsqueda del sitio). Coto queda afuera:
+// tiene plataforma propia, no VTEX.
 export const runtime = 'nodejs'
 export const maxDuration = 15
 
@@ -15,6 +16,9 @@ const STORES: { store: string; host: string }[] = [
   { store: 'Vea', host: 'www.vea.com.ar' },
   { store: 'Changomas', host: 'www.masonline.com.ar' },
   { store: 'Carrefour', host: 'www.carrefour.com.ar' },
+  { store: 'Jumbo', host: 'www.jumbo.com.ar' },
+  { store: 'Disco', host: 'www.disco.com.ar' },
+  { store: 'La Anónima', host: 'www.laanonimaonline.com' },
 ]
 
 const BROWSER_UA =
@@ -26,10 +30,20 @@ type PriceResult = {
   price: number | null
   image: string | null
   url: string
+  ean: string | null
+}
+
+// Un mismo producto (EAN) comparado entre supermercados. Sin EAN (o sin match
+// en otro súper), el grupo queda con un solo offer: no se pierde el resultado.
+export type PriceGroup = {
+  key: string
+  name: string
+  image: string | null
+  offers: { store: string; price: number | null; url: string; name: string }[]
 }
 
 type VtexOffer = { Price?: number; IsAvailable?: boolean }
-type VtexItem = { images?: { imageUrl?: string }[]; sellers?: { commertialOffer?: VtexOffer }[] }
+type VtexItem = { ean?: string; images?: { imageUrl?: string }[]; sellers?: { commertialOffer?: VtexOffer }[] }
 type VtexProduct = { productName?: string; linkText?: string; items?: VtexItem[] }
 
 export async function GET(req: Request) {
@@ -52,8 +66,7 @@ export async function GET(req: Request) {
 
   const settled = await Promise.allSettled(activeStores.map((s) => searchStore(s, q)))
   const results = settled.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
-  results.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
-  return Response.json({ results })
+  return Response.json({ groups: groupByProduct(results), results })
 }
 
 async function searchStore({ store, host }: { store: string; host: string }, q: string): Promise<PriceResult[]> {
@@ -81,11 +94,39 @@ function normalize(store: string, host: string, p: VtexProduct): PriceResult {
   const offer =
     item?.sellers?.find((s) => s.commertialOffer?.IsAvailable)?.commertialOffer ?? item?.sellers?.[0]?.commertialOffer
   const price = typeof offer?.Price === 'number' && offer.Price > 0 ? offer.Price : null
+  const ean = typeof item?.ean === 'string' && item.ean.trim() ? item.ean.trim() : null
   return {
     store,
     name: p.productName ?? 'Producto',
     price,
     image: item?.images?.[0]?.imageUrl ?? null,
     url: p.linkText ? `https://${host}/${p.linkText}/p` : `https://${host}`,
+    ean,
   }
+}
+
+// Agrupa por EAN (código de barras): mismo producto físico en distintos
+// supermercados, aunque el nombre/formato de texto varíe entre catálogos. Sin
+// EAN, cada resultado queda en su propio grupo (no se inventa un match).
+function groupByProduct(results: PriceResult[]): PriceGroup[] {
+  const groups = new Map<string, PriceGroup>()
+  let singleId = 0
+  for (const r of results) {
+    const key = r.ean ?? `single-${singleId++}`
+    const g = groups.get(key) ?? { key, name: r.name, image: r.image, offers: [] }
+    g.offers.push({ store: r.store, price: r.price, url: r.url, name: r.name })
+    if (!g.image && r.image) g.image = r.image
+    groups.set(key, g)
+  }
+  const list = [...groups.values()]
+  for (const g of list) {
+    g.offers.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
+    g.name = g.offers[0].name
+  }
+  // Primero los que comparan más supermercados (más útil), después por precio.
+  list.sort((a, b) => {
+    if (b.offers.length !== a.offers.length) return b.offers.length - a.offers.length
+    return (a.offers[0].price ?? Infinity) - (b.offers[0].price ?? Infinity)
+  })
+  return list
 }

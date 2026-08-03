@@ -475,6 +475,8 @@ grant select, insert, update, delete on public.shopping_items to authenticated;
 -- acá (al final) porque usa members.alias / groups.is_personal, agregados arriba.
 -- ============================================================
 
+drop function if exists public.create_group(text, text, text, text, boolean);
+
 create or replace function public.create_group(
   p_name          text,
   p_base_currency text default 'ARS',

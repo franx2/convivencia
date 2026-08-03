@@ -2379,7 +2379,7 @@ function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string; onClo
   const [term, setTerm] = useState(initialTerm)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [results, setResults] = useState<PriceResult[]>([])
+  const [groups, setGroups] = useState<PriceGroup[]>([])
 
   const search = useCallback(async () => {
     if (!term.trim()) return
@@ -2397,9 +2397,9 @@ function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string; onClo
       const res = await fetch(`/api/price-search?q=${encodeURIComponent(corrected)}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
-      const data = (await res.json()) as { results?: PriceResult[]; error?: string }
+      const data = (await res.json()) as { groups?: PriceGroup[]; error?: string }
       if (!res.ok) throw new Error(data.error || 'No se pudo buscar el precio.')
-      setResults(data.results ?? [])
+      setGroups(data.groups ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo buscar el precio.')
     } finally {
@@ -2435,37 +2435,55 @@ function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string; onClo
               {loading ? '…' : 'Buscar'}
             </Button>
           </form>
-          <p className="text-xs text-slate-400">Precios de Vea, Changomas y Carrefour, orientativos.</p>
+          <p className="text-xs text-slate-400">
+            Precios de Vea, Changomas, Carrefour, Jumbo, Disco y La Anónima, orientativos. Mismo producto en varios
+            supermercados aparece agrupado para comparar.
+          </p>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
           {loading ? (
             <Spinner />
-          ) : results.length === 0 ? (
+          ) : groups.length === 0 ? (
             <p className="text-center text-sm text-slate-500">Sin resultados.</p>
           ) : (
-            <div className="space-y-2">
-              {results.map((r, i) => (
-                <a
-                  key={i}
-                  href={r.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-3 rounded-xl border border-slate-100 p-2.5 hover:border-emerald-300 dark:border-slate-800"
-                >
-                  {r.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- thumbnail externo de un catálogo de terceros, no vale la pena el pipeline de next/image
-                    <img src={r.image} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
-                  ) : (
-                    <div className="h-12 w-12 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800" />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{r.name}</p>
-                    <p className="text-xs text-slate-400">{r.store}</p>
+            <div className="space-y-3">
+              {groups.map((g) => (
+                <div key={g.key} className="rounded-xl border border-slate-100 p-2.5 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    {g.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- thumbnail externo de un catálogo de terceros, no vale la pena el pipeline de next/image
+                      <img src={g.image} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+                    ) : (
+                      <div className="h-12 w-12 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800" />
+                    )}
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium">{g.name}</p>
                   </div>
-                  <span className="shrink-0 font-bold text-emerald-700 dark:text-emerald-400">
-                    {r.price != null ? formatMoney(r.price, 'ARS') : '—'}
-                  </span>
-                </a>
+                  <div className="mt-2 space-y-1">
+                    {g.offers.map((o, i) => (
+                      <a
+                        key={`${o.store}-${i}`}
+                        href={o.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={`flex items-center justify-between rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-900 ${
+                          i === 0 && g.offers.length > 1 ? 'bg-emerald-50 dark:bg-emerald-950/30' : ''
+                        }`}
+                      >
+                        <span className="text-slate-500">
+                          {o.store}
+                          {i === 0 && g.offers.length > 1 && (
+                            <span className="ml-1.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                              Mejor precio
+                            </span>
+                          )}
+                        </span>
+                        <span className="shrink-0 font-bold text-emerald-700 dark:text-emerald-400">
+                          {o.price != null ? formatMoney(o.price, 'ARS') : '—'}
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -2475,12 +2493,11 @@ function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string; onClo
   )
 }
 
-type PriceResult = {
-  store: string
+type PriceGroup = {
+  key: string
   name: string
-  price: number | null
   image: string | null
-  url: string
+  offers: { store: string; price: number | null; url: string; name: string }[]
 }
 
 function MiembrosTab({

@@ -324,4 +324,3 @@ function isMissingRelationError(error: { code?: string; message?: string }) {
   const msg = (error.message ?? '').toLowerCase()
   return error.code === '42P01' || error.code === 'PGRST205' || msg.includes('could not find') || msg.includes('does not exist')
 }
-
