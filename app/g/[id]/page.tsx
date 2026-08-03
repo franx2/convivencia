@@ -1574,13 +1574,35 @@ function CardsTab({
   const [syncBusy, setSyncBusy] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [syncInfo, setSyncInfo] = useState<string | null>(null)
+  const [selectedSourceIds, setSelectedSourceIds] = useState(() => BANK_DISCOUNT_SOURCES.map((source) => source.id))
+  const [discountRubricFilter, setDiscountRubricFilter] = useState<DiscountRubricId | 'all'>('all')
   const month = new Date().toISOString().slice(0, 7)
   const sourceIds = useMemo(
     () => sourceIdsForBanks(cards.flatMap((card) => [card.bank, card.name])),
     [cards]
   )
   const sourceLabels = BANK_DISCOUNT_SOURCES.filter((source) => sourceIds.includes(source.id)).map((source) => source.bank)
-  const allSourceIds = BANK_DISCOUNT_SOURCES.map((source) => source.id)
+  const groupedDiscounts = useMemo(
+    () =>
+      DISCOUNT_RUBRICS.map((rubric) => ({
+        ...rubric,
+        discounts: discounts.filter(
+          (discount) =>
+            isCurrentDiscount(discount) &&
+            selectedSourceIds.includes(discount.source_key) &&
+            (discountRubricFilter === 'all' || discountRubric(discount) === discountRubricFilter) &&
+            discountRubric(discount) === rubric.id
+        ),
+      })).filter((rubric) => rubric.discounts.length > 0),
+    [discounts, discountRubricFilter, selectedSourceIds]
+  )
+  const visibleDiscountCount = groupedDiscounts.reduce((count, rubric) => count + rubric.discounts.length, 0)
+
+  function toggleSource(sourceId: string) {
+    setSelectedSourceIds((current) =>
+      current.includes(sourceId) ? current.filter((id) => id !== sourceId) : [...current, sourceId]
+    )
+  }
 
   async function add(e: React.FormEvent) {
     e.preventDefault()
@@ -1611,6 +1633,10 @@ function CardsTab({
   }
 
   async function syncDiscounts() {
+    if (selectedSourceIds.length === 0) {
+      setSyncError('Elegí al menos un banco para actualizar sus descuentos.')
+      return
+    }
     setSyncBusy(true)
     setSyncError(null)
     setSyncInfo(null)
@@ -1621,7 +1647,7 @@ function CardsTab({
       const response = await fetch('/api/bank-discounts', {
         method: 'POST',
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
-        body: JSON.stringify({ sources: allSourceIds }),
+        body: JSON.stringify({ sources: selectedSourceIds }),
       })
       const data = (await response.json().catch(() => ({}))) as {
         error?: string
@@ -1669,13 +1695,36 @@ function CardsTab({
             <h2 className="font-semibold text-emerald-900 dark:text-emerald-200">Descuentos bancarios</h2>
             <p className="mt-1 text-xs text-emerald-800/75 dark:text-emerald-300/75">
               {sourceLabels.length > 0
-                ? `Detectamos ${sourceLabels.join(', ')} en tus tarjetas. Actualizamos los descuentos de todos los bancos disponibles.`
-                : `Actualizá los descuentos de los ${BANK_DISCOUNT_SOURCES.length} bancos disponibles. También podés cargar el banco de una tarjeta manualmente.`}
+                ? `Detectamos ${sourceLabels.join(', ')} en tus tarjetas.`
+                : 'Elegí los bancos cuyas promociones querés consultar.'}
             </p>
           </div>
           <Button type="button" onClick={syncDiscounts} disabled={syncBusy}>
-            {syncBusy ? 'Consultando…' : 'Actualizar todos'}
+            {syncBusy ? 'Consultando…' : 'Actualizar seleccionados'}
           </Button>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2" aria-label="Bancos para consultar">
+          {BANK_DISCOUNT_SOURCES.map((source) => {
+            const selected = selectedSourceIds.includes(source.id)
+            return (
+              <label
+                key={source.id}
+                className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                  selected
+                    ? 'border-emerald-500 bg-emerald-600 text-white'
+                    : 'border-emerald-200 bg-white text-emerald-800 dark:border-emerald-900 dark:bg-slate-900 dark:text-emerald-200'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  onChange={() => toggleSource(source.id)}
+                  className="h-3.5 w-3.5 accent-emerald-700"
+                />
+                {source.bank}
+              </label>
+            )
+          })}
         </div>
         {syncInfo && <p className="mt-3 text-xs text-emerald-800 dark:text-emerald-300">{syncInfo}</p>}
         {syncError && <p className="mt-3 text-sm text-red-600">{syncError}</p>}
@@ -1683,51 +1732,73 @@ function CardsTab({
 
       {discounts.length > 0 && (
         <HistoryList title="Promos encontradas">
-          <div className="space-y-2">
-            {discounts
-              .filter((discount) => isCurrentDiscount(discount))
-              .slice(0, 12)
-              .map((discount) => {
-                const matchingCards = cards.filter((card) => sameBank(card.bank, discount.bank))
-                return (
-                  <div key={discount.id} className="rounded-xl border border-slate-100 p-3 dark:border-slate-800">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium">{discount.title}</p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {discount.bank}
-                          {discount.merchant ? ` · ${discount.merchant}` : ''}
-                          {discount.category ? ` · ${discount.category}` : ''}
-                        </p>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-slate-500">{visibleDiscountCount} promociones vigentes</p>
+              <Select
+                value={discountRubricFilter}
+                onChange={(event) => setDiscountRubricFilter(event.target.value as DiscountRubricId | 'all')}
+                className="w-auto min-w-40"
+                aria-label="Filtrar promociones por rubro"
+              >
+                <option value="all">Todos los rubros</option>
+                {DISCOUNT_RUBRICS.filter((rubric) => rubric.id !== 'other').map((rubric) => (
+                  <option key={rubric.id} value={rubric.id}>
+                    {rubric.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            {groupedDiscounts.length === 0 ? (
+              <p className="text-sm text-slate-500">No hay promociones vigentes para esta selección.</p>
+            ) : (
+              groupedDiscounts.map((rubric) => (
+                <section key={rubric.id} className="space-y-2">
+                  <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{rubric.label}</h3>
+                  {rubric.discounts.slice(0, 12).map((discount) => {
+                    const matchingCards = cards.filter((card) => sameBank(card.bank, discount.bank))
+                    return (
+                      <div key={discount.id} className="rounded-xl border border-slate-100 p-3 dark:border-slate-800">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium">{discount.title}</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {discount.bank}
+                              {discount.merchant ? ` · ${discount.merchant}` : ''}
+                              {discount.category ? ` · ${discount.category}` : ''}
+                            </p>
+                          </div>
+                          {discount.discount_percent != null && (
+                            <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-1 text-sm font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                              {discount.discount_percent}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                          {discount.installments != null && <span>💳 {discount.installments} cuotas</span>}
+                          {discount.weekdays.length > 0 && <span>📅 {discount.weekdays.join(', ')}</span>}
+                          {discount.cap_amount != null && <span>Tope {formatMoney(discount.cap_amount, group.base_currency)}</span>}
+                          {discount.card_brand && <span>{discount.card_brand}</span>}
+                        </div>
+                        {matchingCards.length > 0 && (
+                          <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                            Aplica a: {matchingCards.map((card) => card.name).join(', ')}
+                          </p>
+                        )}
+                        <a
+                          href={discount.source_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-2 inline-block text-xs text-slate-400 underline hover:text-emerald-600"
+                        >
+                          Ver términos en el banco
+                        </a>
                       </div>
-                      {discount.discount_percent != null && (
-                        <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-1 text-sm font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                          {discount.discount_percent}%
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-                      {discount.installments != null && <span>💳 {discount.installments} cuotas</span>}
-                      {discount.weekdays.length > 0 && <span>📅 {discount.weekdays.join(', ')}</span>}
-                      {discount.cap_amount != null && <span>Tope {formatMoney(discount.cap_amount, group.base_currency)}</span>}
-                      {discount.card_brand && <span>{discount.card_brand}</span>}
-                    </div>
-                    {matchingCards.length > 0 && (
-                      <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                        Aplica a: {matchingCards.map((card) => card.name).join(', ')}
-                      </p>
-                    )}
-                    <a
-                      href={discount.source_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 inline-block text-xs text-slate-400 underline hover:text-emerald-600"
-                    >
-                      Ver términos en el banco
-                    </a>
-                  </div>
-                )
-              })}
+                    )
+                  })}
+                </section>
+              ))
+            )}
           </div>
         </HistoryList>
       )}
@@ -1857,6 +1928,37 @@ function isStorableBankDiscount(discount: BankDiscount): boolean {
 function isCurrentDiscount(discount: BankDiscount): boolean {
   const today = new Date().toISOString().slice(0, 10)
   return (!discount.valid_from || discount.valid_from <= today) && (!discount.valid_to || discount.valid_to >= today)
+}
+
+const DISCOUNT_RUBRICS = [
+  { id: 'supermarkets', label: 'Supermercados' },
+  { id: 'fuel', label: 'Combustible' },
+  { id: 'pharmacy', label: 'Farmacias' },
+  { id: 'food', label: 'Gastronomía' },
+  { id: 'shopping', label: 'Compras' },
+  { id: 'travel', label: 'Viajes y entretenimiento' },
+  { id: 'home', label: 'Hogar y tecnología' },
+  { id: 'other', label: 'Otros descuentos' },
+] as const
+
+type DiscountRubricId = (typeof DISCOUNT_RUBRICS)[number]['id']
+
+function discountRubric(discount: BankDiscount): DiscountRubricId {
+  const text = [discount.category, discount.merchant, discount.title, discount.terms_text]
+    .filter(Boolean)
+    .join(' ')
+    .toLocaleLowerCase('es-AR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+  if (/supermerc|mayorista|alimento|coto|carrefour|jumbo|disco|vea|dia\b|changomas/.test(text)) return 'supermarkets'
+  if (/combustible|ypf|shell|axion|estacion de servicio/.test(text)) return 'fuel'
+  if (/farmacia|farmacity|optica/.test(text)) return 'pharmacy'
+  if (/gastronom|restaurante|bar\b|cafe\b|pedido.?ya/.test(text)) return 'food'
+  if (/indumentaria|moda|shopping|calzado|belleza/.test(text)) return 'shopping'
+  if (/viaje|turismo|hotel|aerolinea|entretenimiento|cine|show/.test(text)) return 'travel'
+  if (/hogar|tecnologia|electro|mercado libre|tienda/.test(text)) return 'home'
+  return 'other'
 }
 
 function PersonalSummaryTab({
