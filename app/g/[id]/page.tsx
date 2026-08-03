@@ -1737,7 +1737,17 @@ function PersonalSummaryTab({
   catMeta: (v: string) => CatMeta
 }) {
   const fmt = (n: number) => formatMoney(n, group.base_currency)
-  const month = new Date().toISOString().slice(0, 7)
+  // Meses con datos (gastos + ingresos + ahorros) + el actual, desc (mismo criterio que Balances).
+  const months = useMemo(() => {
+    const set = new Set<string>()
+    for (const e of expenses) if (/^\d{4}-\d{2}/.test(e.date)) set.add(String(e.date).slice(0, 7))
+    for (const i of incomes) if (/^\d{4}-\d{2}/.test(i.date)) set.add(String(i.date).slice(0, 7))
+    for (const s of savings) if (/^\d{4}-\d{2}/.test(s.date)) set.add(String(s.date).slice(0, 7))
+    set.add(new Date().toISOString().slice(0, 7))
+    return [...set].sort((a, b) => b.localeCompare(a))
+  }, [expenses, incomes, savings])
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const byMonth = useMemo(() => spendByMonth(expenses, 6), [expenses])
   const baseOf = (e: Expense) => Number(e.amount) * Number(e.rate_to_base)
   const monthExpenses = expenses.filter((e) => String(e.date).slice(0, 7) === month)
   const monthIncomes = incomes.filter((i) => String(i.date).slice(0, 7) === month)
@@ -1765,6 +1775,16 @@ function PersonalSummaryTab({
 
   return (
     <div className="space-y-4">
+      <Card className="flex items-center gap-2">
+        <Select value={month} onChange={(e) => setMonth(e.target.value)} className="max-w-[180px]">
+          {months.map((m) => (
+            <option key={m} value={m}>
+              {monthLabelEs(m)}
+            </option>
+          ))}
+        </Select>
+      </Card>
+
       <div className="grid gap-2 sm:grid-cols-3">
         <MetricCard label="Ingresos" value={fmt(incomeTotal)} tone="text-emerald-600" />
         <MetricCard label="Gastos" value={fmt(expenseTotal)} tone="text-rose-600" />
@@ -1787,6 +1807,11 @@ function PersonalSummaryTab({
         ) : (
           <p className="text-sm text-slate-500">Sin gastos este mes.</p>
         )}
+      </Card>
+
+      <Card>
+        <p className="mb-4 text-sm font-medium text-slate-600">Gasto por mes (todos)</p>
+        <MonthlyBars data={byMonth} format={fmt} />
       </Card>
     </div>
   )
