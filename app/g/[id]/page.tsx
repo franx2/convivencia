@@ -1090,31 +1090,6 @@ function GastosTab({
         </Card>
       )}
 
-      {group.is_personal && expenses.length > 0 && (
-        <div className="space-y-3">
-          <Card>
-            <p className="mb-4 text-sm font-medium text-slate-600">Gastos por categoría · {chartMonthLbl}</p>
-            {categoryChart.length > 0 ? (
-              <Donut data={categoryChart} format={(n) => formatMoney(n, group.base_currency)} />
-            ) : (
-              <p className="text-sm text-slate-500">Sin gastos en {chartMonthLbl}.</p>
-            )}
-          </Card>
-          <Card>
-            <p className="mb-4 text-sm font-medium text-slate-600">Origen del gasto · {chartMonthLbl}</p>
-            {manualTotal > 0 || cardTotal > 0 ? (
-              <Donut data={sourceChart} format={(n) => formatMoney(n, group.base_currency)} />
-            ) : (
-              <p className="text-sm text-slate-500">Sin gastos en {chartMonthLbl}.</p>
-            )}
-          </Card>
-          <Card>
-            <p className="mb-4 text-sm font-medium text-slate-600">Gasto por mes (todos)</p>
-            <MonthlyBars data={byMonth} format={(n) => formatMoney(n, group.base_currency)} />
-          </Card>
-        </div>
-      )}
-
       <div className="flex items-center justify-between gap-3">
         {expenses.length > 0 ? (
           <div className="flex flex-wrap gap-2">
@@ -1150,6 +1125,31 @@ function GastosTab({
           <p className="text-sm text-amber-600">Agregá miembros antes de cargar gastos.</p>
         )}
       </div>
+
+      {group.is_personal && expenses.length > 0 && (
+        <div className="space-y-3">
+          <Card>
+            <p className="mb-4 text-sm font-medium text-slate-600">Gastos por categoría · {chartMonthLbl}</p>
+            {categoryChart.length > 0 ? (
+              <Donut data={categoryChart} format={(n) => formatMoney(n, group.base_currency)} />
+            ) : (
+              <p className="text-sm text-slate-500">Sin gastos en {chartMonthLbl}.</p>
+            )}
+          </Card>
+          <Card>
+            <p className="mb-4 text-sm font-medium text-slate-600">Origen del gasto · {chartMonthLbl}</p>
+            {manualTotal > 0 || cardTotal > 0 ? (
+              <Donut data={sourceChart} format={(n) => formatMoney(n, group.base_currency)} />
+            ) : (
+              <p className="text-sm text-slate-500">Sin gastos en {chartMonthLbl}.</p>
+            )}
+          </Card>
+          <Card>
+            <p className="mb-4 text-sm font-medium text-slate-600">Gasto por mes (todos)</p>
+            <MonthlyBars data={byMonth} format={(n) => formatMoney(n, group.base_currency)} />
+          </Card>
+        </div>
+      )}
 
       {expenses.length === 0 ? (
         <Card className="text-center text-slate-500">Todavía no hay gastos.</Card>
