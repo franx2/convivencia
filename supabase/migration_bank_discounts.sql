@@ -28,6 +28,24 @@ create table if not exists public.bank_discounts (
   unique (user_id, source_key, external_key)
 );
 
+-- Instalaciones anteriores podian tener un CHECK sobre source_key con la lista
+-- inicial de bancos. Las fuentes llegan unicamente del endpoint con lista
+-- blanca, por lo que ese CHECK no aporta seguridad y bloquea bancos nuevos.
+do $$
+declare
+  source_check text;
+begin
+  for source_check in
+    select conname
+    from pg_constraint
+    where conrelid = 'public.bank_discounts'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) ilike '%source_key%'
+  loop
+    execute format('alter table public.bank_discounts drop constraint if exists %I', source_check);
+  end loop;
+end $$;
+
 create index if not exists idx_bank_discounts_user on public.bank_discounts(user_id);
 create index if not exists idx_bank_discounts_bank on public.bank_discounts(user_id, bank);
 create index if not exists idx_bank_discounts_valid_to on public.bank_discounts(user_id, valid_to);

@@ -1630,12 +1630,14 @@ function CardsTab({
       }
       if (!response.ok) throw new Error(data.error || 'No se pudieron actualizar los descuentos.')
 
-      const rows = (data.discounts ?? []).map((discount) => {
-        const row = { ...discount, user_id: userId } as Record<string, unknown>
-        delete row.id
-        delete row.created_at
-        return row
-      })
+      const rows = (data.discounts ?? [])
+        .filter(isStorableBankDiscount)
+        .map((discount) => {
+          const row = { ...discount, user_id: userId } as Record<string, unknown>
+          delete row.id
+          delete row.created_at
+          return row
+        })
       if (rows.length > 0) {
         const { error } = await supabase
           .from('bank_discounts')
@@ -1840,6 +1842,16 @@ function sameBank(cardBank: string | null, discountBank: string): boolean {
   if (card === discount) return true
   if (discount.includes('nacion')) return card.includes('nacion') || card === 'bna'
   return card.includes(discount) || discount.includes(card)
+}
+
+function isStorableBankDiscount(discount: BankDiscount): boolean {
+  const validPercent =
+    discount.discount_percent == null ||
+    (Number.isFinite(discount.discount_percent) && discount.discount_percent > 0 && discount.discount_percent <= 100)
+  const validInstallments =
+    discount.installments == null ||
+    (Number.isInteger(discount.installments) && discount.installments > 0 && discount.installments <= 60)
+  return validPercent && validInstallments
 }
 
 function isCurrentDiscount(discount: BankDiscount): boolean {
