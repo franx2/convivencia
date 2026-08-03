@@ -263,7 +263,15 @@ function readPercent(text: string): number | null {
 
 function readInstallments(text: string): number | null {
   const match = text.match(/(\d{1,2})\s+cuotas?(?:\s+sin\s+inter[eé]s)?/i)
-  return match ? Number(match[1]) : null
+  return match ? validInstallments(Number(match[1])) : null
+}
+
+function validPercent(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 100 ? value : null
+}
+
+function validInstallments(value: number): number | null {
+  return Number.isInteger(value) && value > 0 && value <= 60 ? value : null
 }
 
 function readAmountAfter(text: string, markers: string[]): number | null {
@@ -456,7 +464,9 @@ export async function scrapeNacionSemanaNacion(
     seen.add(key)
 
     const days = (p.activeDays ?? []).map((d) => NACION_DAY_ES[d]).filter((d): d is string => Boolean(d))
-    const installVals = (p.incentive?.installment?.value ?? []).filter((v) => Number.isFinite(v))
+    const installVals = (p.incentive?.installment?.value ?? [])
+      .map(validInstallments)
+      .filter((value): value is number => value !== null)
     const url = p.url && /^https?:\/\//.test(p.url) ? p.url : source.url
 
     out.push({
@@ -466,7 +476,7 @@ export async function scrapeNacionSemanaNacion(
       title: p.promotionTitle ?? 'Promoción',
       merchant: null,
       category: p.categories?.[0]?.label ?? null,
-      discount_percent: p.incentive?.discount?.value ?? null,
+      discount_percent: validPercent(p.incentive?.discount?.value),
       installments: installVals.length ? Math.max(...installVals) : null,
       cap_amount: null,
       min_amount: null,
