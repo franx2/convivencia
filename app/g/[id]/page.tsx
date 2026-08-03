@@ -1689,6 +1689,8 @@ function CardsTab({
 
   return (
     <div className="space-y-4">
+      {false && (
+        <>
       <Card className="border-emerald-100 bg-emerald-50/60 dark:border-emerald-900/50 dark:bg-emerald-950/20">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -1801,6 +1803,8 @@ function CardsTab({
             )}
           </div>
         </HistoryList>
+      )}
+        </>
       )}
 
       {adding ? (
