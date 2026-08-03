@@ -143,6 +143,7 @@ export type ShoppingItem = {
   id: string
   group_id: string
   text: string
+  category: string // categoría de supermercado (lib/grocery-categories.ts), no la de gastos
   checked: boolean
   created_by: string | null
   created_at: string

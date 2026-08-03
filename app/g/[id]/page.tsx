@@ -14,6 +14,7 @@ import { formatMoney } from '@/lib/currencies'
 import { mergeCategories, metaFrom, type CatMeta } from '@/lib/categories'
 import { computeBalances, settle, spendByCategory, spendByMonth } from '@/lib/balances'
 import { correctGroceryTerm } from '@/lib/grocery-glossary'
+import { DEFAULT_GROCERY_CATEGORY, GROCERY_CATEGORIES, suggestGroceryCategory } from '@/lib/grocery-categories'
 import { userDisplayName, userPaymentAlias } from '@/lib/profile'
 import { BANK_DISCOUNT_SOURCES, sourceIdsForBanks } from '@/lib/bank-discounts'
 import { Donut, MonthlyBars } from '@/components/charts'
@@ -2671,18 +2672,33 @@ function ListaComprasTab({
   onChanged: () => void
 }) {
   const [text, setText] = useState('')
+  const [category, setCategory] = useState(DEFAULT_GROCERY_CATEGORY)
+  const [categoryTouched, setCategoryTouched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [searchFor, setSearchFor] = useState<ShoppingItem | null>(null)
 
   const pending = items.filter((i) => !i.checked)
   const bought = items.filter((i) => i.checked)
+  // Pendientes agrupados por categoría de súper (carnes, lácteos, etc.), en el
+  // orden fijo de GROCERY_CATEGORIES; se omiten las categorías sin ítems.
+  const pendingByCategory = GROCERY_CATEGORIES.map((cat) => ({
+    cat,
+    items: pending.filter((i) => (i.category || DEFAULT_GROCERY_CATEGORY) === cat.value),
+  })).filter((g) => g.items.length > 0)
+
+  function onTextChange(value: string) {
+    setText(value)
+    if (!categoryTouched) setCategory(suggestGroceryCategory(value))
+  }
 
   async function add(e: React.FormEvent) {
     e.preventDefault()
     if (!text.trim()) return
     setBusy(true)
-    await supabase.from('shopping_items').insert({ group_id: groupId, text: text.trim() })
+    await supabase.from('shopping_items').insert({ group_id: groupId, text: text.trim(), category })
     setText('')
+    setCategory(DEFAULT_GROCERY_CATEGORY)
+    setCategoryTouched(false)
     setBusy(false)
     onChanged()
   }
@@ -2705,16 +2721,31 @@ function ListaComprasTab({
   return (
     <div className="space-y-4">
       <Card>
-        <form onSubmit={add} className="flex gap-2">
-          <Input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Leche, pan, detergente…"
-            autoFocus
-          />
-          <Button type="submit" disabled={busy || !text.trim()}>
-            Agregar
-          </Button>
+        <form onSubmit={add} className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              value={text}
+              onChange={(e) => onTextChange(e.target.value)}
+              placeholder="Leche, pan, detergente…"
+              autoFocus
+            />
+            <Button type="submit" disabled={busy || !text.trim()}>
+              Agregar
+            </Button>
+          </div>
+          <Select
+            value={category}
+            onChange={(e) => {
+              setCategory(e.target.value)
+              setCategoryTouched(true)
+            }}
+          >
+            {GROCERY_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.emoji} {c.label}
+              </option>
+            ))}
+          </Select>
         </form>
       </Card>
 
@@ -2722,23 +2753,32 @@ function ListaComprasTab({
         <Card className="text-center text-slate-500">Todavía no hay nada en la lista.</Card>
       ) : (
         <>
-          <div className="space-y-2">
-            {pending.map((item) => (
-              <Card key={item.id} className="flex items-center justify-between gap-3 py-2.5">
-                <label className="flex min-w-0 flex-1 items-center gap-3">
-                  <input type="checkbox" checked={false} onChange={() => toggle(item)} className="h-5 w-5 shrink-0" />
-                  <span className="truncate">{item.text}</span>
-                </label>
-                <button
-                  onClick={() => setSearchFor(item)}
-                  className="shrink-0 text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
-                >
-                  Precio
-                </button>
-                <button onClick={() => remove(item.id)} className="shrink-0 text-slate-300 hover:text-red-500" title="Borrar">
-                  ✕
-                </button>
-              </Card>
+          <div className="space-y-4">
+            {pendingByCategory.map(({ cat, items: catItems }) => (
+              <div key={cat.value}>
+                <p className="mb-2 text-sm font-semibold text-slate-400">
+                  {cat.emoji} {cat.label} ({catItems.length})
+                </p>
+                <div className="space-y-2">
+                  {catItems.map((item) => (
+                    <Card key={item.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <label className="flex min-w-0 flex-1 items-center gap-3">
+                        <input type="checkbox" checked={false} onChange={() => toggle(item)} className="h-5 w-5 shrink-0" />
+                        <span className="truncate">{item.text}</span>
+                      </label>
+                      <button
+                        onClick={() => setSearchFor(item)}
+                        className="shrink-0 text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+                      >
+                        Precio
+                      </button>
+                      <button onClick={() => remove(item.id)} className="shrink-0 text-slate-300 hover:text-red-500" title="Borrar">
+                        ✕
+                      </button>
+                    </Card>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
 

@@ -499,6 +499,11 @@ create table if not exists public.shopping_items (
 );
 create index if not exists idx_shopping_items_group on public.shopping_items(group_id);
 
+-- Categoría de supermercado (carnes, lácteos, frutas y verduras, etc. - ver
+-- migration_shopping_categories.sql / lib/grocery-categories.ts).
+alter table public.shopping_items
+  add column if not exists category text not null default 'otros';
+
 alter table public.shopping_items enable row level security;
 drop policy if exists shopping_items_all on public.shopping_items;
 create policy shopping_items_all on public.shopping_items
