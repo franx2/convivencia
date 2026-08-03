@@ -17,6 +17,7 @@ import { correctGroceryTerm } from '@/lib/grocery-glossary'
 import { userDisplayName, userPaymentAlias } from '@/lib/profile'
 import { Donut, MonthlyBars } from '@/components/charts'
 import type {
+  BankDiscount,
   Budget,
   Category,
   CreditCard,
@@ -51,6 +52,7 @@ export default function GroupPage() {
   const [incomes, setIncomes] = useState<Income[]>([])
   const [savings, setSavings] = useState<Saving[]>([])
   const [cards, setCards] = useState<CreditCard[]>([])
+  const [discounts, setDiscounts] = useState<BankDiscount[]>([])
   const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([])
   const [myMemberId, setMyMemberId] = useState<string | null>(null)
   const [fetching, setFetching] = useState(true)
@@ -85,6 +87,7 @@ export default function GroupPage() {
       { data: inc },
       { data: sav },
       { data: crd },
+      { data: bdis },
       { data: shop },
     ] = await Promise.all([
       supabase.from('members').select('*').eq('group_id', groupId).order('created_at'),
@@ -96,6 +99,7 @@ export default function GroupPage() {
       supabase.from('incomes').select('*').eq('group_id', groupId).order('date', { ascending: false }),
       supabase.from('savings').select('*').eq('group_id', groupId).order('date', { ascending: false }),
       supabase.from('cards').select('*').eq('group_id', groupId).order('created_at', { ascending: false }),
+      supabase.from('bank_discounts').select('*').order('discount_percent', { ascending: false, nullsFirst: false }),
       supabase.from('shopping_items').select('*').eq('group_id', groupId).order('created_at'),
     ])
     setMembers((m ?? []) as Member[])
@@ -107,6 +111,7 @@ export default function GroupPage() {
     setIncomes((inc ?? []) as Income[])
     setSavings((sav ?? []) as Saving[])
     setCards((crd ?? []) as CreditCard[])
+    setDiscounts((bdis ?? []) as BankDiscount[])
     setShoppingItems((shop ?? []) as ShoppingItem[])
     const exp = (e ?? []) as Expense[]
     setExpenses(exp)
@@ -363,7 +368,14 @@ export default function GroupPage() {
           />
         )}
         {group.is_personal && activeTab === 'tarjetas' && (
-          <CardsTab group={group} cards={cards} expenses={expenses} onChanged={load} />
+          <CardsTab
+            group={group}
+            cards={cards}
+            discounts={discounts}
+            expenses={expenses}
+            userId={user.id}
+            onChanged={load}
+          />
         )}
         {group.is_personal && activeTab === 'resumen' && (
           <PersonalSummaryTab
@@ -879,6 +891,7 @@ function GastosTab({
   onChanged: () => void
 }) {
   const [filter, setFilter] = useState<string>('all')
+  const [monthFilter, setMonthFilter] = useState<string>('all')
   const [managingTpl, setManagingTpl] = useState(false)
   const [tplLabel, setTplLabel] = useState('')
   const [tplCat, setTplCat] = useState<string>('otros')
@@ -920,7 +933,13 @@ function GastosTab({
   }
 
   const usedCats = Array.from(new Set(expenses.map((e) => e.category || 'otros')))
-  const shown = filter === 'all' ? expenses : expenses.filter((e) => (e.category || 'otros') === filter)
+  // Meses con gastos, desc, para el filtro (no aplica a "viaje": ahí no se separa por mes).
+  const availableMonths = Array.from(
+    new Set(expenses.filter((e) => /^\d{4}-\d{2}/.test(e.date)).map((e) => e.date.slice(0, 7)))
+  ).sort((a, b) => b.localeCompare(a))
+  const byCategory = filter === 'all' ? expenses : expenses.filter((e) => (e.category || 'otros') === filter)
+  const shown =
+    monthFilter === 'all' ? byCategory : byCategory.filter((e) => e.date.slice(0, 7) === monthFilter)
   const baseOf = (e: Expense) => Number(e.amount) * Number(e.rate_to_base)
   // En un grupo "viaje" no interesa separar por mes: un solo bloque con el total.
   const grouped =
@@ -1054,14 +1073,26 @@ function GastosTab({
 
       <div className="flex items-center justify-between gap-3">
         {expenses.length > 0 ? (
-          <Select value={filter} onChange={(e) => setFilter(e.target.value)} className="max-w-[200px]">
-            <option value="all">Todas las categorías</option>
-            {usedCats.map((c) => (
-              <option key={c} value={c}>
-                {catMeta(c).symbol} {catMeta(c).label}
-              </option>
-            ))}
-          </Select>
+          <div className="flex flex-wrap gap-2">
+            <Select value={filter} onChange={(e) => setFilter(e.target.value)} className="max-w-[200px]">
+              <option value="all">Todas las categorías</option>
+              {usedCats.map((c) => (
+                <option key={c} value={c}>
+                  {catMeta(c).symbol} {catMeta(c).label}
+                </option>
+              ))}
+            </Select>
+            {group.kind !== 'viaje' && availableMonths.length > 0 && (
+              <Select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} className="max-w-[180px]">
+                <option value="all">Todos los meses</option>
+                {availableMonths.map((m) => (
+                  <option key={m} value={m}>
+                    {monthLabelEs(m)}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </div>
         ) : (
           <span />
         )}
@@ -1431,12 +1462,16 @@ function PersonalBudgetsTab({
 function CardsTab({
   group,
   cards,
+  discounts,
   expenses,
+  userId,
   onChanged,
 }: {
   group: Group
   cards: CreditCard[]
+  discounts: BankDiscount[]
   expenses: Expense[]
+  userId: string
   onChanged: () => void
 }) {
   const [name, setName] = useState('')
@@ -1446,6 +1481,9 @@ function CardsTab({
   const [dueDay, setDueDay] = useState('')
   const [busy, setBusy] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [syncBusy, setSyncBusy] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [syncInfo, setSyncInfo] = useState<string | null>(null)
   const month = new Date().toISOString().slice(0, 7)
 
   async function add(e: React.FormEvent) {
@@ -1476,8 +1514,124 @@ function CardsTab({
     onChanged()
   }
 
+  async function syncDiscounts() {
+    setSyncBusy(true)
+    setSyncError(null)
+    setSyncInfo(null)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      const response = await fetch('/api/bank-discounts', {
+        method: 'POST',
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        body: JSON.stringify({}),
+      })
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string
+        discounts?: BankDiscount[]
+        sources?: { bank: string; count: number; ok: boolean; error?: string }[]
+      }
+      if (!response.ok) throw new Error(data.error || 'No se pudieron actualizar los descuentos.')
+
+      const rows = (data.discounts ?? []).map((discount) => {
+        const row = { ...discount, user_id: userId } as Record<string, unknown>
+        delete row.id
+        delete row.created_at
+        return row
+      })
+      if (rows.length > 0) {
+        const { error } = await supabase
+          .from('bank_discounts')
+          .upsert(rows, { onConflict: 'user_id,source_key,external_key' })
+        if (error) throw new Error(`${error.message}. Ejecutá supabase/migration_bank_discounts.sql.`)
+      }
+
+      const sourceSummary = (data.sources ?? [])
+        .map((source) => `${source.bank}: ${source.ok ? source.count : source.error ?? 'error'}`)
+        .join(' · ')
+      setSyncInfo(
+        rows.length > 0
+          ? `Actualizado ahora · ${sourceSummary}`
+          : `No encontré promos en HTML público · ${sourceSummary}`
+      )
+      onChanged()
+    } catch (error) {
+      setSyncError(error instanceof Error ? error.message : 'No se pudieron actualizar los descuentos.')
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
+      <Card className="border-emerald-100 bg-emerald-50/60 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-emerald-900 dark:text-emerald-200">Descuentos bancarios</h2>
+            <p className="mt-1 text-xs text-emerald-800/75 dark:text-emerald-300/75">
+              Consultamos promociones publicadas por los bancos y las cruzamos con tus tarjetas.
+            </p>
+          </div>
+          <Button type="button" onClick={syncDiscounts} disabled={syncBusy}>
+            {syncBusy ? 'Consultando…' : 'Actualizar descuentos'}
+          </Button>
+        </div>
+        {syncInfo && <p className="mt-3 text-xs text-emerald-800 dark:text-emerald-300">{syncInfo}</p>}
+        {syncError && <p className="mt-3 text-sm text-red-600">{syncError}</p>}
+      </Card>
+
+      {discounts.length > 0 && (
+        <HistoryList title="Promos encontradas">
+          <div className="space-y-2">
+            {discounts
+              .filter((discount) => isCurrentDiscount(discount))
+              .slice(0, 12)
+              .map((discount) => {
+                const matchingCards = cards.filter((card) => sameBank(card.bank, discount.bank))
+                return (
+                  <div key={discount.id} className="rounded-xl border border-slate-100 p-3 dark:border-slate-800">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{discount.title}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {discount.bank}
+                          {discount.merchant ? ` · ${discount.merchant}` : ''}
+                          {discount.category ? ` · ${discount.category}` : ''}
+                        </p>
+                      </div>
+                      {discount.discount_percent != null && (
+                        <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-1 text-sm font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                          {discount.discount_percent}%
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                      {discount.installments != null && <span>💳 {discount.installments} cuotas</span>}
+                      {discount.weekdays.length > 0 && <span>📅 {discount.weekdays.join(', ')}</span>}
+                      {discount.cap_amount != null && <span>Tope {formatMoney(discount.cap_amount, group.base_currency)}</span>}
+                      {discount.card_brand && <span>{discount.card_brand}</span>}
+                    </div>
+                    {matchingCards.length > 0 && (
+                      <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                        Aplica a: {matchingCards.map((card) => card.name).join(', ')}
+                      </p>
+                    )}
+                    <a
+                      href={discount.source_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-block text-xs text-slate-400 underline hover:text-emerald-600"
+                    >
+                      Ver términos en el banco
+                    </a>
+                  </div>
+                )
+              })}
+          </div>
+        </HistoryList>
+      )}
+
       {adding ? (
         <Card>
           <div className="mb-3 flex items-center justify-between">
@@ -1547,6 +1701,26 @@ function CardsTab({
       </HistoryList>
     </div>
   )
+}
+
+function sameBank(cardBank: string | null, discountBank: string): boolean {
+  if (!cardBank) return false
+  const normalize = (value: string) =>
+    value
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '')
+  const card = normalize(cardBank)
+  const discount = normalize(discountBank)
+  if (card === discount) return true
+  if (discount.includes('nacion')) return card.includes('nacion') || card === 'bna'
+  return card.includes(discount) || discount.includes(card)
+}
+
+function isCurrentDiscount(discount: BankDiscount): boolean {
+  const today = new Date().toISOString().slice(0, 10)
+  return (!discount.valid_from || discount.valid_from <= today) && (!discount.valid_to || discount.valid_to >= today)
 }
 
 function PersonalSummaryTab({

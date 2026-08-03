@@ -103,6 +103,32 @@ export type CreditCard = {
   created_at: string
 }
 
+export type BankDiscount = {
+  id: string
+  user_id: string
+  source_key: string
+  external_key: string
+  bank: string
+  title: string
+  merchant: string | null
+  category: string | null
+  discount_percent: number | null
+  installments: number | null
+  cap_amount: number | null
+  min_amount: number | null
+  valid_from: string | null
+  valid_to: string | null
+  weekdays: string[]
+  payment_method: string | null
+  card_brand: string | null
+  card_tier: string | null
+  province: string | null
+  terms_text: string
+  source_url: string
+  last_seen_at: string
+  created_at: string
+}
+
 export type Category = {
   id: string
   group_id: string
