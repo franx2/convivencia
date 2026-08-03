@@ -15,6 +15,7 @@ import { mergeCategories, metaFrom, type CatMeta } from '@/lib/categories'
 import { computeBalances, settle, spendByCategory, spendByMonth } from '@/lib/balances'
 import { correctGroceryTerm } from '@/lib/grocery-glossary'
 import { userDisplayName, userPaymentAlias } from '@/lib/profile'
+import { BANK_DISCOUNT_SOURCES, sourceIdsForBanks } from '@/lib/bank-discounts'
 import { Donut, MonthlyBars } from '@/components/charts'
 import type {
   BankDiscount,
@@ -378,13 +379,7 @@ export default function GroupPage() {
           />
         )}
         {group.is_personal && activeTab === 'resumen' && (
-          <PersonalSummaryTab
-            group={group}
-            expenses={expenses}
-            incomes={incomes}
-            savings={savings}
-            catMeta={catMeta}
-          />
+          <PersonalSummaryTab group={group} expenses={expenses} incomes={incomes} savings={savings} />
         )}
         {!group.is_personal && activeTab === 'balances' && (
           <BalancesTab
@@ -941,6 +936,30 @@ function GastosTab({
   const shown =
     monthFilter === 'all' ? byCategory : byCategory.filter((e) => e.date.slice(0, 7) === monthFilter)
   const baseOf = (e: Expense) => Number(e.amount) * Number(e.rate_to_base)
+
+  // Gráficos (espacio personal): respetan el filtro de mes pero no el de categoría,
+  // para que la torta de categorías siga siendo útil aunque estés filtrando la lista.
+  const monthOnlyExpenses =
+    monthFilter === 'all' ? expenses : expenses.filter((e) => e.date.slice(0, 7) === monthFilter)
+  const byCat = spendByCategory(monthOnlyExpenses)
+  const categoryChart = byCat.map((c) => ({
+    label: catMeta(c.category).label,
+    value: c.total,
+    color: catMeta(c.category).hex,
+    symbol: catMeta(c.category).symbol,
+  }))
+  const manualTotal = monthOnlyExpenses
+    .filter((e) => (e.source ?? 'manual') !== 'card_import')
+    .reduce((sum, e) => sum + baseOf(e), 0)
+  const cardTotal = monthOnlyExpenses
+    .filter((e) => (e.source ?? 'manual') === 'card_import')
+    .reduce((sum, e) => sum + baseOf(e), 0)
+  const sourceChart = [
+    { label: 'Manual', value: manualTotal, color: '#10b981', symbol: '✍️' },
+    { label: 'Tarjeta', value: cardTotal, color: '#f43f5e', symbol: '💳' },
+  ]
+  const byMonth = useMemo(() => spendByMonth(expenses, 6), [expenses])
+  const chartMonthLbl = monthFilter === 'all' ? 'todos los meses' : monthLabelEs(monthFilter)
   // En un grupo "viaje" no interesa separar por mes: un solo bloque con el total.
   const grouped =
     group.kind === 'viaje'
@@ -1069,6 +1088,31 @@ function GastosTab({
             </div>
           )}
         </Card>
+      )}
+
+      {group.is_personal && expenses.length > 0 && (
+        <div className="space-y-3">
+          <Card>
+            <p className="mb-4 text-sm font-medium text-slate-600">Gastos por categoría · {chartMonthLbl}</p>
+            {categoryChart.length > 0 ? (
+              <Donut data={categoryChart} format={(n) => formatMoney(n, group.base_currency)} />
+            ) : (
+              <p className="text-sm text-slate-500">Sin gastos en {chartMonthLbl}.</p>
+            )}
+          </Card>
+          <Card>
+            <p className="mb-4 text-sm font-medium text-slate-600">Origen del gasto · {chartMonthLbl}</p>
+            {manualTotal > 0 || cardTotal > 0 ? (
+              <Donut data={sourceChart} format={(n) => formatMoney(n, group.base_currency)} />
+            ) : (
+              <p className="text-sm text-slate-500">Sin gastos en {chartMonthLbl}.</p>
+            )}
+          </Card>
+          <Card>
+            <p className="mb-4 text-sm font-medium text-slate-600">Gasto por mes (todos)</p>
+            <MonthlyBars data={byMonth} format={(n) => formatMoney(n, group.base_currency)} />
+          </Card>
+        </div>
       )}
 
       <div className="flex items-center justify-between gap-3">
@@ -1459,6 +1503,52 @@ function PersonalBudgetsTab({
   )
 }
 
+function daysInMonth(year: number, monthIndex0: number): number {
+  return new Date(year, monthIndex0 + 1, 0).getDate()
+}
+
+function dateFromDay(year: number, monthIndex0: number, day: number): Date {
+  return new Date(year, monthIndex0, Math.min(day, daysInMonth(year, monthIndex0)))
+}
+
+/**
+ * Ciclo de facturación real (cierre -> vencimiento), no el mes calendario:
+ * un gasto de julio puede vencer en agosto. Devuelve null si la tarjeta no
+ * tiene cierre cargado (fallback: mes calendario, manejado por el caller).
+ */
+function computeLastStatement(
+  card: CreditCard,
+  expenses: Expense[]
+): { total: number; from: string; to: string; due: string | null } | null {
+  if (!card.closing_day) return null
+  const today = new Date()
+  let closing = dateFromDay(today.getFullYear(), today.getMonth(), card.closing_day)
+  if (closing > today) {
+    closing = dateFromDay(today.getFullYear(), today.getMonth() - 1, card.closing_day)
+  }
+  const prevClosing = dateFromDay(closing.getFullYear(), closing.getMonth() - 1, card.closing_day)
+  const from = new Date(prevClosing)
+  from.setDate(from.getDate() + 1)
+
+  const toStr = closing.toISOString().slice(0, 10)
+  const fromStr = from.toISOString().slice(0, 10)
+
+  let dueStr: string | null = null
+  if (card.due_day) {
+    // El vencimiento suele caer el mes siguiente al cierre (ej: cierra 23, vence 5);
+    // si el día de vto. es mayor al de cierre, asumimos que vence el mismo mes.
+    const dueMonthOffset = card.due_day <= card.closing_day ? 1 : 0
+    const due = dateFromDay(closing.getFullYear(), closing.getMonth() + dueMonthOffset, card.due_day)
+    dueStr = due.toISOString().slice(0, 10)
+  }
+
+  const total = expenses
+    .filter((e) => e.card_id === card.id && e.date >= fromStr && e.date <= toStr)
+    .reduce((sum, e) => sum + Number(e.amount) * Number(e.rate_to_base), 0)
+
+  return { total, from: fromStr, to: toStr, due: dueStr }
+}
+
 function CardsTab({
   group,
   cards,
@@ -1485,6 +1575,11 @@ function CardsTab({
   const [syncError, setSyncError] = useState<string | null>(null)
   const [syncInfo, setSyncInfo] = useState<string | null>(null)
   const month = new Date().toISOString().slice(0, 7)
+  const sourceIds = useMemo(
+    () => sourceIdsForBanks(cards.flatMap((card) => [card.bank, card.name])),
+    [cards]
+  )
+  const sourceLabels = BANK_DISCOUNT_SOURCES.filter((source) => sourceIds.includes(source.id)).map((source) => source.bank)
 
   async function add(e: React.FormEvent) {
     e.preventDefault()
@@ -1515,6 +1610,10 @@ function CardsTab({
   }
 
   async function syncDiscounts() {
+    if (sourceIds.length === 0) {
+      setSyncError('Agregá una tarjeta con el banco indicado para consultar sus descuentos.')
+      return
+    }
     setSyncBusy(true)
     setSyncError(null)
     setSyncInfo(null)
@@ -1525,7 +1624,7 @@ function CardsTab({
       const response = await fetch('/api/bank-discounts', {
         method: 'POST',
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
-        body: JSON.stringify({}),
+        body: JSON.stringify({ sources: sourceIds }),
       })
       const data = (await response.json().catch(() => ({}))) as {
         error?: string
@@ -1570,7 +1669,9 @@ function CardsTab({
           <div>
             <h2 className="font-semibold text-emerald-900 dark:text-emerald-200">Descuentos bancarios</h2>
             <p className="mt-1 text-xs text-emerald-800/75 dark:text-emerald-300/75">
-              Consultamos promociones publicadas por los bancos y las cruzamos con tus tarjetas.
+              {sourceLabels.length > 0
+                ? `Consultamos promociones publicadas de ${sourceLabels.join(', ')}.`
+                : 'Agregá una tarjeta para consultar promociones de su banco.'}
             </p>
           </div>
           <Button type="button" onClick={syncDiscounts} disabled={syncBusy}>
@@ -1672,8 +1773,18 @@ function CardsTab({
         ) : (
           <div className="space-y-3">
             {cards.map((card) => {
-              const cardExpenses = expenses.filter((e) => e.card_id === card.id && String(e.date).slice(0, 7) === month)
-              const total = cardExpenses.reduce((sum, e) => sum + Number(e.amount) * Number(e.rate_to_base), 0)
+              const statement = computeLastStatement(card, expenses)
+              const fmtDate = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString('es-AR')
+              let summaryLine: string
+              if (statement) {
+                const range = `${fmtDate(statement.from)} al ${fmtDate(statement.to)}`
+                const due = statement.due ? ` · vence ${fmtDate(statement.due)}` : ''
+                summaryLine = `Último resumen (${range}): ${formatMoney(statement.total, group.base_currency)}${due}`
+              } else {
+                const cardExpenses = expenses.filter((e) => e.card_id === card.id && String(e.date).slice(0, 7) === month)
+                const total = cardExpenses.reduce((sum, e) => sum + Number(e.amount) * Number(e.rate_to_base), 0)
+                summaryLine = `Este mes: ${formatMoney(total, group.base_currency)} · cargá el cierre para ver el resumen real`
+              }
               return (
                 <div key={card.id} className="rounded-xl border border-slate-100 p-3 dark:border-slate-800">
                   <div className="flex items-start justify-between gap-3">
@@ -1682,7 +1793,7 @@ function CardsTab({
                       <p className="text-xs text-slate-400">
                         {[card.bank, card.last4 ? `•••• ${card.last4}` : null].filter(Boolean).join(' · ') || 'Sin datos extra'}
                       </p>
-                      <p className="mt-1 text-xs text-slate-500">Este mes: {formatMoney(total, group.base_currency)}</p>
+                      <p className="mt-1 text-xs text-slate-500">{summaryLine}</p>
                     </div>
                     <button onClick={() => remove(card.id)} className="text-slate-300 hover:text-red-500" title="Borrar">
                       ✕
@@ -1728,13 +1839,11 @@ function PersonalSummaryTab({
   expenses,
   incomes,
   savings,
-  catMeta,
 }: {
   group: Group
   expenses: Expense[]
   incomes: Income[]
   savings: Saving[]
-  catMeta: (v: string) => CatMeta
 }) {
   const fmt = (n: number) => formatMoney(n, group.base_currency)
   // Meses con datos (gastos + ingresos + ahorros) + el actual, desc (mismo criterio que Balances).
@@ -1747,7 +1856,6 @@ function PersonalSummaryTab({
     return [...set].sort((a, b) => b.localeCompare(a))
   }, [expenses, incomes, savings])
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7))
-  const byMonth = useMemo(() => spendByMonth(expenses, 6), [expenses])
   const baseOf = (e: Expense) => Number(e.amount) * Number(e.rate_to_base)
   const monthExpenses = expenses.filter((e) => String(e.date).slice(0, 7) === month)
   const monthIncomes = incomes.filter((i) => String(i.date).slice(0, 7) === month)
@@ -1755,23 +1863,6 @@ function PersonalSummaryTab({
   const expenseTotal = monthExpenses.reduce((sum, e) => sum + baseOf(e), 0)
   const incomeTotal = monthIncomes.reduce((sum, i) => sum + Number(i.amount), 0)
   const savingTotal = monthSavings.reduce((sum, s) => sum + Number(s.amount), 0)
-  const byCat = spendByCategory(monthExpenses)
-  const categoryChart = byCat.map((c) => ({
-    label: catMeta(c.category).label,
-    value: c.total,
-    color: catMeta(c.category).hex,
-    symbol: catMeta(c.category).symbol,
-  }))
-  const manualTotal = monthExpenses
-    .filter((e) => (e.source ?? 'manual') !== 'card_import')
-    .reduce((sum, e) => sum + baseOf(e), 0)
-  const cardTotal = monthExpenses
-    .filter((e) => (e.source ?? 'manual') === 'card_import')
-    .reduce((sum, e) => sum + baseOf(e), 0)
-  const sourceChart = [
-    { label: 'Manual', value: manualTotal, color: '#10b981', symbol: '✍️' },
-    { label: 'Tarjeta', value: cardTotal, color: '#f43f5e', symbol: '💳' },
-  ]
 
   return (
     <div className="space-y-4">
@@ -1790,29 +1881,6 @@ function PersonalSummaryTab({
         <MetricCard label="Gastos" value={fmt(expenseTotal)} tone="text-rose-600" />
         <MetricCard label="Ahorros" value={fmt(savingTotal)} tone="text-amber-600" />
       </div>
-
-      <Card>
-        <p className="mb-4 text-sm font-medium text-slate-600">Gastos por categoría · {monthLabelEs(month)}</p>
-        {categoryChart.length > 0 ? (
-          <Donut data={categoryChart} format={fmt} />
-        ) : (
-          <p className="text-sm text-slate-500">Sin gastos este mes.</p>
-        )}
-      </Card>
-
-      <Card>
-        <p className="mb-4 text-sm font-medium text-slate-600">Origen del gasto · {monthLabelEs(month)}</p>
-        {manualTotal > 0 || cardTotal > 0 ? (
-          <Donut data={sourceChart} format={fmt} />
-        ) : (
-          <p className="text-sm text-slate-500">Sin gastos este mes.</p>
-        )}
-      </Card>
-
-      <Card>
-        <p className="mb-4 text-sm font-medium text-slate-600">Gasto por mes (todos)</p>
-        <MonthlyBars data={byMonth} format={fmt} />
-      </Card>
     </div>
   )
 }

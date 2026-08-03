@@ -3,6 +3,7 @@ export type BankDiscountSource = {
   bank: string
   label: string
   url: string
+  aliases: string[]
 }
 
 export type ScrapedBankDiscount = {
@@ -42,12 +43,14 @@ export const BANK_DISCOUNT_SOURCES: BankDiscountSource[] = [
     bank: 'BBVA',
     label: 'BBVA Beneficios',
     url: 'https://www.bbva.com.ar/beneficios/',
+    aliases: ['bbva', 'banco bbva'],
   },
   {
     id: 'santander',
     bank: 'Santander',
     label: 'Santander Beneficios',
     url: 'https://www.santander.com.ar/personas/beneficios',
+    aliases: ['santander', 'banco santander', 'rio'],
   },
   {
     id: 'bna',
@@ -56,8 +59,67 @@ export const BANK_DISCOUNT_SOURCES: BankDiscountSource[] = [
     // Sitio dedicado (Next.js) con datos estructurados propios: mucho más
     // confiable que el parser HTML genérico. Ver scrapeNacionSemanaNacion.
     url: 'https://semananacion.com.ar/semananacion',
+    aliases: ['nacion', 'banco nacion', 'bna', 'nacion argentina'],
+  },
+  {
+    id: 'macro',
+    bank: 'Banco Macro',
+    label: 'Macro Beneficios',
+    url: 'https://www.macro.com.ar/beneficios/ahorros-y-cuotas',
+    aliases: ['macro', 'banco macro'],
+  },
+  {
+    id: 'provincia',
+    bank: 'Banco Provincia',
+    label: 'Banco Provincia Beneficios',
+    url: 'https://www.bancoprovincia.com.ar/banca-personal/bazar_deco',
+    aliases: ['provincia', 'banco provincia', 'bapro', 'banco de la provincia'],
+  },
+  {
+    id: 'galicia',
+    bank: 'Banco Galicia',
+    label: 'Beneficios Galicia',
+    url: 'https://beneficios.galicia.ar/',
+    aliases: ['galicia', 'banco galicia', 'galicia mas'],
+  },
+  {
+    id: 'patagonia',
+    bank: 'Banco Patagonia',
+    label: 'Patagonia Beneficios',
+    url: 'https://www.bancopatagonia.com.ar/personas/beneficios-72hs.php',
+    aliases: ['patagonia', 'banco patagonia', 'patagonia24', 'patagonia mas'],
+  },
+  {
+    id: 'icbc',
+    bank: 'ICBC',
+    label: 'ICBC Beneficios',
+    url: 'https://www.icbc.com.ar/personas/productos-servicios/tarjetas/',
+    aliases: ['icbc', 'industrial and commercial bank of china'],
+  },
+  {
+    id: 'supervielle',
+    bank: 'Banco Supervielle',
+    label: 'Supervielle Beneficios',
+    url: 'https://static.supervielle.com.ar/personas/cuentas/liberte',
+    aliases: ['supervielle', 'banco supervielle', 'iudu', 'cordial'],
+  },
+  {
+    id: 'comafi',
+    bank: 'Banco Comafi',
+    label: 'Comafi Beneficios',
+    url: 'https://www.comafi.com.ar/comafi-sueldo/',
+    aliases: ['comafi', 'banco comafi', 'tevabien', 'te va bien'],
   },
 ]
+
+export function sourceIdsForBanks(banks: Array<string | null | undefined>): string[] {
+  const cleaned = banks.filter((bank): bank is string => Boolean(bank?.trim())).map(normalizeBankName)
+  if (cleaned.length === 0) return []
+  return BANK_DISCOUNT_SOURCES.filter((source) => {
+    const sourceNames = [source.bank, ...source.aliases].map(normalizeBankName)
+    return cleaned.some((bank) => sourceNames.some((sourceName) => namesMatch(bank, sourceName)))
+  }).map((source) => source.id)
+}
 
 const MERCHANTS = [
   'Carrefour',
@@ -159,7 +221,8 @@ function isPromotionLine(line: string): boolean {
 }
 
 function isFinancialNoise(text: string): boolean {
-  return /\b(?:tna|cft|pr[eé]stamo|préstamos|tasa de inter[eé]s|capital invertido)\b/i.test(text)
+  const isBenefit = /\b(?:descuento|reintegro|cuotas?|ahorr[aá]|beneficio)\b/i.test(text)
+  return !isBenefit && /\b(?:tna|cft|pr[eé]stamo|préstamos|tasa de inter[eé]s|capital invertido)\b/i.test(text)
 }
 
 function htmlToLines(html: string): string[] {
@@ -216,11 +279,44 @@ function readDateRange(text: string): { validFrom: string | null; validTo: strin
   const match = text.match(
     /(?:del|desde)\s+(\d{1,2})[\/-](\d{1,2})[\/-](20\d{2})\s+(?:al|hasta)\s+(\d{1,2})[\/-](\d{1,2})[\/-](20\d{2})/i
   )
-  if (!match) return { validFrom: null, validTo: null }
-  return {
-    validFrom: isoDate(Number(match[3]), Number(match[2]), Number(match[1])),
-    validTo: isoDate(Number(match[6]), Number(match[5]), Number(match[4])),
+  if (match) {
+    return {
+      validFrom: isoDate(Number(match[3]), Number(match[2]), Number(match[1])),
+      validTo: isoDate(Number(match[6]), Number(match[5]), Number(match[4])),
+    }
   }
+
+  const words = text.match(
+    /(?:del|desde)\s+(?:el\s+)?(\d{1,2})\s+de\s+([a-záéíóúñ]+)(?:\s+de\s+(20\d{2}))?\s+(?:al|hasta)\s+(?:el\s+)?(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s+de\s+(20\d{2})/i
+  )
+  if (!words) return { validFrom: null, validTo: null }
+  const endYear = Number(words[6])
+  const fromMonth = monthNumber(words[2])
+  const toMonth = monthNumber(words[5])
+  if (!fromMonth || !toMonth) return { validFrom: null, validTo: null }
+  const startYear = words[3] ? Number(words[3]) : endYear
+  return {
+    validFrom: isoDate(startYear, fromMonth, Number(words[1])),
+    validTo: isoDate(endYear, toMonth, Number(words[4])),
+  }
+}
+
+function monthNumber(value: string): number | null {
+  const months: Record<string, number> = {
+    enero: 1,
+    febrero: 2,
+    marzo: 3,
+    abril: 4,
+    mayo: 5,
+    junio: 6,
+    julio: 7,
+    agosto: 8,
+    septiembre: 9,
+    octubre: 10,
+    noviembre: 11,
+    diciembre: 12,
+  }
+  return months[normalize(value)] ?? null
 }
 
 function isoDate(year: number, month: number, day: number): string | null {
@@ -285,6 +381,14 @@ function normalize(value: string): string {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9%$]+/g, ' ')
     .trim()
+}
+
+function normalizeBankName(value: string): string {
+  return normalize(value).replace(/\b(?:banco|tarjeta|visa|mastercard|amex|americanexpress)\b/g, '').replace(/\s+/g, '')
+}
+
+function namesMatch(a: string, b: string): boolean {
+  return Boolean(a && b) && (a === b || a.includes(b) || b.includes(a))
 }
 
 function slugify(value: string): string {
