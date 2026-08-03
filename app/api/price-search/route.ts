@@ -42,7 +42,15 @@ export async function GET(req: Request) {
   const q = (new URL(req.url).searchParams.get('q') ?? '').trim().slice(0, 80)
   if (!q) return Response.json({ error: 'Falta el término de búsqueda.' }, { status: 400 })
 
-  const settled = await Promise.allSettled(STORES.map((s) => searchStore(s, q)))
+  // Si el usuario eligió supermercados preferidos (onboarding/Configuración),
+  // buscamos solo ahí; sin preferencia guardada, buscamos en todos.
+  const preferred = user.metadata.preferred_stores
+  const activeStores =
+    Array.isArray(preferred) && preferred.length > 0
+      ? STORES.filter((s) => preferred.includes(s.store))
+      : STORES
+
+  const settled = await Promise.allSettled(activeStores.map((s) => searchStore(s, q)))
   const results = settled.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
   results.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
   return Response.json({ results })

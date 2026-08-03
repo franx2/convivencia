@@ -921,7 +921,14 @@ function GastosTab({
 
   const usedCats = Array.from(new Set(expenses.map((e) => e.category || 'otros')))
   const shown = filter === 'all' ? expenses : expenses.filter((e) => (e.category || 'otros') === filter)
-  const grouped = groupExpensesByMonth(shown, (e) => Number(e.amount) * Number(e.rate_to_base))
+  const baseOf = (e: Expense) => Number(e.amount) * Number(e.rate_to_base)
+  // En un grupo "viaje" no interesa separar por mes: un solo bloque con el total.
+  const grouped =
+    group.kind === 'viaje'
+      ? shown.length
+        ? [{ key: 'viaje', label: 'Total del viaje', total: shown.reduce((s, e) => s + baseOf(e), 0), items: shown }]
+        : []
+      : groupExpensesByMonth(shown, baseOf)
 
   function expenseCard(e: Expense) {
     return (
@@ -1657,6 +1664,8 @@ function BalancesTab({
   const fmt = (n: number) => formatMoney(n, group.base_currency)
   const baseOf = (e: Expense) => Number(e.amount) * Number(e.rate_to_base)
   const personal = group.is_personal
+  // En un grupo "viaje" no separamos por mes: todo se ve como un total único.
+  const isTrip = !personal && group.kind === 'viaje'
 
   // Meses con datos (gastos + ingresos) + el actual, desc.
   const months = useMemo(() => {
@@ -1671,10 +1680,10 @@ function BalancesTab({
   const [who, setWho] = useState<string>('all') // 'all' | member_id
 
   const monthExpenses = expenses.filter(
-    (e) => String(e.date).slice(0, 7) === month && (who === 'all' || e.paid_by === who)
+    (e) => (isTrip || String(e.date).slice(0, 7) === month) && (who === 'all' || e.paid_by === who)
   )
   const monthIncomes = incomes.filter(
-    (i) => String(i.date).slice(0, 7) === month && (who === 'all' || i.member_id === who)
+    (i) => (isTrip || String(i.date).slice(0, 7) === month) && (who === 'all' || i.member_id === who)
   )
   const gastosMes = monthExpenses.reduce((s, e) => s + baseOf(e), 0)
   const ingresosMes = monthIncomes.reduce((s, i) => s + Number(i.amount), 0)
@@ -1690,9 +1699,10 @@ function BalancesTab({
   const byMonth = useMemo(() => spendByMonth(expenses, 6), [expenses])
 
   // Gasto del MES seleccionado por categoría (grupo entero, para el presupuesto).
+  // En viaje, sin filtro de mes: es el total del viaje por categoría.
   const monthByCat = new Map<string, number>()
   for (const e of expenses) {
-    if (String(e.date).slice(0, 7) !== month) continue
+    if (!isTrip && String(e.date).slice(0, 7) !== month) continue
     monthByCat.set(e.category || 'otros', (monthByCat.get(e.category || 'otros') ?? 0) + baseOf(e))
   }
 
@@ -1762,20 +1772,22 @@ function BalancesTab({
     onChanged()
   }
 
-  const monthLbl = monthLabelEs(month)
+  const monthLbl = isTrip ? 'Todo el viaje' : monthLabelEs(month)
   const whoLbl = who === 'all' ? null : memberName(who)
 
   return (
     <div className="space-y-3">
       {/* Filtros */}
       <Card className="flex flex-wrap items-center gap-2">
-        <Select value={month} onChange={(e) => setMonth(e.target.value)} className="max-w-[180px]">
-          {months.map((m) => (
-            <option key={m} value={m}>
-              {monthLabelEs(m)}
-            </option>
-          ))}
-        </Select>
+        {!isTrip && (
+          <Select value={month} onChange={(e) => setMonth(e.target.value)} className="max-w-[180px]">
+            {months.map((m) => (
+              <option key={m} value={m}>
+                {monthLabelEs(m)}
+              </option>
+            ))}
+          </Select>
+        )}
         {!personal && members.length > 1 && (
           <Select value={who} onChange={(e) => setWho(e.target.value)} className="max-w-[160px]">
             <option value="all">Todos</option>
@@ -1823,7 +1835,9 @@ function BalancesTab({
           <Donut data={donutData} format={fmt} />
           </Card>
         ) : (
-          <Card className="text-center text-sm text-slate-500">Sin gastos en {monthLbl}.</Card>
+          <Card className="text-center text-sm text-slate-500">
+            {isTrip ? 'Sin gastos en el viaje.' : `Sin gastos en ${monthLbl}.`}
+          </Card>
         )}
       </div>
 
@@ -1874,7 +1888,9 @@ function BalancesTab({
         )}
 
         {monthIncomes.length === 0 ? (
-          <p className="text-xs text-slate-400">No hay ingresos cargados en {monthLbl}.</p>
+          <p className="text-xs text-slate-400">
+            {isTrip ? 'No hay ingresos cargados en el viaje.' : `No hay ingresos cargados en ${monthLbl}.`}
+          </p>
         ) : (
           <div className="space-y-1.5">
             {monthIncomes.map((i) => (
@@ -1900,11 +1916,13 @@ function BalancesTab({
         )}
       </Card>
 
-      {/* Tendencia */}
-      <Card>
-        <p className="mb-4 text-sm font-medium text-slate-600">Gasto por mes (todos)</p>
-        <MonthlyBars data={byMonth} format={fmt} />
-      </Card>
+      {/* Tendencia (no aplica a un viaje: no separamos por mes) */}
+      {!isTrip && (
+        <Card>
+          <p className="mb-4 text-sm font-medium text-slate-600">Gasto por mes (todos)</p>
+          <MonthlyBars data={byMonth} format={fmt} />
+        </Card>
+      )}
 
       <Card className="scroll-mt-24" id="section-presupuestos">
         <div className="mb-3 flex items-center justify-between">

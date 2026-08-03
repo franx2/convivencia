@@ -12,7 +12,6 @@ export default function LoginPage() {
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [paymentAlias, setPaymentAlias] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
@@ -44,16 +43,11 @@ export default function LoginPage() {
         if (error) throw error
         router.replace(nextDest())
       } else {
-        const alias = paymentAlias.trim()
-        if (!alias) throw new Error('Ingresá tu alias o CBU para cobrar.')
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { data: { payment_alias: alias } },
-        })
+        const { data, error } = await supabase.auth.signUp({ email, password })
         if (error) throw error
         if (data.session) {
-          router.replace(nextDest())
+          // El alias, el uso y los supermercados preferidos se piden en /onboarding.
+          router.replace('/onboarding')
         } else {
           setInfo('Te registramos. Revisá tu email para confirmar la cuenta y después iniciá sesión.')
           setMode('signin')
@@ -141,18 +135,6 @@ export default function LoginPage() {
                     ¿Olvidaste tu contraseña?
                   </button>
                 )}
-              </div>
-            )}
-            {mode === 'signup' && (
-              <div>
-                <Label>Alias o CBU para cobrar</Label>
-                <Input
-                  value={paymentAlias}
-                  onChange={(e) => setPaymentAlias(e.target.value)}
-                  required
-                  autoComplete="off"
-                  placeholder="tu.alias / CBU"
-                />
               </div>
             )}
             {error && <p className="text-sm text-red-600">{error}</p>}

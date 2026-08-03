@@ -1,20 +1,31 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { BottomNav } from '@/components/BottomNav'
 import { Header } from '@/components/Header'
 import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
 import { CURRENCIES, formatMoney } from '@/lib/currencies'
+import { createGroupWithOwner } from '@/lib/groups'
 import { userDisplayName, userPaymentAlias } from '@/lib/profile'
 import type { Group } from '@/lib/types'
 
+// useSearchParams (para ?nuevo=1) exige boundary de Suspense en Next 16.
 export default function HomePage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <HomePageInner />
+    </Suspense>
+  )
+}
+
+function HomePageInner() {
   const { user, loading } = useRequireAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [groups, setGroups] = useState<Group[]>([])
   const [totals, setTotals] = useState<Record<string, number>>({})
   const [pending, setPending] = useState<Record<string, number>>({})
@@ -22,11 +33,24 @@ export default function HomePage() {
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [currency, setCurrency] = useState('ARS')
+  const [kind, setKind] = useState<'convivencia' | 'viaje'>('convivencia')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const ensuredPersonal = useRef(false)
+
+  // Onboarding pendiente (uso / alias / supermercados): se hace una sola vez
+  // por cuenta, tanto para cuentas nuevas como para las que ya existían.
+  useEffect(() => {
+    if (!loading && user && !user.user_metadata?.onboarded) router.replace('/onboarding')
+  }, [user, loading, router])
+
+  // Viene de terminar el onboarding eligiendo "conviviente": abrimos el form directo.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- refleja un query param al montar
+    if (searchParams.get('nuevo') === '1') setShowForm(true)
+  }, [searchParams])
 
   const load = useCallback(async () => {
     if (!user) return
@@ -105,6 +129,7 @@ export default function HomePage() {
         alias: userPaymentAlias(user) || null,
         isPersonal: false,
         userId: user.id,
+        kind,
       })
       if (!g) throw new Error('No se pudo crear el grupo.')
       group = g
@@ -115,6 +140,7 @@ export default function HomePage() {
     }
     setBusy(false)
     setName('')
+    setKind('convivencia')
     setShowForm(false)
     // Onboarding: primero sumar integrantes, después compartir el link de invitación.
     router.push(`/g/${group.id}/invitar`)
@@ -237,6 +263,38 @@ export default function HomePage() {
                   ))}
                 </Select>
               </div>
+              <div>
+                <Label>Tipo de grupo</Label>
+                <div className="mt-1 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setKind('convivencia')}
+                    className={`rounded-lg border px-3 py-2 text-left text-sm ${
+                      kind === 'convivencia'
+                        ? 'border-emerald-400 bg-emerald-50 font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                        : 'border-slate-200 text-slate-500 dark:border-slate-700'
+                    }`}
+                  >
+                    🏡 Convivencia
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setKind('viaje')}
+                    className={`rounded-lg border px-3 py-2 text-left text-sm ${
+                      kind === 'viaje'
+                        ? 'border-emerald-400 bg-emerald-50 font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                        : 'border-slate-200 text-slate-500 dark:border-slate-700'
+                    }`}
+                  >
+                    ✈️ Viaje
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-slate-400">
+                  {kind === 'viaje'
+                    ? 'En un viaje los gastos y balances se ven en total, sin separar por mes.'
+                    : 'No se puede cambiar después de creado.'}
+                </p>
+              </div>
               {error && <p className="text-sm text-red-600">{error}</p>}
               <Button type="submit" disabled={busy || !name.trim()}>
                 {busy ? 'Creando…' : 'Crear grupo'}
@@ -267,56 +325,3 @@ function isMissingRelationError(error: { code?: string; message?: string }) {
   return error.code === '42P01' || error.code === 'PGRST205' || msg.includes('could not find') || msg.includes('does not exist')
 }
 
-function isMissingFunctionError(error: { code?: string; message?: string }) {
-  const msg = (error.message ?? '').toLowerCase()
-  return error.code === 'PGRST202' || msg.includes('could not find the function')
-}
-
-// Crea grupo + miembro creador + identidad. Usa la RPC atómica create_group; si
-// la función aún no existe (migración sin correr en este entorno), cae al método
-// por pasos para no dejar la creación de grupos rota entre deploy y migración.
-// ponytail: fallback por ordering deploy-antes-que-SQL; borrar cuando la
-// migración esté corrida en todos los entornos.
-async function createGroupWithOwner(opts: {
-  name: string
-  baseCurrency: string
-  memberName: string | null
-  alias: string | null
-  isPersonal: boolean
-  userId: string
-}): Promise<Group | null> {
-  const { name, baseCurrency, memberName, alias, isPersonal, userId } = opts
-  const rpc = await supabase.rpc('create_group', {
-    p_name: name,
-    p_base_currency: baseCurrency,
-    p_member_name: memberName,
-    p_alias: alias,
-    p_is_personal: isPersonal,
-  })
-  if (!rpc.error && rpc.data) return rpc.data as Group
-  if (rpc.error && !isMissingFunctionError(rpc.error)) throw rpc.error
-
-  // Fallback no atómico (RPC ausente).
-  const { data: g, error } = await supabase
-    .from('groups')
-    .insert({ name, base_currency: baseCurrency, is_personal: isPersonal })
-    .select()
-    .single()
-  if (error || !g) throw error ?? new Error('No se pudo crear el grupo.')
-  const group = g as Group
-  if (memberName) {
-    const { data: member } = await supabase
-      .from('members')
-      .insert({ group_id: group.id, name: memberName, alias: alias || null })
-      .select('id')
-      .single()
-    if (member) {
-      await supabase
-        .from('group_users')
-        .update({ member_id: (member as { id: string }).id })
-        .eq('group_id', group.id)
-        .eq('user_id', userId)
-    }
-  }
-  return group
-}

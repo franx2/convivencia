@@ -338,6 +338,16 @@ alter table public.groups
   add column if not exists is_personal boolean not null default false;
 
 -- ============================================================
+-- Tipo de grupo: convivencia (por defecto) o viaje (ver migration_group_kind.sql)
+-- En un grupo tipo "viaje" la app no separa gastos/balances por mes. Fijo al
+-- crear el grupo, no editable despues.
+-- ============================================================
+
+alter table public.groups
+  add column if not exists kind text not null default 'convivencia'
+  check (kind in ('convivencia', 'viaje'));
+
+-- ============================================================
 -- Saldo inicial / ajuste del balance acumulado (ver migration_balance_baseline.sql)
 -- baseline_date null = se cuenta todo desde el principio. Si tiene fecha, el balance
 -- acumulado arranca en baseline_amount y solo suma movimientos con date >= baseline_date.
@@ -470,7 +480,8 @@ create or replace function public.create_group(
   p_base_currency text default 'ARS',
   p_member_name   text default null,
   p_alias         text default null,
-  p_is_personal   boolean default false
+  p_is_personal   boolean default false,
+  p_kind          text default 'convivencia'
 )
 returns public.groups
 language plpgsql
@@ -484,13 +495,17 @@ begin
   if coalesce(trim(p_name), '') = '' then
     raise exception 'El nombre del grupo es obligatorio';
   end if;
+  if p_kind not in ('convivencia', 'viaje') then
+    raise exception 'Tipo de grupo invalido';
+  end if;
 
-  insert into public.groups (name, base_currency, owner_id, is_personal)
+  insert into public.groups (name, base_currency, owner_id, is_personal, kind)
   values (
     trim(p_name),
     coalesce(nullif(trim(p_base_currency), ''), 'ARS'),
     auth.uid(),
-    coalesce(p_is_personal, false)
+    coalesce(p_is_personal, false),
+    p_kind
   )
   returning * into g;
 
@@ -508,7 +523,7 @@ begin
 end;
 $$;
 
-grant execute on function public.create_group(text, text, text, text, boolean) to authenticated;
+grant execute on function public.create_group(text, text, text, text, boolean, text) to authenticated;
 
 -- ============================================================
 -- Realtime para sync entre dispositivos (F6, best-effort)

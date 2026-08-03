@@ -5,6 +5,8 @@ export type Group = {
   owner_id: string
   invite_token: string
   is_personal: boolean
+  // Tipo de grupo compartido: 'viaje' no separa gastos/balances por mes. Fijo al crear.
+  kind: 'convivencia' | 'viaje'
   // Saldo inicial / ajuste del balance acumulado (espacio personal).
   baseline_amount?: number
   baseline_date?: string | null

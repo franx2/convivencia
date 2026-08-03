@@ -1,8 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 
+export type AuthedUser = { id: string; metadata: Record<string, unknown> }
+
 // Valida el JWT de Supabase del header Authorization. Sin esto, cualquiera
 // podía llamar a los endpoints server-side y quemar cuota/costo del servidor.
-export async function requireUser(req: Request): Promise<{ id: string } | null> {
+export async function requireUser(req: Request): Promise<AuthedUser | null> {
   const header = req.headers.get('authorization') ?? ''
   const token = /^bearer\s+/i.test(header) ? header.replace(/^bearer\s+/i, '').trim() : ''
   if (!token) return null
@@ -15,7 +17,7 @@ export async function requireUser(req: Request): Promise<{ id: string } | null> 
     })
     const { data, error } = await supabase.auth.getUser(token)
     if (error || !data.user) return null
-    return { id: data.user.id }
+    return { id: data.user.id, metadata: data.user.user_metadata ?? {} }
   } catch {
     return null
   }

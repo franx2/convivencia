@@ -18,3 +18,9 @@ export function userDisplayName(user: User | null | undefined): string {
   const emailName = user.email?.split('@')[0]?.trim()
   return emailName || 'Yo'
 }
+
+export function userPreferredStores(user: User | null | undefined): string[] {
+  if (!user) return []
+  const raw = user.user_metadata?.preferred_stores
+  return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : []
+}

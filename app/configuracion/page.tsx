@@ -7,7 +7,8 @@ import { useAuth, useRequireAuth } from '@/components/AuthProvider'
 import { BottomNav } from '@/components/BottomNav'
 import { Header } from '@/components/Header'
 import { Button, Card, Input, Label, Spinner } from '@/components/ui'
-import { userDisplayName, userPaymentAlias } from '@/lib/profile'
+import { userDisplayName, userPaymentAlias, userPreferredStores } from '@/lib/profile'
+import { SUPERMARKETS } from '@/lib/stores'
 
 /**
  * Configuración de la cuenta (items 2/11/12): nombre visible, alias de cobro
@@ -22,6 +23,7 @@ export default function ConfiguracionPage() {
 
   const [name, setName] = useState('')
   const [alias, setAlias] = useState('')
+  const [stores, setStores] = useState<string[]>([])
   const [dark, setDark] = useState(false)
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -33,6 +35,7 @@ export default function ConfiguracionPage() {
     /* eslint-disable react-hooks/set-state-in-effect -- hidratar el form con los datos de la cuenta */
     setName(userDisplayName(user))
     setAlias(userPaymentAlias(user))
+    setStores(userPreferredStores(user))
     setHydrated(true)
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [user])
@@ -61,7 +64,7 @@ export default function ConfiguracionPage() {
     const cleanName = name.trim()
     const cleanAlias = alias.trim()
     const { error: upErr } = await supabase.auth.updateUser({
-      data: { full_name: cleanName || null, payment_alias: cleanAlias || null },
+      data: { full_name: cleanName || null, payment_alias: cleanAlias || null, preferred_stores: stores },
     })
     if (upErr) {
       setBusy(false)
@@ -84,6 +87,10 @@ export default function ConfiguracionPage() {
     setBusy(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  function toggleStore(s: string) {
+    setStores((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
   }
 
   async function handleSignOut() {
@@ -111,6 +118,27 @@ export default function ConfiguracionPage() {
             <Input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="alias.mp / CBU" />
             <p className="mt-1 text-xs text-slate-400">
               Se completa solo cuando elegís quién sos en un grupo, así te pueden transferir.
+            </p>
+          </div>
+          <div>
+            <Label>Supermercados que usás</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {SUPERMARKETS.map((s) => (
+                <label
+                  key={s}
+                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                    stores.includes(s)
+                      ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/40'
+                      : 'border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  <input type="checkbox" checked={stores.includes(s)} onChange={() => toggleStore(s)} />
+                  {s}
+                </label>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-slate-400">
+              Filtra el buscador de precios de la lista de compras. Sin ninguno marcado, busca en todos.
             </p>
           </div>
           {error && <p className="text-sm font-medium text-red-600">{error}</p>}
