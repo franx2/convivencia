@@ -1580,6 +1580,7 @@ function CardsTab({
     [cards]
   )
   const sourceLabels = BANK_DISCOUNT_SOURCES.filter((source) => sourceIds.includes(source.id)).map((source) => source.bank)
+  const allSourceIds = BANK_DISCOUNT_SOURCES.map((source) => source.id)
 
   async function add(e: React.FormEvent) {
     e.preventDefault()
@@ -1610,10 +1611,6 @@ function CardsTab({
   }
 
   async function syncDiscounts() {
-    if (sourceIds.length === 0) {
-      setSyncError('Agregá una tarjeta con el banco indicado para consultar sus descuentos.')
-      return
-    }
     setSyncBusy(true)
     setSyncError(null)
     setSyncInfo(null)
@@ -1624,7 +1621,7 @@ function CardsTab({
       const response = await fetch('/api/bank-discounts', {
         method: 'POST',
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
-        body: JSON.stringify({ sources: sourceIds }),
+        body: JSON.stringify({ sources: allSourceIds }),
       })
       const data = (await response.json().catch(() => ({}))) as {
         error?: string
@@ -1670,12 +1667,12 @@ function CardsTab({
             <h2 className="font-semibold text-emerald-900 dark:text-emerald-200">Descuentos bancarios</h2>
             <p className="mt-1 text-xs text-emerald-800/75 dark:text-emerald-300/75">
               {sourceLabels.length > 0
-                ? `Consultamos promociones publicadas de ${sourceLabels.join(', ')}.`
-                : 'Agregá una tarjeta para consultar promociones de su banco.'}
+                ? `Detectamos ${sourceLabels.join(', ')} en tus tarjetas. Actualizamos los descuentos de todos los bancos disponibles.`
+                : `Actualizá los descuentos de los ${BANK_DISCOUNT_SOURCES.length} bancos disponibles. También podés cargar el banco de una tarjeta manualmente.`}
             </p>
           </div>
           <Button type="button" onClick={syncDiscounts} disabled={syncBusy}>
-            {syncBusy ? 'Consultando…' : 'Actualizar descuentos'}
+            {syncBusy ? 'Consultando…' : 'Actualizar todos'}
           </Button>
         </div>
         {syncInfo && <p className="mt-3 text-xs text-emerald-800 dark:text-emerald-300">{syncInfo}</p>}
@@ -1744,13 +1741,29 @@ function CardsTab({
           <form onSubmit={add} className="space-y-3">
             <div className="grid gap-2 sm:grid-cols-2">
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre (ej: Visa Galicia)" autoFocus />
-              <Input value={bank} onChange={(e) => setBank(e.target.value)} placeholder="Banco" />
+              <div>
+                <label htmlFor="card-bank" className="mb-1 block text-xs font-medium text-slate-500">
+                  Banco manual (opcional)
+                </label>
+                <Input
+                  id="card-bank"
+                  list="supported-banks"
+                  value={bank}
+                  onChange={(e) => setBank(e.target.value)}
+                  placeholder="Ej: Banco Patagonia"
+                />
+              </div>
               <Input value={last4} onChange={(e) => setLast4(e.target.value)} placeholder="Últimos 4" maxLength={4} />
               <div className="grid grid-cols-2 gap-2">
                 <Input type="number" min="1" max="31" value={closingDay} onChange={(e) => setClosingDay(e.target.value)} placeholder="Cierre" />
                 <Input type="number" min="1" max="31" value={dueDay} onChange={(e) => setDueDay(e.target.value)} placeholder="Vto." />
               </div>
             </div>
+            <datalist id="supported-banks">
+              {BANK_DISCOUNT_SOURCES.map((source) => (
+                <option key={source.id} value={source.bank} />
+              ))}
+            </datalist>
             <Button type="submit" disabled={busy || !name.trim()}>
               {busy ? 'Guardando…' : 'Guardar tarjeta'}
             </Button>
