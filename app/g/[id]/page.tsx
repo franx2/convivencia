@@ -233,6 +233,7 @@ export default function GroupPage() {
       nav={group.is_personal ? 'personal' : group.kind === 'viaje' ? 'viajes' : 'convivencia'}
       personalHref={group.is_personal ? `/g/${group.id}` : null}
     >
+        {(!group.is_personal || activeTab !== 'inicio') && (
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold">
@@ -253,6 +254,8 @@ export default function GroupPage() {
             </Link>
           )}
         </div>
+
+        )}
 
         {!group.is_personal && (
           <div className="mb-5 grid grid-cols-2 gap-3">
@@ -412,4 +415,3 @@ export default function GroupPage() {
     </PageShell>
   )
 }
-
