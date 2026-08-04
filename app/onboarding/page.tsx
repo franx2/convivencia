@@ -9,13 +9,14 @@ import { PageShell } from '@/components/PageShell'
 import { Button, Card, ErrorText, Input, Spinner } from '@/components/ui'
 import { SUPERMARKETS } from '@/lib/stores'
 import { userPaymentAlias, userPreferredStores } from '@/lib/profile'
+import { House, UserRound, UsersRound, type LucideIcon } from 'lucide-react'
 
 type Uso = 'personal' | 'conviviente' | 'ambas'
 
-const USO_OPTIONS: { key: Uso; emoji: string; title: string; desc: string }[] = [
-  { key: 'conviviente', emoji: '🏡', title: 'Vivo con mi pareja / compañeros', desc: 'Quiero repartir gastos compartidos.' },
-  { key: 'personal', emoji: '👤', title: 'Solo mis gastos personales', desc: 'No necesito repartir con nadie.' },
-  { key: 'ambas', emoji: '🤝', title: 'Las dos cosas', desc: 'Gastos propios y compartidos.' },
+const USO_OPTIONS: { key: Uso; Icon: LucideIcon; title: string; desc: string }[] = [
+  { key: 'conviviente', Icon: House, title: 'Vivo con mi pareja / compañeros', desc: 'Quiero repartir gastos compartidos.' },
+  { key: 'personal', Icon: UserRound, title: 'Solo mis gastos personales', desc: 'No necesito repartir con nadie.' },
+  { key: 'ambas', Icon: UsersRound, title: 'Las dos cosas', desc: 'Gastos propios y compartidos.' },
 ]
 
 /**
@@ -117,7 +118,9 @@ export default function OnboardingPage() {
                       : 'border-slate-200 dark:border-slate-700'
                   }`}
                 >
-                  <span className="text-2xl">{o.emoji}</span>
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                    <o.Icon size={21} strokeWidth={2.2} />
+                  </span>
                   <span>
                     <span className="block font-semibold">{o.title}</span>
                     <span className="block text-xs text-slate-500">{o.desc}</span>

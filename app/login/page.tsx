@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
 import { Button, Card, Input, Label } from '@/components/ui'
+import { Brand } from '@/components/Brand'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -63,7 +64,7 @@ export default function LoginPage() {
   return (
     <div className="flex flex-1 items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <h1 className="mb-1 text-center text-3xl font-bold text-emerald-700">covivencia.</h1>
+        <div className="mb-1 text-center"><Brand centered /></div>
         <p className="mb-6 text-center text-sm text-slate-500">Repartí gastos compartidos sin pelearte</p>
         <Card>
           {mode === 'forgot' ? (

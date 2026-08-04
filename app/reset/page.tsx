@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Button, Card, Input, Label, Spinner } from '@/components/ui'
+import { Brand } from '@/components/Brand'
 
 export default function ResetPasswordPage() {
   const router = useRouter()
@@ -70,7 +71,7 @@ export default function ResetPasswordPage() {
   return (
     <div className="flex flex-1 items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <h1 className="mb-1 text-center text-3xl font-bold text-emerald-700">covivencia.</h1>
+        <div className="mb-1 text-center"><Brand centered /></div>
         <p className="mb-6 text-center text-sm text-slate-500">Crear una nueva contraseña</p>
         <Card>
           {status === 'checking' && <Spinner />}

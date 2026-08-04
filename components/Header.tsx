@@ -1,9 +1,9 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/AuthProvider'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { Brand } from '@/components/Brand'
 
 export function Header() {
   const { user, signOut } = useAuth()
@@ -17,9 +17,7 @@ export function Header() {
   return (
     <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-        <Link href="/" className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
-          covivencia.
-        </Link>
+        <Brand />
         <div className="flex items-center gap-3 text-sm">
           <ThemeToggle />
           {user && (

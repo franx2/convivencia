@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/components/AuthProvider'
 import { supabase } from '@/lib/supabase'
+import { House, UsersRound, type LucideIcon } from 'lucide-react'
 
 type BottomNavProps = {
   active: 'personal' | 'shared'
@@ -57,11 +58,11 @@ export function BottomNav({ active, personalHref }: BottomNavProps) {
           active={active === 'personal'}
           disabled={!resolvedPersonalHref}
           href={resolvedPersonalHref ?? '#'}
-          icon="🏡"
+          Icon={House}
           label="Personal"
           sublabel="Mis gastos"
         />
-        <NavItem active={active === 'shared'} href="/" icon="🤝" label="Compartidos" sublabel="Grupos" />
+        <NavItem active={active === 'shared'} href="/" Icon={UsersRound} label="Compartidos" sublabel="Grupos" />
       </div>
     </nav>
   )
@@ -71,14 +72,14 @@ function NavItem({
   active,
   disabled,
   href,
-  icon,
+  Icon,
   label,
   sublabel,
 }: {
   active: boolean
   disabled?: boolean
   href: string
-  icon: string
+  Icon: LucideIcon
   label: string
   sublabel: string
 }) {
@@ -91,11 +92,11 @@ function NavItem({
   const body = (
     <>
       <span
-        className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-xl ${
+        className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${
           active ? 'bg-white shadow-sm dark:bg-slate-900' : 'bg-slate-100 dark:bg-slate-900'
         }`}
       >
-        {icon}
+        <Icon size={21} strokeWidth={2.2} />
       </span>
       <span className="min-w-0">
         <span className="block truncate text-sm font-bold leading-tight">{label}</span>
