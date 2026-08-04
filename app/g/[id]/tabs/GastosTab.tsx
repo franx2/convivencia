@@ -151,10 +151,12 @@ export function GastosTab({
           </div>
           <Link
             href={`/g/${group.id}/editar/${e.id}`}
-            className="text-slate-300 hover:text-emerald-600"
+            className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 transition hover:border-emerald-400 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-900/50"
             title="Editar"
+            aria-label={`Editar ${e.title}`}
           >
-            ✎
+            <span aria-hidden="true">✎</span>
+            Editar
           </Link>
           <IconButton label="Borrar" onClick={() => remove(e.id)}>
                     ✕
@@ -351,4 +353,3 @@ export function groupExpensesByMonth(expenses: Expense[], baseOf: (expense: Expe
   }
   return [...map.values()]
 }
-

@@ -410,8 +410,12 @@ function ImportarPageClient() {
 
   return (
     <PageShell nav="personal" personalHref={`/g/${groupId}`}>
-        <Link href={`/g/${groupId}`} className="text-sm text-slate-400 hover:text-slate-600">
-          ← Volver al grupo
+        <Link
+          href={`/g/${groupId}`}
+          className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-200"
+        >
+          <span aria-hidden="true" className="text-lg leading-none">←</span>
+          Volver al grupo
         </Link>
         <h1 className="mb-1 mt-1 text-2xl font-bold">Importar resumen</h1>
         <p className="mb-4 text-sm text-slate-500">
