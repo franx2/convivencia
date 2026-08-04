@@ -230,7 +230,7 @@ export default function GroupPage() {
 
   return (
     <PageShell
-      nav={group.is_personal ? 'personal' : 'shared'}
+      nav={group.is_personal ? 'personal' : group.kind === 'viaje' ? 'viajes' : 'convivencia'}
       personalHref={group.is_personal ? `/g/${group.id}` : null}
     >
         <div className="mb-4 flex items-start justify-between gap-3">
@@ -412,5 +412,4 @@ export default function GroupPage() {
     </PageShell>
   )
 }
-
 

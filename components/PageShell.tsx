@@ -19,7 +19,7 @@ export function PageShell({
 }: {
   children: ReactNode
   /** Sin `nav` no se muestra la barra inferior (ej: onboarding). */
-  nav?: 'personal' | 'shared'
+  nav?: 'personal' | 'convivencia' | 'viajes' | 'settings'
   personalHref?: string | null
   /** `narrow` para formularios de una columna; igual alineado a la izquierda que el Header. */
   width?: 'wide' | 'narrow'
@@ -27,7 +27,7 @@ export function PageShell({
   return (
     <>
       <Header />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-36 pt-6">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 pt-6">
         <div className={width === 'narrow' ? 'mx-auto w-full max-w-lg' : ''}>{children}</div>
       </main>
       {nav && <BottomNav active={nav} personalHref={personalHref} />}

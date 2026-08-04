@@ -344,7 +344,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
 
   return (
     <PageShell
-      nav={group.is_personal ? 'personal' : 'shared'}
+      nav={group.is_personal ? 'personal' : group.kind === 'viaje' ? 'viajes' : 'convivencia'}
       personalHref={group.is_personal ? `/g/${group.id}` : null}
       width="narrow"
     >

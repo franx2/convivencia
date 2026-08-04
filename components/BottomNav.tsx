@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/components/AuthProvider'
 import { supabase } from '@/lib/supabase'
-import { House, UsersRound, type LucideIcon } from 'lucide-react'
+import { House, Plane, Settings, UsersRound, type LucideIcon } from 'lucide-react'
 
 type BottomNavProps = {
-  active: 'personal' | 'shared'
+  active: 'personal' | 'convivencia' | 'viajes' | 'settings'
   personalHref?: string | null
 }
 
@@ -52,17 +52,18 @@ export function BottomNav({ active, personalHref }: BottomNavProps) {
   if (keyboardOpen) return null
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2 shadow-[0_-12px_28px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
-      <div className="mx-auto grid max-w-3xl grid-cols-2 gap-2 px-3">
+    <nav className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-50 px-3">
+      <div className="mx-auto grid max-w-md grid-cols-4 gap-1 rounded-[1.75rem] border border-slate-200/90 bg-white/95 p-1.5 shadow-[0_12px_35px_rgba(15,23,42,0.22)] backdrop-blur dark:border-slate-700/90 dark:bg-slate-950/95">
         <NavItem
           active={active === 'personal'}
           disabled={!resolvedPersonalHref}
           href={resolvedPersonalHref ?? '#'}
           Icon={House}
           label="Personal"
-          sublabel="Mis gastos"
         />
-        <NavItem active={active === 'shared'} href="/" Icon={UsersRound} label="Compartidos" sublabel="Grupos" />
+        <NavItem active={active === 'convivencia'} href="/?section=convivencia" Icon={UsersRound} label="Convivencia" />
+        <NavItem active={active === 'viajes'} href="/?section=viajes" Icon={Plane} label="Viajes" />
+        <NavItem active={active === 'settings'} href="/configuracion" Icon={Settings} label="Config." />
       </div>
     </nav>
   )
@@ -74,34 +75,23 @@ function NavItem({
   href,
   Icon,
   label,
-  sublabel,
 }: {
   active: boolean
   disabled?: boolean
   href: string
   Icon: LucideIcon
   label: string
-  sublabel: string
 }) {
-  const cls = `flex min-h-[64px] items-center gap-3 rounded-2xl border px-3 py-2 text-left transition ${
+  const cls = `flex min-h-[62px] flex-col items-center justify-center gap-1 rounded-[1.25rem] px-1 py-2 text-center transition ${
     active
-      ? 'border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm dark:border-emerald-800/70 dark:bg-emerald-950/45 dark:text-emerald-200'
-      : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-100'
+      ? 'bg-emerald-700 text-white shadow-sm dark:bg-emerald-600'
+      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
   } ${disabled ? 'pointer-events-none opacity-45' : ''}`
 
   const body = (
     <>
-      <span
-        className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${
-          active ? 'bg-white shadow-sm dark:bg-slate-900' : 'bg-slate-100 dark:bg-slate-900'
-        }`}
-      >
-        <Icon size={21} strokeWidth={2.2} />
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-bold leading-tight">{label}</span>
-        <span className="mt-0.5 block truncate text-xs opacity-70">{sublabel}</span>
-      </span>
+      <Icon size={20} strokeWidth={2.3} />
+      <span className="block truncate text-[11px] font-bold leading-tight">{label}</span>
     </>
   )
 

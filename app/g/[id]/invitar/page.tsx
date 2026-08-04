@@ -100,7 +100,7 @@ export default function InvitarPage() {
   if (notFound || !group) return <NotFoundScreen>No encontramos este grupo.</NotFoundScreen>
 
   return (
-    <PageShell nav="shared" width="narrow">
+    <PageShell nav={group.kind === 'viaje' ? 'viajes' : 'convivencia'} width="narrow">
       <div className="mb-4 flex items-center justify-between">
           <p className="text-sm font-semibold text-slate-400">Paso {step} de 2</p>
           <button

@@ -25,6 +25,7 @@ function HomePageInner() {
   const { user, loading } = useRequireAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const section = searchParams.get('section') === 'viajes' ? 'viajes' : 'convivencia'
   const [groups, setGroups] = useState<Group[]>([])
   const [totals, setTotals] = useState<Record<string, number>>({})
   const [pending, setPending] = useState<Record<string, number>>({})
@@ -193,6 +194,7 @@ function HomePageInner() {
 
   const personalGroups = groups.filter((g) => g.is_personal)
   const sharedGroups = groups.filter((g) => !g.is_personal)
+  const visibleGroups = sharedGroups.filter((g) => (section === 'viajes' ? g.kind === 'viaje' : g.kind !== 'viaje'))
   const personalGroup = personalGroups[0]
 
   function groupCard(g: Group) {
@@ -230,10 +232,10 @@ function HomePageInner() {
   }
 
   return (
-    <PageShell nav="shared" personalHref={personalGroup ? `/g/${personalGroup.id}` : null}>
+    <PageShell nav={section} personalHref={personalGroup ? `/g/${personalGroup.id}` : null}>
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold">Grupos compartidos</h1>
-          <Button onClick={() => setShowForm((s) => !s)}>
+          <h1 className="text-2xl font-bold">{section === 'viajes' ? 'Viajes' : 'Convivencia'}</h1>
+          <Button onClick={() => { setKind(section === 'viajes' ? 'viaje' : 'convivencia'); setShowForm((s) => !s) }}>
             {showForm ? 'Cancelar' : '+ Nuevo grupo'}
           </Button>
         </div>
@@ -307,10 +309,10 @@ function HomePageInner() {
         )}
         {fetching ? (
           <Spinner />
-        ) : sharedGroups.length === 0 ? (
-          <EmptyState>Todavía no tenés grupos compartidos. Creá uno para repartir gastos.</EmptyState>
+        ) : visibleGroups.length === 0 ? (
+          <EmptyState>{section === 'viajes' ? 'Todavía no tenés viajes. Creá uno para llevar los gastos del recorrido.' : 'Todavía no tenés grupos de convivencia. Creá uno para repartir gastos.'}</EmptyState>
         ) : (
-          <div className="space-y-2">{sharedGroups.map(groupCard)}</div>
+          <div className="space-y-2">{visibleGroups.map(groupCard)}</div>
         )}
       {dialog}
     </PageShell>
