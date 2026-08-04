@@ -84,7 +84,7 @@ export default function ConfiguracionPage() {
   if (loading || !user || !hydrated) return <Spinner />
 
   return (
-    <PageShell nav="personal" width="narrow">
+    <PageShell nav="settings" width="narrow">
       <PageTitle subtitle="Datos de tu cuenta y preferencias.">Configuración</PageTitle>
 
       <Card className="space-y-4">

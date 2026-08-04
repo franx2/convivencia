@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/components/AuthProvider'
 import { supabase } from '@/lib/supabase'
-import { House, Plane, Settings, UsersRound, type LucideIcon } from 'lucide-react'
+import { House, Plane, Settings, ShoppingBasket, UsersRound, type LucideIcon } from 'lucide-react'
 
 type BottomNavProps = {
-  active: 'personal' | 'convivencia' | 'viajes' | 'settings'
+  active: 'personal' | 'convivencia' | 'super' | 'viajes' | 'settings'
   personalHref?: string | null
 }
 
@@ -53,7 +53,7 @@ export function BottomNav({ active, personalHref }: BottomNavProps) {
 
   return (
     <nav className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-50 px-3">
-      <div className="mx-auto grid max-w-md grid-cols-4 gap-1 rounded-[1.75rem] border border-slate-200/90 bg-white/95 p-1.5 shadow-[0_12px_35px_rgba(15,23,42,0.22)] backdrop-blur dark:border-slate-700/90 dark:bg-slate-950/95">
+      <div className="mx-auto grid max-w-lg grid-cols-5 gap-1 rounded-[1.75rem] border border-slate-200/90 bg-white/95 p-1.5 shadow-[0_12px_35px_rgba(15,23,42,0.22)] backdrop-blur dark:border-slate-700/90 dark:bg-slate-950/95">
         <NavItem
           active={active === 'personal'}
           disabled={!resolvedPersonalHref}
@@ -62,6 +62,7 @@ export function BottomNav({ active, personalHref }: BottomNavProps) {
           label="Personal"
         />
         <NavItem active={active === 'convivencia'} href="/?section=convivencia" Icon={UsersRound} label="Convivencia" />
+        <NavItem active={active === 'super'} href="/super" Icon={ShoppingBasket} label="Super" />
         <NavItem active={active === 'viajes'} href="/?section=viajes" Icon={Plane} label="Viajes" />
         <NavItem active={active === 'settings'} href="/configuracion" Icon={Settings} label="Config." />
       </div>
@@ -82,7 +83,7 @@ function NavItem({
   Icon: LucideIcon
   label: string
 }) {
-  const cls = `flex min-h-[62px] flex-col items-center justify-center gap-1 rounded-[1.25rem] px-1 py-2 text-center transition ${
+  const cls = `flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-[1.25rem] px-1 py-2 text-center transition ${
     active
       ? 'bg-emerald-700 text-white shadow-sm dark:bg-emerald-600'
       : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
@@ -91,7 +92,7 @@ function NavItem({
   const body = (
     <>
       <Icon size={20} strokeWidth={2.3} />
-      <span className="block truncate text-[11px] font-bold leading-tight">{label}</span>
+      <span className="block truncate text-[10px] font-bold leading-tight">{label}</span>
     </>
   )
 

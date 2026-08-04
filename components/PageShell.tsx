@@ -19,7 +19,7 @@ export function PageShell({
 }: {
   children: ReactNode
   /** Sin `nav` no se muestra la barra inferior (ej: onboarding). */
-  nav?: 'personal' | 'convivencia' | 'viajes' | 'settings'
+  nav?: 'personal' | 'convivencia' | 'super' | 'viajes' | 'settings'
   personalHref?: string | null
   /** `narrow` para formularios de una columna; igual alineado a la izquierda que el Header. */
   width?: 'wide' | 'narrow'
