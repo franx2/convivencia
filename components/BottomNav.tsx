@@ -14,6 +14,7 @@ type BottomNavProps = {
 export function BottomNav({ active, personalHref }: BottomNavProps) {
   const { user } = useAuth()
   const [fetchedPersonalHref, setFetchedPersonalHref] = useState<string | null>(null)
+  const [fetchedConvivenciaHref, setFetchedConvivenciaHref] = useState<string | null>(null)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const resolvedPersonalHref = personalHref ?? fetchedPersonalHref
 
@@ -49,6 +50,27 @@ export function BottomNav({ active, personalHref }: BottomNavProps) {
     }
   }, [personalHref, user])
 
+  useEffect(() => {
+    if (!user) return
+
+    let cancelled = false
+    supabase
+      .from('groups')
+      .select('id')
+      .eq('is_personal', false)
+      .eq('kind', 'convivencia')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setFetchedConvivenciaHref(data?.id ? `/g/${data.id}` : null)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user])
+
   if (keyboardOpen) return null
 
   return (
@@ -61,7 +83,12 @@ export function BottomNav({ active, personalHref }: BottomNavProps) {
           Icon={House}
           label="Personal"
         />
-        <NavItem active={active === 'convivencia'} href="/?section=convivencia" Icon={UsersRound} label="Convivencia" />
+        <NavItem
+          active={active === 'convivencia'}
+          href={fetchedConvivenciaHref ?? '/?section=convivencia'}
+          Icon={UsersRound}
+          label="Convivencia"
+        />
         <NavItem active={active === 'super'} href="/super" Icon={ShoppingBasket} label="Super" />
         <NavItem active={active === 'viajes'} href="/?section=viajes" Icon={Plane} label="Viajes" />
         <NavItem active={active === 'settings'} href="/configuracion" Icon={Settings} label="Config." />

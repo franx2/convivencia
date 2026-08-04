@@ -116,9 +116,21 @@ function HomePageInner() {
     if (user) load()
   }, [user, load])
 
+  // Convivencia tiene un único grupo. La navegación inferior ya apunta directo
+  // a él; este redirect cubre links viejos y entradas manuales a esta URL.
+  useEffect(() => {
+    if (loading || fetching || section !== 'convivencia') return
+    const convivencia = groups.find((group) => !group.is_personal && group.kind === 'convivencia')
+    if (convivencia) router.replace(`/g/${convivencia.id}`)
+  }, [fetching, groups, loading, router, section])
+
   async function createGroup(e: React.FormEvent) {
     e.preventDefault()
     if (!user) return
+    if (kind === 'convivencia' && groups.some((group) => !group.is_personal && group.kind === 'convivencia')) {
+      setError('Ya existe un grupo de convivencia. Podés encontrarlo desde la barra inferior.')
+      return
+    }
     setBusy(true)
     setError(null)
     let group: Group
@@ -196,6 +208,8 @@ function HomePageInner() {
   const sharedGroups = groups.filter((g) => !g.is_personal)
   const visibleGroups = sharedGroups.filter((g) => (section === 'viajes' ? g.kind === 'viaje' : g.kind !== 'viaje'))
   const personalGroup = personalGroups[0]
+  const hasConvivencia = sharedGroups.some((group) => group.kind === 'convivencia')
+  const canCreateGroup = section === 'viajes' || !hasConvivencia
 
   function groupCard(g: Group) {
     const month = totals[g.id] ?? 0
@@ -235,12 +249,14 @@ function HomePageInner() {
     <PageShell nav={section} personalHref={personalGroup ? `/g/${personalGroup.id}` : null}>
         <div className="mb-4 flex items-center justify-between gap-3">
           <h1 className="text-2xl font-bold">{section === 'viajes' ? 'Viajes' : 'Convivencia'}</h1>
-          <Button onClick={() => { setKind(section === 'viajes' ? 'viaje' : 'convivencia'); setShowForm((s) => !s) }}>
-            {showForm ? 'Cancelar' : '+ Nuevo grupo'}
-          </Button>
+          {canCreateGroup && (
+            <Button onClick={() => { setKind(section === 'viajes' ? 'viaje' : 'convivencia'); setShowForm((s) => !s) }}>
+              {showForm ? 'Cancelar' : '+ Nuevo grupo'}
+            </Button>
+          )}
         </div>
 
-        {showForm && (
+        {showForm && canCreateGroup && (
           <Card className="mb-5">
             <form onSubmit={createGroup} className="space-y-3">
               <div>
