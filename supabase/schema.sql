@@ -571,6 +571,49 @@ $$;
 grant execute on function public.create_group(text, text, text, text, boolean, text) to authenticated;
 
 -- ============================================================
+-- Reemplazo atómico del reparto de un gasto (F9, ver
+-- migration_expense_shares_atomic.sql). Sin esto, el cliente borraba los
+-- shares y después insertaba: si fallaba el insert, el gasto quedaba sin
+-- participantes y corrompía los balances.
+-- ============================================================
+
+create or replace function public.replace_expense_shares(
+  p_expense_id uuid,
+  p_shares     jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  gid uuid;
+begin
+  select group_id into gid from public.expenses where id = p_expense_id;
+  if gid is null then
+    raise exception 'Gasto inexistente';
+  end if;
+  if not public.is_group_member(gid) then
+    raise exception 'Sin acceso a este grupo';
+  end if;
+  if p_shares is null or jsonb_array_length(p_shares) = 0 then
+    raise exception 'El gasto tiene que repartirse entre al menos una persona';
+  end if;
+
+  delete from public.expense_shares where expense_id = p_expense_id;
+
+  insert into public.expense_shares (expense_id, member_id, weight)
+  select
+    p_expense_id,
+    (item->>'member_id')::uuid,
+    coalesce(nullif(item->>'weight', '')::numeric, 1)
+  from jsonb_array_elements(p_shares) as item;
+end;
+$$;
+
+grant execute on function public.replace_expense_shares(uuid, jsonb) to authenticated;
+
+-- ============================================================
 -- Realtime para sync entre dispositivos (F6, best-effort)
 -- ============================================================
 

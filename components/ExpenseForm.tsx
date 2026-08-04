@@ -252,6 +252,34 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
     setAdding(false)
   }
 
+  /**
+   * Reemplaza el reparto de un gasto existente en una sola transacción (F9).
+   * Si la RPC todavía no existe en este entorno (migración sin correr), cae al
+   * método viejo delete+insert para no romper la edición entre deploy y SQL.
+   */
+  async function replaceShares(eid: string): Promise<string | null> {
+    const payload = [...selected].map((member_id) => ({
+      member_id,
+      weight: proportional ? shareWeight(member_id) : 1,
+    }))
+    const { error: rpcErr } = await supabase.rpc('replace_expense_shares', {
+      p_expense_id: eid,
+      p_shares: payload,
+    })
+    if (!rpcErr) return null
+
+    const msg = (rpcErr.message ?? '').toLowerCase()
+    const missingFn = rpcErr.code === 'PGRST202' || msg.includes('could not find the function')
+    if (!missingFn) return rpcErr.message
+
+    // ponytail: fallback no atómico por ordering deploy-antes-que-SQL; borrar
+    // cuando migration_expense_shares_atomic.sql esté corrida en producción.
+    await supabase.from('expense_shares').delete().eq('expense_id', eid)
+    const rows = [...selected].map((member_id) => shareRow(eid, member_id))
+    const { error: insErr } = await supabase.from('expense_shares').insert(rows)
+    return insErr?.message ?? null
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -280,13 +308,10 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
         setError(upErr.message)
         return
       }
-      // Reemplazar el reparto: borrar los shares actuales e insertar la nueva selección.
-      await supabase.from('expense_shares').delete().eq('expense_id', expenseId)
-      const rows = [...selected].map((member_id) => shareRow(expenseId, member_id))
-      const { error: shErr } = await supabase.from('expense_shares').insert(rows)
+      const shErr = await replaceShares(expenseId)
       setBusy(false)
       if (shErr) {
-        setError(shErr.message)
+        setError(shErr)
         return
       }
     } else {
