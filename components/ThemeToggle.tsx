@@ -1,25 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useDarkMode } from '@/components/ui'
 
 export function ThemeToggle() {
-  const [dark, setDark] = useState(false)
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- lee el estado inicial del tema desde el DOM (lo fijó el script anti-flash antes de hidratar)
-    setDark(document.documentElement.classList.contains('dark'))
-  }, [])
-
-  function toggle() {
-    const next = !dark
-    setDark(next)
-    document.documentElement.classList.toggle('dark', next)
-    try {
-      localStorage.setItem('theme', next ? 'dark' : 'light')
-    } catch {
-      // ignorar (modo privado / sin storage)
-    }
-  }
+  const { dark, toggle } = useDarkMode()
 
   return (
     <button

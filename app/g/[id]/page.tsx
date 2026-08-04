@@ -7,9 +7,22 @@ import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { AmountCalculator } from '@/components/AmountCalculator'
-import { BottomNav } from '@/components/BottomNav'
-import { Header } from '@/components/Header'
-import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
+import { NotFoundScreen, PageShell } from '@/components/PageShell'
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorText,
+  IconButton,
+  Input,
+  Label,
+  Modal,
+  SectionTitle,
+  Select,
+  Spinner,
+  useConfirm,
+} from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { mergeCategories, metaFrom, type CatMeta } from '@/lib/categories'
 import { computeBalances, settle, spendByCategory, spendByMonth } from '@/lib/balances'
@@ -199,18 +212,7 @@ export default function GroupPage() {
   }, [expenses])
 
   if (loading || !user || fetching) return <Spinner />
-  if (notFound || !group)
-    return (
-      <>
-        <Header />
-        <main className="mx-auto max-w-3xl px-4 py-10 text-center text-slate-500">
-          No encontramos este grupo (o no tenés acceso).{' '}
-          <Link href="/" className="text-emerald-700 underline">
-            Volver
-          </Link>
-        </main>
-      </>
-    )
+  if (notFound || !group) return <NotFoundScreen>No encontramos este grupo (o no tenés acceso).</NotFoundScreen>
 
   const tabs: { key: Tab; label: string }[] = group.is_personal
     ? [
@@ -234,18 +236,15 @@ export default function GroupPage() {
     : (isSharedTab(tab) ? tab : 'gastos')
 
   return (
-    <>
-      <Header />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-36 pt-6">
+    <PageShell
+      nav={group.is_personal ? 'personal' : 'shared'}
+      personalHref={group.is_personal ? `/g/${group.id}` : null}
+    >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold">
               {group.name}
-              {group.is_personal && (
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                  personal
-                </span>
-              )}
+              {group.is_personal && <Badge>personal</Badge>}
             </h1>
             <p className="text-sm text-slate-500">
               {group.is_personal ? 'Espacio personal · ' : ''}Moneda base: {group.base_currency}
@@ -414,9 +413,7 @@ export default function GroupPage() {
         {!group.is_personal && activeTab === 'miembros' && (
           <MiembrosTab group={group} members={members} expenses={expenses} onChanged={load} />
         )}
-      </main>
-      <BottomNav active={group.is_personal ? 'personal' : 'shared'} personalHref={group.is_personal ? `/g/${group.id}` : null} />
-    </>
+    </PageShell>
   )
 }
 
@@ -559,20 +556,8 @@ function PersonalDashboard({
         </button>
 
         {showBalance && (
-          <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/50 px-0 text-slate-900 sm:items-center sm:px-4 dark:text-slate-100">
-            <div className="w-full max-w-md overflow-hidden rounded-t-[28px] bg-white shadow-2xl dark:bg-slate-950 sm:rounded-[28px]">
-              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-                <h3 className="text-lg font-bold">Balance acumulado</h3>
-                <button
-                  type="button"
-                  onClick={() => setShowBalance(false)}
-                  className="text-2xl leading-none text-slate-400"
-                  aria-label="Cerrar"
-                >
-                  ×
-                </button>
-              </div>
-              <div className="space-y-4 px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-5">
+          <Modal title="Balance acumulado" onClose={() => setShowBalance(false)}>
+              <div className="space-y-4 text-slate-900 dark:text-slate-100">
                 <p className="text-sm text-slate-500">
                   Es lo que te queda sumando ingresos y restando gastos
                   {baselineDate ? ' desde el saldo inicial que fijaste.' : ' desde el principio.'}
@@ -633,8 +618,7 @@ function PersonalDashboard({
                   )}
                 </div>
               </div>
-            </div>
-          </div>
+          </Modal>
         )}
 
         <div className="space-y-3">
@@ -893,11 +877,19 @@ function GastosTab({
   const [tplCat, setTplCat] = useState<string>('otros')
   const [tplAmount, setTplAmount] = useState('')
   const [tplBusy, setTplBusy] = useState(false)
+  const { confirm, dialog } = useConfirm()
 
-  async function remove(id: string) {
-    if (!confirm('¿Borrar este gasto?')) return
-    await supabase.from('expenses').delete().eq('id', id)
-    onChanged()
+  function remove(id: string) {
+    confirm({
+      title: '¿Borrar este gasto?',
+      message: 'No se puede deshacer.',
+      confirmLabel: 'Borrar',
+      tone: 'danger',
+      onConfirm: async () => {
+        await supabase.from('expenses').delete().eq('id', id)
+        onChanged()
+      },
+    })
   }
 
   async function addTemplate() {
@@ -997,13 +989,9 @@ function GastosTab({
           >
             ✎
           </Link>
-          <button
-            onClick={() => remove(e.id)}
-            className="text-slate-300 hover:text-red-500"
-            title="Borrar"
-          >
-            ✕
-          </button>
+          <IconButton label="Borrar" onClick={() => remove(e.id)}>
+                    ✕
+                  </IconButton>
         </div>
       </Card>
     )
@@ -1014,7 +1002,7 @@ function GastosTab({
       {hasMembers && (
         <Card>
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-600">Gastos típicos</p>
+            <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Gastos típicos</p>
             <button
               type="button"
               onClick={() => setManagingTpl((v) => !v)}
@@ -1043,13 +1031,9 @@ function GastosTab({
                     )}
                   </Link>
                   {managingTpl && (
-                    <button
-                      onClick={() => removeTemplate(t.id)}
-                      className="ml-1 text-slate-300 hover:text-red-500"
-                      title="Quitar plantilla"
-                    >
-                      ✕
-                    </button>
+                    <IconButton label="Quitar plantilla" onClick={() => removeTemplate(t.id)} className="ml-1">
+                    ✕
+                  </IconButton>
                   )}
                 </div>
               ))}
@@ -1130,7 +1114,7 @@ function GastosTab({
       {group.is_personal && expenses.length > 0 && (
         <div className="space-y-3">
           <Card>
-            <p className="mb-4 text-sm font-medium text-slate-600">Gastos por categoría · {chartMonthLbl}</p>
+            <SectionTitle>Gastos por categoría · {chartMonthLbl}</SectionTitle>
             {categoryChart.length > 0 ? (
               <Donut data={categoryChart} format={(n) => formatMoney(n, group.base_currency)} />
             ) : (
@@ -1138,7 +1122,7 @@ function GastosTab({
             )}
           </Card>
           <Card>
-            <p className="mb-4 text-sm font-medium text-slate-600">Origen del gasto · {chartMonthLbl}</p>
+            <SectionTitle>Origen del gasto · {chartMonthLbl}</SectionTitle>
             {manualTotal > 0 || cardTotal > 0 ? (
               <Donut data={sourceChart} format={(n) => formatMoney(n, group.base_currency)} />
             ) : (
@@ -1146,16 +1130,16 @@ function GastosTab({
             )}
           </Card>
           <Card>
-            <p className="mb-4 text-sm font-medium text-slate-600">Gasto por mes (todos)</p>
+            <SectionTitle>Gasto por mes (todos)</SectionTitle>
             <MonthlyBars data={byMonth} format={(n) => formatMoney(n, group.base_currency)} />
           </Card>
         </div>
       )}
 
       {expenses.length === 0 ? (
-        <Card className="text-center text-slate-500">Todavía no hay gastos.</Card>
+        <EmptyState>Todavía no hay gastos.</EmptyState>
       ) : grouped.length === 0 ? (
-        <Card className="text-center text-slate-500">No hay gastos para este filtro.</Card>
+        <EmptyState>No hay gastos para este filtro.</EmptyState>
       ) : (
         grouped.map((month) => (
           <section key={month.key} className="space-y-2">
@@ -1170,6 +1154,7 @@ function GastosTab({
           </section>
         ))
       )}
+      {dialog}
     </div>
   )
 }
@@ -1254,7 +1239,7 @@ function PersonalIncomesTab({
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
             <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (ej: Sueldo)" />
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            <ErrorText>{error}</ErrorText>
             <Button type="submit" disabled={busy}>
               {busy ? 'Guardando…' : 'Guardar ingreso'}
             </Button>
@@ -1279,9 +1264,9 @@ function PersonalIncomesTab({
               </span>
               <span className="flex items-center gap-2">
                 <span className="font-semibold text-emerald-600">{formatMoney(Number(i.amount), group.base_currency)}</span>
-                <button onClick={() => remove(i.id)} className="text-slate-300 hover:text-red-500" title="Quitar">
-                  ✕
-                </button>
+                <IconButton label="Quitar" onClick={() => remove(i.id)}>
+                    ✕
+                  </IconButton>
               </span>
             </div>
           ))
@@ -1358,7 +1343,7 @@ function SavingsTab({
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
             <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (ej: Fondo emergencia)" />
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            <ErrorText>{error}</ErrorText>
             <Button type="submit" disabled={busy}>
               {busy ? 'Guardando…' : 'Guardar ahorro'}
             </Button>
@@ -1383,9 +1368,9 @@ function SavingsTab({
               </span>
               <span className="flex items-center gap-2">
                 <span className="font-semibold text-amber-600">{formatMoney(Number(s.amount), group.base_currency)}</span>
-                <button onClick={() => remove(s.id)} className="text-slate-300 hover:text-red-500" title="Quitar">
-                  ✕
-                </button>
+                <IconButton label="Quitar" onClick={() => remove(s.id)}>
+                    ✕
+                  </IconButton>
               </span>
             </div>
           ))
@@ -1486,9 +1471,9 @@ function PersonalBudgetsTab({
                       <span className="text-slate-500">
                         {formatMoney(spent, group.base_currency)} / {formatMoney(limit, group.base_currency)}
                       </span>
-                      <button onClick={() => remove(b.id)} className="text-slate-300 hover:text-red-500" title="Quitar">
-                        ✕
-                      </button>
+                      <IconButton label="Quitar" onClick={() => remove(b.id)}>
+                    ✕
+                  </IconButton>
                     </span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
@@ -1565,6 +1550,7 @@ function CardsTab({
   userId: string
   onChanged: () => void
 }) {
+  const { confirm, dialog } = useConfirm()
   const [name, setName] = useState('')
   const [bank, setBank] = useState('')
   const [last4, setLast4] = useState('')
@@ -1627,10 +1613,17 @@ function CardsTab({
     onChanged()
   }
 
-  async function remove(id: string) {
-    if (!confirm('¿Borrar esta tarjeta? Los gastos importados quedan guardados.')) return
-    await supabase.from('cards').delete().eq('id', id)
-    onChanged()
+  function remove(id: string) {
+    confirm({
+      title: '¿Borrar esta tarjeta?',
+      message: 'Los gastos importados con ella quedan guardados.',
+      confirmLabel: 'Borrar tarjeta',
+      tone: 'danger',
+      onConfirm: async () => {
+        await supabase.from('cards').delete().eq('id', id)
+        onChanged()
+      },
+    })
   }
 
   async function syncDiscounts() {
@@ -1886,9 +1879,9 @@ function CardsTab({
                       </p>
                       <p className="mt-1 text-xs text-slate-500">{summaryLine}</p>
                     </div>
-                    <button onClick={() => remove(card.id)} className="text-slate-300 hover:text-red-500" title="Borrar">
-                      ✕
-                    </button>
+                    <IconButton label="Borrar" onClick={() => remove(card.id)}>
+                    ✕
+                  </IconButton>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Link href={`/g/${group.id}/importar?cardId=${card.id}`}>
@@ -1901,6 +1894,7 @@ function CardsTab({
           </div>
         )}
       </HistoryList>
+      {dialog}
     </div>
   )
 }
@@ -2201,7 +2195,7 @@ function BalancesTab({
 
       {/* Balance del mes */}
       <Card>
-        <p className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+        <p className="mb-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
           Balance · {monthLbl}
           {whoLbl ? ` · ${whoLbl}` : ''}
         </p>
@@ -2227,23 +2221,21 @@ function BalancesTab({
       <div id="section-resumen" className="scroll-mt-24">
         {byCat.length > 0 ? (
           <Card>
-          <p className="mb-4 text-sm font-medium text-slate-600">
+          <SectionTitle>
             Gastos por categoría · {monthLbl}
             {whoLbl ? ` · ${whoLbl}` : ''}
-          </p>
+          </SectionTitle>
           <Donut data={donutData} format={fmt} />
           </Card>
         ) : (
-          <Card className="text-center text-sm text-slate-500">
-            {isTrip ? 'Sin gastos en el viaje.' : `Sin gastos en ${monthLbl}.`}
-          </Card>
+          <EmptyState>{isTrip ? 'Sin gastos en el viaje.' : `Sin gastos en ${monthLbl}.`}</EmptyState>
         )}
       </div>
 
       {/* Ingresos del mes */}
       <Card className="scroll-mt-24" id="section-ingresos">
         <div className="mb-2 flex items-center justify-between">
-          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Ingresos · {monthLbl}</p>
+          <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Ingresos · {monthLbl}</p>
           <button
             type="button"
             onClick={() => {
@@ -2279,7 +2271,7 @@ function BalancesTab({
               <Input type="date" value={incDate} onChange={(e) => setIncDate(e.target.value)} />
             </div>
             <Input value={incNote} onChange={(e) => setIncNote(e.target.value)} placeholder="Nota (ej: Sueldo)" />
-            {incError && <p className="text-sm text-red-600">{incError}</p>}
+            <ErrorText>{incError}</ErrorText>
             <Button type="button" onClick={addIncome} disabled={incBusy}>
               {incBusy ? 'Guardando…' : 'Guardar ingreso'}
             </Button>
@@ -2301,13 +2293,9 @@ function BalancesTab({
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="font-medium text-emerald-600">{fmt(Number(i.amount))}</span>
-                  <button
-                    onClick={() => removeIncome(i.id)}
-                    className="text-slate-300 hover:text-red-500"
-                    title="Quitar"
-                  >
+                  <IconButton label="Quitar" onClick={() => removeIncome(i.id)}>
                     ✕
-                  </button>
+                  </IconButton>
                 </span>
               </div>
             ))}
@@ -2318,14 +2306,14 @@ function BalancesTab({
       {/* Tendencia (no aplica a un viaje: no separamos por mes) */}
       {!isTrip && (
         <Card>
-          <p className="mb-4 text-sm font-medium text-slate-600">Gasto por mes (todos)</p>
+          <SectionTitle>Gasto por mes (todos)</SectionTitle>
           <MonthlyBars data={byMonth} format={fmt} />
         </Card>
       )}
 
       <Card className="scroll-mt-24" id="section-presupuestos">
         <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm font-medium text-slate-600">Presupuesto · {monthLbl}</p>
+          <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Presupuesto · {monthLbl}</p>
           <button
             type="button"
             onClick={() => setEditingBudgets((v) => !v)}
@@ -2359,13 +2347,9 @@ function BalancesTab({
                         {fmt(spent)} / {fmt(limit)}
                       </span>
                       {editingBudgets && (
-                        <button
-                          onClick={() => removeBudget(b.id)}
-                          className="text-slate-300 hover:text-red-500"
-                          title="Quitar"
-                        >
-                          ✕
-                        </button>
+                        <IconButton label="Quitar" onClick={() => removeBudget(b.id)}>
+                    ✕
+                  </IconButton>
                       )}
                     </span>
                   </div>
@@ -2479,6 +2463,7 @@ function LiquidacionTab({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const { confirm, dialog } = useConfirm()
 
   const aliasOf = (id: string) => members.find((m) => m.id === id)?.alias ?? null
 
@@ -2523,10 +2508,17 @@ function LiquidacionTab({
     setShowForm(false)
   }
 
-  async function undo(id: string) {
-    if (!confirm('¿Deshacer este pago?')) return
-    await supabase.from('payments').delete().eq('id', id)
-    onChanged()
+  function undo(id: string) {
+    confirm({
+      title: '¿Deshacer este pago?',
+      message: 'El saldo vuelve a quedar pendiente entre esas personas.',
+      confirmLabel: 'Deshacer',
+      tone: 'danger',
+      onConfirm: async () => {
+        await supabase.from('payments').delete().eq('id', id)
+        onChanged()
+      },
+    })
   }
 
   return (
@@ -2534,7 +2526,7 @@ function LiquidacionTab({
       <div className="space-y-2">
         <p className="px-1 text-xs font-medium uppercase tracking-wide text-slate-400">Para saldar</p>
         {transfers.length === 0 ? (
-          <Card className="text-center text-slate-500">Todo saldado. Nadie le debe a nadie. 🎉</Card>
+          <EmptyState>Todo saldado. Nadie le debe a nadie. 🎉</EmptyState>
         ) : (
           transfers.map((t, i) => (
             <Card key={i} className="space-y-2">
@@ -2565,7 +2557,7 @@ function LiquidacionTab({
       <Card>
         {showForm ? (
           <form onSubmit={submitManual} className="space-y-3">
-            <p className="text-sm font-medium text-slate-600">Registrar un pago</p>
+            <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Registrar un pago</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Paga</Label>
@@ -2607,7 +2599,7 @@ function LiquidacionTab({
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               </div>
             </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            <ErrorText>{error}</ErrorText>
             <div className="flex gap-2">
               <Button type="submit" disabled={busy}>
                 {busy ? 'Guardando…' : 'Guardar pago'}
@@ -2646,18 +2638,15 @@ function LiquidacionTab({
               </span>
               <div className="flex items-center gap-3">
                 <span className="font-semibold">{fmt(Number(p.amount))}</span>
-                <button
-                  onClick={() => undo(p.id)}
-                  className="text-slate-300 hover:text-red-500"
-                  title="Deshacer"
-                >
-                  ✕
-                </button>
+                <IconButton label="Deshacer" onClick={() => undo(p.id)}>
+                    ✕
+                  </IconButton>
               </div>
             </Card>
           ))}
         </div>
       )}
+      {dialog}
     </div>
   )
 }
@@ -2750,7 +2739,7 @@ function ListaComprasTab({
       </Card>
 
       {items.length === 0 ? (
-        <Card className="text-center text-slate-500">Todavía no hay nada en la lista.</Card>
+        <EmptyState>Todavía no hay nada en la lista.</EmptyState>
       ) : (
         <>
           <div className="space-y-4">
@@ -2772,9 +2761,9 @@ function ListaComprasTab({
                       >
                         Precio
                       </button>
-                      <button onClick={() => remove(item.id)} className="shrink-0 text-slate-300 hover:text-red-500" title="Borrar">
-                        ✕
-                      </button>
+                      <IconButton label="Borrar" onClick={() => remove(item.id)} className="shrink-0">
+                    ✕
+                  </IconButton>
                     </Card>
                   ))}
                 </div>
@@ -2797,9 +2786,9 @@ function ListaComprasTab({
                       <input type="checkbox" checked={true} onChange={() => toggle(item)} className="h-5 w-5 shrink-0" />
                       <span className="truncate line-through">{item.text}</span>
                     </label>
-                    <button onClick={() => remove(item.id)} className="shrink-0 text-slate-300 hover:text-red-500" title="Borrar">
-                      ✕
-                    </button>
+                    <IconButton label="Borrar" onClick={() => remove(item.id)} className="shrink-0">
+                    ✕
+                  </IconButton>
                   </Card>
                 ))}
               </div>
@@ -2852,15 +2841,8 @@ function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string; onClo
   }, [])
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 px-0 sm:items-center sm:px-4">
-      <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-[28px] bg-white shadow-2xl dark:bg-slate-950 sm:rounded-[28px]">
-        <div className="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-950">
-          <h3 className="text-lg font-bold">Buscar precio</h3>
-          <button onClick={onClose} className="text-2xl leading-none text-slate-400" aria-label="Cerrar">
-            ×
-          </button>
-        </div>
-        <div className="space-y-4 px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-4">
+    <Modal title="Buscar precio" onClose={onClose}>
+        <div className="space-y-4">
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -2878,7 +2860,7 @@ function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string; onClo
             supermercados aparece agrupado para comparar.
           </p>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          <ErrorText>{error}</ErrorText>
           {loading ? (
             <Spinner />
           ) : groups.length === 0 ? (
@@ -2926,8 +2908,7 @@ function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string; onClo
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -2952,6 +2933,7 @@ function MiembrosTab({
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const { confirm, dialog } = useConfirm()
 
   const usedMemberIds = useMemo(() => new Set(expenses.map((e) => e.paid_by)), [expenses])
 
@@ -2970,9 +2952,11 @@ function MiembrosTab({
     onChanged()
   }
 
-  async function remove(id: string) {
+  const blocked = (message: string) => confirm({ title: 'No se puede borrar', message, infoOnly: true })
+
+  async function remove(id: string, memberName: string) {
     if (usedMemberIds.has(id)) {
-      alert('No se puede borrar: este miembro pagó algún gasto. Borrá o reasigná esos gastos primero.')
+      blocked('Este miembro pagó algún gasto. Borrá o reasigná esos gastos primero.')
       return
     }
     // Las FKs hacia members son ON DELETE CASCADE (shares/incomes/savings/pagos):
@@ -2980,21 +2964,29 @@ function MiembrosTab({
     // Bloqueamos si el miembro está referenciado en algún lado.
     const refs = await memberReferences(id)
     if (refs) {
-      alert(`No se puede borrar: ${refs}. Quitá esos registros primero.`)
+      blocked(`${refs}. Quitá esos registros primero.`)
       return
     }
-    const { data, error } = await supabase.from('members').delete().eq('id', id).select('id')
-    if (error) {
-      alert('No se pudo borrar el miembro.')
-      return
-    }
-    // RLS permite borrar miembros solo al dueño del grupo: si no se borró ninguna
-    // fila (y no hubo error), fue por permisos.
-    if (!data || data.length === 0) {
-      alert('Solo el dueño del grupo puede borrar miembros.')
-      return
-    }
-    onChanged()
+    confirm({
+      title: `¿Quitar a ${memberName}?`,
+      message: 'Se elimina del grupo. No se puede deshacer.',
+      confirmLabel: 'Quitar',
+      tone: 'danger',
+      onConfirm: async () => {
+        const { data, error } = await supabase.from('members').delete().eq('id', id).select('id')
+        if (error) {
+          blocked('No se pudo borrar el miembro.')
+          return
+        }
+        // RLS permite borrar miembros solo al dueño del grupo: si no se borró ninguna
+        // fila (y no hubo error), fue por permisos.
+        if (!data || data.length === 0) {
+          blocked('Solo el dueño del grupo puede borrar miembros.')
+          return
+        }
+        onChanged()
+      },
+    })
   }
 
   // Cuenta referencias del miembro en tablas con cascade para evitar pérdida de
@@ -3070,9 +3062,9 @@ function MiembrosTab({
                       className="w-14 text-right"
                     />
                   </label>
-                  <button onClick={() => remove(m.id)} className="text-slate-300 hover:text-red-500" title="Quitar">
+                  <IconButton label="Quitar" onClick={() => remove(m.id, m.name)}>
                     ✕
-                  </button>
+                  </IconButton>
                 </div>
                 <label className="mt-1 flex items-center gap-1 text-xs text-slate-400" title="Alias o CBU para cobrar">
                   alias
@@ -3090,7 +3082,7 @@ function MiembrosTab({
       </Card>
 
       <Card>
-        <p className="mb-2 text-sm font-medium text-slate-600">Invitar a alguien con cuenta</p>
+        <SectionTitle>Invitar a alguien con cuenta</SectionTitle>
         <p className="mb-2 text-xs text-slate-400">
           Compartí este link. Quien lo abra (con sesión iniciada) podrá ver y editar el grupo.
         </p>
@@ -3101,6 +3093,7 @@ function MiembrosTab({
           </Button>
         </div>
       </Card>
+      {dialog}
     </div>
   )
 }

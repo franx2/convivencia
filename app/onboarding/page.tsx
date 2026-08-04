@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { createGroupWithOwner } from '@/lib/groups'
-import { Header } from '@/components/Header'
-import { Button, Card, Input, Spinner } from '@/components/ui'
+import { PageShell } from '@/components/PageShell'
+import { Button, Card, ErrorText, Input, Spinner } from '@/components/ui'
 import { SUPERMARKETS } from '@/lib/stores'
 import { userPaymentAlias, userPreferredStores } from '@/lib/profile'
 
@@ -98,10 +98,8 @@ export default function OnboardingPage() {
   if (loading || !user || !hydrated) return <Spinner />
 
   return (
-    <>
-      <Header />
-      <main className="mx-auto w-full max-w-lg flex-1 px-4 pb-16 pt-6">
-        <p className="mb-4 text-sm font-semibold text-slate-400">Paso {step} de 3</p>
+    <PageShell width="narrow">
+      <p className="mb-4 text-sm font-semibold text-slate-400">Paso {step} de 3</p>
 
         {step === 1 && (
           <Card>
@@ -175,7 +173,9 @@ export default function OnboardingPage() {
                 </label>
               ))}
             </div>
-            {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+            <div className="mt-3">
+              <ErrorText>{error}</ErrorText>
+            </div>
             <div className="mt-5 flex items-center justify-between">
               <button type="button" onClick={() => setStep(2)} className="text-sm text-slate-400 hover:text-slate-600">
                 ← Atrás
@@ -186,7 +186,6 @@ export default function OnboardingPage() {
             </div>
           </Card>
         )}
-      </main>
-    </>
+    </PageShell>
   )
 }

@@ -5,9 +5,8 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
-import { BottomNav } from '@/components/BottomNav'
-import { Header } from '@/components/Header'
-import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
+import { PageShell } from '@/components/PageShell'
+import { Badge, Button, Card, EmptyState, ErrorText, Input, Label, Select, Spinner, useConfirm } from '@/components/ui'
 import { CURRENCIES, formatMoney } from '@/lib/currencies'
 import { createGroupWithOwner } from '@/lib/groups'
 import { userDisplayName, userPaymentAlias } from '@/lib/profile'
@@ -39,6 +38,7 @@ function HomePageInner() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const ensuredPersonal = useRef(false)
+  const { confirm, dialog } = useConfirm()
 
   // Onboarding pendiente (uso / alias / supermercados): se hace una sola vez
   // por cuenta, tanto para cuentas nuevas como para las que ya existían.
@@ -146,14 +146,21 @@ function HomePageInner() {
     router.push(`/g/${group.id}/invitar`)
   }
 
-  async function deleteGroup(group: Group) {
+  function askDeleteGroup(group: Group) {
     if (!user || group.owner_id !== user.id || deletingId) return
-    const userId = user.id
-    const ok = window.confirm(
-      `¿Borrar "${group.name}"? Se eliminan sus gastos, miembros, pagos, ingresos, ahorros, tarjetas, presupuestos y categorías.`
-    )
-    if (!ok) return
+    confirm({
+      title: `¿Borrar "${group.name}"?`,
+      message:
+        'Se eliminan sus gastos, miembros, pagos, ingresos, ahorros, tarjetas, presupuestos y categorías. No se puede deshacer.',
+      confirmLabel: 'Borrar grupo',
+      tone: 'danger',
+      onConfirm: () => deleteGroup(group),
+    })
+  }
 
+  async function deleteGroup(group: Group) {
+    if (!user) return
+    const userId = user.id
     setDeletingId(group.id)
     setDeleteError(null)
     try {
@@ -199,19 +206,11 @@ function HomePageInner() {
           <span className="min-w-0">
             <span className="flex items-center gap-2 font-medium">
               <span className="truncate">{g.name}</span>
-              {g.is_personal && (
-                <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                  personal
-                </span>
-              )}
+              {g.is_personal && <Badge>personal</Badge>}
             </span>
             <span className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
               Este mes: {formatMoney(month, g.base_currency)}
-              {!g.is_personal && (pending[g.id] ?? 0) > 0 && (
-                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                  🛒 {pending[g.id]}
-                </span>
-              )}
+              {!g.is_personal && (pending[g.id] ?? 0) > 0 && <Badge tone="amber">🛒 {pending[g.id]}</Badge>}
             </span>
           </span>
           <span className="shrink-0 text-sm text-slate-400">{g.base_currency}</span>
@@ -219,7 +218,7 @@ function HomePageInner() {
         {g.owner_id === user!.id && (
           <button
             type="button"
-            onClick={() => deleteGroup(g)}
+            onClick={() => askDeleteGroup(g)}
             disabled={deletingId !== null}
             className="border-l border-slate-100 px-3 text-sm font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:hover:bg-red-950/30"
           >
@@ -231,11 +230,9 @@ function HomePageInner() {
   }
 
   return (
-    <>
-      <Header />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-36 pt-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Grupos compartidos</h1>
+    <PageShell nav="shared" personalHref={personalGroup ? `/g/${personalGroup.id}` : null}>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold">Grupos compartidos</h1>
           <Button onClick={() => setShowForm((s) => !s)}>
             {showForm ? 'Cancelar' : '+ Nuevo grupo'}
           </Button>
@@ -303,20 +300,20 @@ function HomePageInner() {
           </Card>
         )}
 
-        {deleteError && <p className="mb-2 text-sm text-red-600">{deleteError}</p>}
+        {deleteError && (
+          <div className="mb-2">
+            <ErrorText>{deleteError}</ErrorText>
+          </div>
+        )}
         {fetching ? (
           <Spinner />
         ) : sharedGroups.length === 0 ? (
-          <Card className="text-center text-slate-500">
-            Todavía no tenés grupos compartidos. Creá uno para repartir gastos.
-          </Card>
+          <EmptyState>Todavía no tenés grupos compartidos. Creá uno para repartir gastos.</EmptyState>
         ) : (
           <div className="space-y-2">{sharedGroups.map(groupCard)}</div>
         )}
-      </main>
-
-      <BottomNav active="shared" personalHref={personalGroup ? `/g/${personalGroup.id}` : null} />
-    </>
+      {dialog}
+    </PageShell>
   )
 }
 

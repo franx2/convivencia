@@ -1,13 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
-import { BottomNav } from '@/components/BottomNav'
-import { Header } from '@/components/Header'
-import { Button, Card, Input, Spinner } from '@/components/ui'
+import { NotFoundScreen, PageShell } from '@/components/PageShell'
+import { Button, Card, IconButton, Input, Spinner } from '@/components/ui'
 import type { Group, Member } from '@/lib/types'
 
 /**
@@ -99,24 +97,11 @@ export default function InvitarPage() {
   }
 
   if (loading || !user || fetching) return <Spinner />
-  if (notFound || !group)
-    return (
-      <>
-        <Header />
-        <main className="mx-auto max-w-3xl px-4 py-10 text-center text-slate-500">
-          No encontramos este grupo.{' '}
-          <Link href="/" className="text-emerald-700 underline">
-            Volver
-          </Link>
-        </main>
-      </>
-    )
+  if (notFound || !group) return <NotFoundScreen>No encontramos este grupo.</NotFoundScreen>
 
   return (
-    <>
-      <Header />
-      <main className="mx-auto w-full max-w-lg flex-1 px-4 pb-36 pt-6">
-        <div className="mb-4 flex items-center justify-between">
+    <PageShell nav="shared" width="narrow">
+      <div className="mb-4 flex items-center justify-between">
           <p className="text-sm font-semibold text-slate-400">Paso {step} de 2</p>
           <button
             type="button"
@@ -153,9 +138,9 @@ export default function InvitarPage() {
                     {m.id === myMemberId && <span className="ml-2 text-xs text-emerald-600">vos</span>}
                   </span>
                   {m.id !== myMemberId && (
-                    <button onClick={() => removeMember(m.id)} className="text-slate-300 hover:text-red-500" title="Quitar">
+                    <IconButton label="Quitar" onClick={() => removeMember(m.id)}>
                       ✕
-                    </button>
+                    </IconButton>
                   )}
                 </div>
               ))}
@@ -206,8 +191,6 @@ export default function InvitarPage() {
             </div>
           </Card>
         )}
-      </main>
-      <BottomNav active="shared" />
-    </>
+    </PageShell>
   )
 }

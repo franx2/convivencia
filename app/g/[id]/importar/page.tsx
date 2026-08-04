@@ -5,9 +5,8 @@ import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
-import { BottomNav } from '@/components/BottomNav'
-import { Header } from '@/components/Header'
-import { Button, Card, Input, Select, Spinner } from '@/components/ui'
+import { NotFoundScreen, PageShell } from '@/components/PageShell'
+import { Button, Card, ErrorText, Input, Select, Spinner } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { fetchDolarOficialVenta } from '@/lib/dolar'
 import { mergeCategories, type CatMeta } from '@/lib/categories'
@@ -403,26 +402,18 @@ function ImportarPageClient() {
   }
 
   if (loading || !user || fetching) return <Spinner />
-  if (missing || !group)
-    return (
-      <>
-        <Header />
-        <main className="mx-auto max-w-3xl px-4 py-10 text-center text-slate-500">Grupo no encontrado.</main>
-      </>
-    )
+  if (missing || !group) return <NotFoundScreen>Grupo no encontrado.</NotFoundScreen>
 
   const noMember = !memberId
   const groups = groupForPreview(rows)
   const detected = sumByCurrency(rows.map((r, i) => ({ r, i })))
 
   return (
-    <>
-      <Header />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-36 pt-6">
+    <PageShell nav="personal" personalHref={`/g/${groupId}`}>
         <Link href={`/g/${groupId}`} className="text-sm text-slate-400 hover:text-slate-600">
           ← Volver al grupo
         </Link>
-        <h1 className="mb-1 mt-1 text-xl font-semibold">Importar resumen</h1>
+        <h1 className="mb-1 mt-1 text-2xl font-bold">Importar resumen</h1>
         <p className="mb-4 text-sm text-slate-500">
           Subí el PDF del resumen de tu tarjeta. Detecto las transacciones, las podés revisar y
           editar, y se cargan como gastos.
@@ -581,7 +572,11 @@ function ImportarPageClient() {
                 Gemini y ChatGPT usan la API key que pegás acá (gratis la de Gemini). Claude usa la
                 key configurada en el servidor.
               </p>
-              {aiError && <p className="mt-1 text-sm text-red-600">{aiError}</p>}
+              {aiError && (
+                <div className="mt-1">
+                  <ErrorText>{aiError}</ErrorText>
+                </div>
+              )}
             </div>
           )}
         </Card>
@@ -607,7 +602,7 @@ function ImportarPageClient() {
           <>
             {/* Control del total: resumen vs detectado */}
             <Card className="mb-3">
-              <p className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+              <p className="mb-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
                 Control del total ({rows.length} transacciones)
               </p>
               <ReconRow label="Pesos" stmt={totals.ars} detected={detected.ars} currency="ARS" />
@@ -629,7 +624,7 @@ function ImportarPageClient() {
                   {mg.banks.map((bg) => (
                     <div key={bg.bank} className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                        <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">
                           🏦 {bg.bank}
                         </span>
                         <span className="text-xs text-slate-400">{curLabel(bg.totals)}</span>
@@ -651,7 +646,11 @@ function ImportarPageClient() {
               ))}
             </div>
 
-            {saveError && <p className="mt-3 text-sm text-red-600">{saveError}</p>}
+            {saveError && (
+              <div className="mt-3">
+                <ErrorText>{saveError}</ErrorText>
+              </div>
+            )}
             <div className="mt-4 flex gap-2">
               <Button onClick={save} disabled={busy} className="flex-1">
                 {busy ? 'Guardando…' : `Guardar ${rows.filter((r) => r.amount > 0).length} gastos`}
@@ -659,9 +658,7 @@ function ImportarPageClient() {
             </div>
           </>
         )}
-      </main>
-      <BottomNav active="personal" personalHref={`/g/${group.id}`} />
-    </>
+    </PageShell>
   )
 }
 

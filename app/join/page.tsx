@@ -1,11 +1,11 @@
 'use client'
 
 import { Suspense, useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
-import { Card, Spinner } from '@/components/ui'
+import { NotFoundScreen } from '@/components/PageShell'
+import { Spinner } from '@/components/ui'
 
 function JoinInner() {
   const { user, loading } = useAuth()
@@ -33,19 +33,7 @@ function JoinInner() {
 
   const shownError = !token ? 'Link de invitación inválido.' : error
 
-  if (shownError)
-    return (
-      <main className="mx-auto max-w-md px-4 py-16 text-center">
-        <Card className="text-slate-600">
-          {shownError}
-          <div className="mt-3">
-            <Link href="/" className="text-emerald-700 underline">
-              Ir al inicio
-            </Link>
-          </div>
-        </Card>
-      </main>
-    )
+  if (shownError) return <NotFoundScreen>{shownError}</NotFoundScreen>
 
   return <Spinner />
 }

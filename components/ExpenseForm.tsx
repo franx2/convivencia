@@ -6,9 +6,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
 import { AmountCalculator } from '@/components/AmountCalculator'
-import { BottomNav } from '@/components/BottomNav'
-import { Header } from '@/components/Header'
-import { Button, Card, Input, Label, Select, Spinner } from '@/components/ui'
+import { NotFoundScreen, PageShell } from '@/components/PageShell'
+import { Button, Card, ErrorText, Input, Label, Select, Spinner } from '@/components/ui'
 import { CURRENCIES } from '@/lib/currencies'
 import { fetchDolarOficialVenta } from '@/lib/dolar'
 import {
@@ -314,25 +313,20 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
 
   if (fetching) return <Spinner />
   if (missing || !group)
-    return (
-      <>
-        <Header />
-        <main className="mx-auto max-w-3xl px-4 py-10 text-center text-slate-500">
-          {isEdit ? 'Gasto no encontrado.' : 'Grupo no encontrado.'}
-        </main>
-      </>
-    )
+    return <NotFoundScreen backHref={`/g/${groupId}`}>{isEdit ? 'Gasto no encontrado.' : 'Grupo no encontrado.'}</NotFoundScreen>
 
   const isBase = currency === group.base_currency
 
   return (
-    <>
-      <Header />
-      <main className="mx-auto w-full max-w-lg flex-1 px-4 pb-36 pt-6">
+    <PageShell
+      nav={group.is_personal ? 'personal' : 'shared'}
+      personalHref={group.is_personal ? `/g/${group.id}` : null}
+      width="narrow"
+    >
         <Link href={`/g/${groupId}`} className="text-sm text-slate-400 hover:text-slate-600">
           ← Volver al grupo
         </Link>
-        <h1 className="mb-4 mt-1 text-xl font-semibold">{isEdit ? 'Editar gasto' : 'Nuevo gasto'}</h1>
+        <h1 className="mb-4 mt-1 text-2xl font-bold">{isEdit ? 'Editar gasto' : 'Nuevo gasto'}</h1>
 
         <Card>
           <form onSubmit={submit} className="space-y-4">
@@ -526,14 +520,12 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
               )}
             </div>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            <ErrorText>{error}</ErrorText>
             <Button type="submit" disabled={busy} className="w-full">
               {busy ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar gasto'}
             </Button>
           </form>
         </Card>
-      </main>
-      <BottomNav active={group.is_personal ? 'personal' : 'shared'} personalHref={group.is_personal ? `/g/${group.id}` : null} />
-    </>
+    </PageShell>
   )
 }
