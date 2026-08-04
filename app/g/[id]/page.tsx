@@ -248,7 +248,7 @@ export default function GroupPage() {
             <Link
               href="/configuracion"
               aria-label="Configuración"
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-slate-200 text-xl text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-slate-200 text-xl text-slate-500 hover:bg-slate-50 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#94a19c] dark:hover:bg-[#18201d]"
             >
               ⚙️
             </Link>
@@ -262,7 +262,7 @@ export default function GroupPage() {
             <button
               type="button"
               onClick={() => setTab('lista')}
-              className="rounded-2xl bg-amber-500 p-4 text-left text-white shadow-sm transition hover:brightness-95 dark:bg-amber-600"
+              className="rounded-2xl border border-amber-400 bg-amber-500 p-4 text-left text-white shadow-sm transition hover:brightness-95 dark:border-[#665027] dark:bg-[#4a351d] dark:text-[#ffe0a8] dark:shadow-none"
             >
               <span className="text-3xl">🛒</span>
               <span className="mt-2 block text-sm font-semibold text-amber-50">Lista de compras</span>
@@ -273,7 +273,7 @@ export default function GroupPage() {
             <button
               type="button"
               onClick={() => setTab('gastos')}
-              className="rounded-2xl bg-emerald-700 p-4 text-left text-white shadow-sm transition hover:brightness-95 dark:bg-emerald-800"
+              className="rounded-2xl border border-emerald-700 bg-emerald-700 p-4 text-left text-white shadow-sm transition hover:brightness-95 dark:border-[#29614f] dark:bg-[#1d5d48] dark:text-[#b8ffe6] dark:shadow-none"
             >
               <span className="text-3xl">💸</span>
               <span className="mt-2 block text-sm font-semibold text-emerald-50">Gastos del mes</span>
@@ -307,7 +307,7 @@ export default function GroupPage() {
           />
         )}
 
-        <div ref={tabsRef} className="mb-5 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1 text-sm dark:bg-slate-800">
+        <div ref={tabsRef} className="mb-5 flex gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1.5 text-sm dark:bg-[#131816]">
           {tabs.map((t) => (
             <button
               key={t.key}
@@ -315,8 +315,8 @@ export default function GroupPage() {
               onClick={() => setTab(t.key)}
               className={`flex-1 whitespace-nowrap rounded-md px-3 py-1.5 font-medium ${
                 activeTab === t.key
-                  ? 'bg-white shadow-sm dark:bg-slate-700 dark:text-slate-100'
-                  : 'text-slate-500 dark:text-slate-400'
+                  ? 'bg-white shadow-sm dark:bg-[#18201d] dark:text-[#4ee6b0]'
+                  : 'text-slate-500 dark:text-[#94a19c]'
               }`}
             >
               {t.label}

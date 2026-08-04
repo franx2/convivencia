@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#000000",
+  themeColor: "#0B0E0D",
   // Necesario para que env(safe-area-inset-*) tenga valor en iPhone con notch/
   // home indicator; sin esto el toolbar inferior queda pegado/cortado al borde.
   viewportFit: "cover",

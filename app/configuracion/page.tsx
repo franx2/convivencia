@@ -133,7 +133,7 @@ export default function ConfiguracionPage() {
           <p className="font-semibold">Apariencia</p>
           <p className="text-xs text-slate-400">Automatico sigue el modo configurado en tu celular.</p>
         </div>
-        <div role="radiogroup" aria-label="Apariencia" className="mt-3 grid grid-cols-3 rounded-xl bg-slate-100 p-1 dark:bg-[#1c1c1e]">
+        <div role="radiogroup" aria-label="Apariencia" className="mt-3 grid grid-cols-3 rounded-xl bg-slate-100 p-1 dark:bg-[#18201d]">
           <ThemeModeButton active={mode === 'auto'} label="Auto" Icon={Smartphone} onClick={() => setMode('auto')} />
           <ThemeModeButton active={mode === 'light'} label="Claro" Icon={Sun} onClick={() => setMode('light')} />
           <ThemeModeButton active={mode === 'dark'} label="Oscuro" Icon={Moon} onClick={() => setMode('dark')} />
@@ -166,8 +166,8 @@ function ThemeModeButton({
       onClick={onClick}
       className={`flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold transition ${
         active
-          ? 'bg-white text-emerald-700 shadow-sm dark:bg-[#303030] dark:text-emerald-300'
-          : 'text-slate-500 hover:text-slate-700 dark:text-[#a8a8ad] dark:hover:text-[#f5f5f7]'
+          ? 'bg-white text-emerald-700 shadow-sm dark:bg-[#22302a] dark:text-[#4ee6b0]'
+          : 'text-slate-500 hover:text-slate-700 dark:text-[#94a19c] dark:hover:text-[#f4f7f6]'
       }`}
     >
       <Icon size={15} strokeWidth={2.3} />

@@ -412,7 +412,7 @@ function ImportarPageClient() {
     <PageShell nav="personal" personalHref={`/g/${groupId}`}>
         <Link
           href={`/g/${groupId}`}
-          className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-200"
+          className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#e0e7e3] dark:hover:border-[#4ee6b0] dark:hover:bg-[#173e32] dark:hover:text-[#b8ffe6]"
         >
           <span aria-hidden="true" className="text-lg leading-none">←</span>
           Volver al grupo
@@ -456,7 +456,7 @@ function ImportarPageClient() {
               accept="application/pdf"
               onChange={onFile}
               disabled={noMember}
-              className="block w-full text-sm text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-emerald-700"
+              className="block w-full text-sm text-slate-500 file:mr-3 file:rounded-xl file:border-0 file:bg-emerald-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-emerald-700 dark:text-[#94a19c] dark:file:bg-[#4ee6b0] dark:file:text-[#062419] dark:hover:file:bg-[#72efc1]"
             />
           </label>
           {fileName && <p className="mt-2 text-xs text-slate-400">{fileName}</p>}

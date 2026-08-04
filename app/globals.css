@@ -12,28 +12,34 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
-/* Fondo negro real, superficies apenas elevadas y separadores sutiles. */
+/* Sistema visual del producto: fondo profundo, superficies verdes apagadas y acento menta. */
 .dark {
   color-scheme: dark;
-  background: #000;
+  background: #0b0e0d;
 }
 
 .dark body {
-  background: #000;
-  color: #f5f5f7;
+  background: #0b0e0d;
+  color: #f4f7f6;
 }
 
 /* Equivalencias globales para las utilidades oscuras existentes. */
-.dark .dark\:bg-slate-950 { background-color: #000 !important; }
-.dark .dark\:bg-slate-900 { background-color: #121212 !important; }
-.dark .dark\:bg-slate-800 { background-color: #1c1c1e !important; }
-.dark .dark\:bg-slate-700 { background-color: #2c2c2e !important; }
-.dark .dark\:border-slate-800 { border-color: #262626 !important; }
-.dark .dark\:border-slate-700 { border-color: #303030 !important; }
-.dark .dark\:text-slate-100 { color: #f5f5f7 !important; }
-.dark .dark\:text-slate-200 { color: #e6e6e8 !important; }
-.dark .dark\:text-slate-300 { color: #c7c7cc !important; }
-.dark .dark\:text-slate-400 { color: #a8a8ad !important; }
-.dark .dark\:text-slate-500 { color: #85858b !important; }
-.dark .dark\:hover\:bg-slate-800:hover { background-color: #1c1c1e !important; }
-.dark .dark\:hover\:bg-slate-700:hover { background-color: #2c2c2e !important; }
+.dark .dark\:bg-slate-950 { background-color: #0b0e0d !important; }
+.dark .dark\:bg-slate-900 { background-color: #131816 !important; }
+.dark .dark\:bg-slate-800 { background-color: #18201d !important; }
+.dark .dark\:bg-slate-700 { background-color: #22302a !important; }
+.dark .dark\:border-slate-800 { border-color: #26312d !important; }
+.dark .dark\:border-slate-700 { border-color: #34423c !important; }
+.dark .dark\:text-slate-100 { color: #f4f7f6 !important; }
+.dark .dark\:text-slate-200 { color: #e0e7e3 !important; }
+.dark .dark\:text-slate-300 { color: #c1cbc6 !important; }
+.dark .dark\:text-slate-400 { color: #94a19c !important; }
+.dark .dark\:text-slate-500 { color: #74817b !important; }
+.dark .dark\:hover\:bg-slate-900:hover { background-color: #18201d !important; }
+.dark .dark\:hover\:bg-slate-800:hover { background-color: #22302a !important; }
+.dark .dark\:hover\:bg-slate-700:hover { background-color: #2c3a34 !important; }
+
+.dark ::selection {
+  background: #173e32;
+  color: #f4f7f6;
+}

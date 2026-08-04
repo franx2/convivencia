@@ -12,11 +12,11 @@ export function Button({
   const base =
     'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed'
   const variants = {
-    primary: 'bg-emerald-600 text-white hover:bg-emerald-700',
+    primary: 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-[#4ee6b0] dark:text-[#062419] dark:hover:bg-[#72efc1]',
     ghost:
-      'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 dark:border-[#303030] dark:bg-[#171717] dark:text-[#e6e6e8] dark:hover:bg-[#262626]',
+      'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#e0e7e3] dark:hover:bg-[#18201d]',
     danger:
-      'bg-white text-red-600 border border-red-200 hover:bg-red-50 dark:border-red-950 dark:bg-[#171717] dark:hover:bg-red-950/30',
+      'bg-white text-red-600 border border-red-200 hover:bg-red-50 dark:border-[#5a2f35] dark:bg-[#131816] dark:hover:bg-red-950/30',
   }
   return <button className={`${base} ${variants[variant]} ${className}`} {...props} />
 }
@@ -24,7 +24,7 @@ export function Button({
 export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#303030] dark:bg-[#121212] dark:text-[#f5f5f7] dark:focus:ring-emerald-900/40 ${className}`}
+      className={`w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#f4f7f6] dark:focus:border-[#4ee6b0] dark:focus:ring-[#173e32] ${className}`}
       {...props}
     />
   )
@@ -33,7 +33,7 @@ export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInpu
 export function Select({ className = '', children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={`w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#303030] dark:bg-[#121212] dark:text-[#f5f5f7] dark:focus:ring-emerald-900/40 ${className}`}
+      className={`w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#f4f7f6] dark:focus:border-[#4ee6b0] dark:focus:ring-[#173e32] ${className}`}
       {...props}
     >
       {children}
@@ -48,7 +48,7 @@ export function Card({
 }: HTMLAttributes<HTMLDivElement> & { children: ReactNode }) {
   return (
     <div
-      className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-[#262626] dark:bg-[#121212] dark:shadow-none ${className}`}
+      className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-[#26312d] dark:bg-[#131816] dark:shadow-none ${className}`}
       {...props}
     >
       {children}
@@ -170,9 +170,9 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 px-0 sm:items-center sm:px-4">
       <div
-        className={`max-h-[85vh] w-full ${maxWidth} overflow-y-auto rounded-t-[28px] bg-white shadow-2xl dark:bg-[#0c0c0d] sm:rounded-[28px]`}
+        className={`max-h-[85vh] w-full ${maxWidth} overflow-y-auto rounded-t-[28px] bg-white shadow-2xl dark:bg-[#0b0e0d] sm:rounded-[28px]`}
       >
-        <div className="sticky top-0 flex items-center justify-between gap-3 border-b border-slate-100 bg-white px-5 py-4 dark:border-[#262626] dark:bg-[#0c0c0d]">
+        <div className="sticky top-0 flex items-center justify-between gap-3 border-b border-slate-100 bg-white px-5 py-4 dark:border-[#26312d] dark:bg-[#0b0e0d]">
           <h3 className="text-lg font-bold">{title}</h3>
           <button
             type="button"

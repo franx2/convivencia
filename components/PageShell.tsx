@@ -27,7 +27,7 @@ export function PageShell({
   return (
     <>
       <Header />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 pt-6">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 pt-5 sm:pt-6">
         <div className={width === 'narrow' ? 'mx-auto w-full max-w-lg' : ''}>{children}</div>
       </main>
       {nav && <BottomNav active={nav} personalHref={personalHref} />}
@@ -40,7 +40,7 @@ export function NotFoundScreen({ children, backHref = '/' }: { children: ReactNo
   return (
     <>
       <Header />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-16 text-center text-slate-500 dark:text-slate-400">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-16 text-center text-slate-500 dark:text-[#94a19c]">
         <p>{children}</p>
         <Link href={backHref} className="mt-3 inline-block font-medium text-emerald-700 underline dark:text-emerald-400">
           Volver

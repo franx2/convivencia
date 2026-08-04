@@ -147,13 +147,13 @@ export default function SuperPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <Card className="flex items-center gap-3 border-emerald-100 bg-emerald-50/60 dark:border-emerald-900/60 dark:bg-emerald-950/25">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-700 text-white">
+          <Card className="flex items-center gap-3 border-emerald-100 bg-emerald-50/60 dark:border-[#29614f] dark:bg-[#18201d]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-700 text-white dark:bg-[#173e32] dark:text-[#4ee6b0]">
               <ShoppingBasket size={21} aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <p className="text-sm text-emerald-800 dark:text-emerald-300">Lista de convivencia</p>
-              <p className="truncate font-semibold text-emerald-950 dark:text-emerald-100">{activeGroup.name}</p>
+              <p className="text-sm text-emerald-800 dark:text-[#94a19c]">Lista de convivencia</p>
+              <p className="truncate font-semibold text-emerald-950 dark:text-[#f4f7f6]">{activeGroup.name}</p>
             </div>
           </Card>
           <ListaComprasTab groupId={activeGroup.id} items={items} onChanged={() => void loadItems(activeGroup.id)} />
