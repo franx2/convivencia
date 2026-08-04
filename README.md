@@ -62,6 +62,17 @@ Seguridad por **Row Level Security**: solo ves/editás un grupo si estás en `gr
 4. En **Supabase → Authentication → URL Configuration**, agregar la URL de Vercel en
    *Site URL* y *Redirect URLs*.
 
+## Login con Google y Apple
+
+La interfaz ya incluye ambos botones. Para activarlos hay que configurar los proveedores en Supabase:
+
+1. En **Supabase -> Authentication -> Providers**, habilitar Google y Apple.
+2. En Google Cloud, crear las credenciales OAuth web y agregar como redirect URI:
+   `https://<project-ref>.supabase.co/auth/v1/callback`.
+3. En Apple Developer, crear un Services ID, activar Sign in with Apple y cargar el Client ID, Team ID, Key ID y private key en el proveedor Apple de Supabase.
+4. En **Supabase -> Authentication -> URL Configuration**, agregar tambien:
+   `http://localhost:3000/login` y `https://<tu-dominio>/login` en *Redirect URLs*.
+
 ## Rutas
 
 - `/login` — registro / ingreso.
