@@ -28,6 +28,7 @@ function HomePageInner() {
   const section = searchParams.get('section') === 'viajes' ? 'viajes' : 'convivencia'
   const [groups, setGroups] = useState<Group[]>([])
   const [totals, setTotals] = useState<Record<string, number>>({})
+  const [lifetimeTotals, setLifetimeTotals] = useState<Record<string, number>>({})
   const [pending, setPending] = useState<Record<string, number>>({})
   const [fetching, setFetching] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -86,16 +87,19 @@ function HomePageInner() {
         .in('group_id', ids)
       const month = new Date().toISOString().slice(0, 7)
       const t: Record<string, number> = {}
+      const lifetime: Record<string, number> = {}
       for (const e of (ex ?? []) as {
         group_id: string
         amount: number
         rate_to_base: number
         date: string
       }[]) {
-        if (String(e.date).slice(0, 7) !== month) continue
-        t[e.group_id] = (t[e.group_id] ?? 0) + Number(e.amount) * Number(e.rate_to_base)
+        const amount = Number(e.amount) * Number(e.rate_to_base)
+        lifetime[e.group_id] = (lifetime[e.group_id] ?? 0) + amount
+        if (String(e.date).slice(0, 7) === month) t[e.group_id] = (t[e.group_id] ?? 0) + amount
       }
       setTotals(t)
+      setLifetimeTotals(lifetime)
 
       // Pendientes de la lista de compras por grupo, para destacarla en la home.
       const { data: shop } = await supabase
@@ -212,7 +216,8 @@ function HomePageInner() {
   const canCreateGroup = section === 'viajes' || !hasConvivencia
 
   function groupCard(g: Group) {
-    const month = totals[g.id] ?? 0
+    const isTravel = g.kind === 'viaje'
+    const total = isTravel ? lifetimeTotals[g.id] ?? 0 : totals[g.id] ?? 0
     return (
       <Card
         key={g.id}
@@ -225,7 +230,7 @@ function HomePageInner() {
               {g.is_personal && <Badge>personal</Badge>}
             </span>
             <span className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
-              Este mes: {formatMoney(month, g.base_currency)}
+              {isTravel ? 'Gasto total' : 'Este mes'}: {formatMoney(total, g.base_currency)}
               {!g.is_personal && (pending[g.id] ?? 0) > 0 && <Badge tone="amber">🛒 {pending[g.id]}</Badge>}
             </span>
           </span>
