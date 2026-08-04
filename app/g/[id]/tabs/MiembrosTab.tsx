@@ -85,18 +85,21 @@ export function MiembrosTab({
         .eq(col, memberId)
       return error ? 0 : n ?? 0
     }
-    const [shares, incomes, savings, payFrom, payTo] = await Promise.all([
+    const [shares, incomes, savings, payFrom, payTo, recurring, recurringShares] = await Promise.all([
       count('expense_shares', 'member_id'),
       count('incomes', 'member_id'),
       count('savings', 'member_id'),
       count('payments', 'from_member'),
       count('payments', 'to_member'),
+      count('recurring_expenses', 'paid_by'),
+      count('recurring_expense_shares', 'member_id'),
     ])
     const parts: string[] = []
     if (shares) parts.push('participa en gastos')
     if (incomes) parts.push('tiene ingresos cargados')
     if (savings) parts.push('tiene ahorros cargados')
     if (payFrom + payTo) parts.push('tiene pagos registrados')
+    if (recurring + recurringShares) parts.push('está en gastos recurrentes')
     return parts.length ? parts.join(', ') : null
   }
 

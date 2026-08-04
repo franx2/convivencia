@@ -8,13 +8,17 @@ import { Donut, MonthlyBars } from '@/components/charts'
 import { formatMoney } from '@/lib/currencies'
 import { type CatMeta } from '@/lib/categories'
 import { spendByCategory, spendByMonth } from '@/lib/balances'
-import { type Expense, type Group, type Template } from '@/lib/types'
+import { type Expense, type Group, type Member, type RecurringExpense, type Template } from '@/lib/types'
 import { monthLabelEs } from './shared'
+import { RecurringExpenses } from './RecurringExpenses'
 
 export function GastosTab({
   group,
   expenses,
   templates,
+  recurring,
+  members,
+  myMemberId,
   cats,
   memberName,
   catMeta,
@@ -24,6 +28,9 @@ export function GastosTab({
   group: Group
   expenses: Expense[]
   templates: Template[]
+  recurring: RecurringExpense[]
+  members: Member[]
+  myMemberId: string | null
   cats: CatMeta[]
   memberName: (id: string) => string
   catMeta: (v: string) => CatMeta
@@ -159,6 +166,19 @@ export function GastosTab({
 
   return (
     <div id="section-gastos" className="scroll-mt-24 space-y-3">
+      {hasMembers && (
+        <RecurringExpenses
+          group={group}
+          members={members}
+          recurring={recurring}
+          cats={cats}
+          catMeta={catMeta}
+          memberName={memberName}
+          defaultPaidBy={myMemberId ?? ''}
+          onChanged={onChanged}
+        />
+      )}
+
       {hasMembers && (
         <Card>
           <div className="mb-2 flex items-center justify-between">

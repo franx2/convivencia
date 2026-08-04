@@ -53,6 +53,28 @@ export type ExpenseShare = {
   weight: number // peso del participante en este gasto (1 = parte igual)
 }
 
+export type RecurringExpense = {
+  id: string
+  group_id: string
+  title: string
+  amount: number
+  currency: string
+  rate_to_base: number
+  paid_by: string
+  category: string
+  day_of_month: number
+  active: boolean
+  last_month: string | null // mes ya generado (día 1), para no duplicar
+  created_by: string | null
+  created_at: string
+}
+
+export type RecurringExpenseShare = {
+  recurring_id: string
+  member_id: string
+  weight: number
+}
+
 export type Template = {
   id: string
   group_id: string

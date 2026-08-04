@@ -20,6 +20,7 @@ import type {
   Income,
   Member,
   Payment,
+  RecurringExpense,
   Saving,
   ShoppingItem,
   Template,
@@ -56,6 +57,7 @@ export default function GroupPage() {
   const [cards, setCards] = useState<CreditCard[]>([])
   const [discounts, setDiscounts] = useState<BankDiscount[]>([])
   const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([])
+  const [recurring, setRecurring] = useState<RecurringExpense[]>([])
   const [myMemberId, setMyMemberId] = useState<string | null>(null)
   const [fetching, setFetching] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -91,6 +93,7 @@ export default function GroupPage() {
       { data: crd },
       { data: bdis },
       { data: shop },
+      { data: rec },
     ] = await Promise.all([
       supabase.from('members').select('*').eq('group_id', groupId).order('created_at'),
       supabase.from('expenses').select('*').eq('group_id', groupId).order('date', { ascending: false }),
@@ -103,6 +106,7 @@ export default function GroupPage() {
       supabase.from('cards').select('*').eq('group_id', groupId).order('created_at', { ascending: false }),
       supabase.from('bank_discounts').select('*').order('discount_percent', { ascending: false, nullsFirst: false }),
       supabase.from('shopping_items').select('*').eq('group_id', groupId).order('created_at'),
+      supabase.from('recurring_expenses').select('*').eq('group_id', groupId).order('day_of_month'),
     ])
     setMembers((m ?? []) as Member[])
     setMyMemberId(linkedMemberId)
@@ -115,6 +119,8 @@ export default function GroupPage() {
     setCards((crd ?? []) as CreditCard[])
     setDiscounts((bdis ?? []) as BankDiscount[])
     setShoppingItems((shop ?? []) as ShoppingItem[])
+    // Tolerante a que falte la migración de recurrentes (rec queda null).
+    setRecurring((rec ?? []) as RecurringExpense[])
     const exp = (e ?? []) as Expense[]
     setExpenses(exp)
     if (exp.length) {
@@ -320,6 +326,9 @@ export default function GroupPage() {
             group={group}
             expenses={expenses}
             templates={templates}
+            recurring={recurring}
+            members={members}
+            myMemberId={myMemberId}
             cats={cats}
             memberName={memberName}
             catMeta={catMeta}

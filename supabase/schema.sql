@@ -571,6 +571,135 @@ $$;
 grant execute on function public.create_group(text, text, text, text, boolean, text) to authenticated;
 
 -- ============================================================
+-- Gastos recurrentes (ver migration_recurring_expenses.sql)
+-- Se generan solos con pg_cron; la función es idempotente por (recurrente, mes).
+-- ============================================================
+
+create table if not exists public.recurring_expenses (
+  id            uuid primary key default gen_random_uuid(),
+  group_id      uuid not null references public.groups(id) on delete cascade,
+  title         text not null,
+  amount        numeric(14,2) not null check (amount > 0),
+  currency      text not null default 'ARS',
+  rate_to_base  numeric(18,8) not null default 1 check (rate_to_base > 0),
+  paid_by       uuid not null references public.members(id) on delete cascade,
+  category      text not null default 'otros',
+  day_of_month  integer not null check (day_of_month between 1 and 31),
+  active        boolean not null default true,
+  last_month    date,
+  created_by    uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at    timestamptz not null default now()
+);
+create index if not exists idx_recurring_expenses_group on public.recurring_expenses(group_id);
+
+create table if not exists public.recurring_expense_shares (
+  recurring_id uuid not null references public.recurring_expenses(id) on delete cascade,
+  member_id    uuid not null references public.members(id) on delete cascade,
+  weight       numeric(12,4) not null default 1 check (weight > 0),
+  primary key (recurring_id, member_id)
+);
+
+-- Si al crearlo el día de este mes ya pasó, arranca el mes que viene (no genera
+-- un gasto retroactivo por algo recién creado).
+create or replace function public.recurring_expenses_set_start()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.last_month is null and new.day_of_month < extract(day from current_date)::int then
+    new.last_month := date_trunc('month', current_date)::date;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_recurring_expenses_set_start on public.recurring_expenses;
+create trigger trg_recurring_expenses_set_start
+  before insert on public.recurring_expenses
+  for each row execute function public.recurring_expenses_set_start();
+
+alter table public.recurring_expenses enable row level security;
+drop policy if exists recurring_expenses_all on public.recurring_expenses;
+create policy recurring_expenses_all on public.recurring_expenses
+  for all using (public.is_group_member(group_id))
+  with check (public.is_group_member(group_id));
+
+alter table public.recurring_expense_shares enable row level security;
+drop policy if exists recurring_expense_shares_all on public.recurring_expense_shares;
+create policy recurring_expense_shares_all on public.recurring_expense_shares
+  for all using (
+    exists (
+      select 1 from public.recurring_expenses r
+      where r.id = recurring_id and public.is_group_member(r.group_id)
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.recurring_expenses r
+      where r.id = recurring_id and public.is_group_member(r.group_id)
+    )
+  );
+
+grant select, insert, update, delete on
+  public.recurring_expenses,
+  public.recurring_expense_shares
+to authenticated;
+
+create or replace function public.generate_recurring_expenses()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r            record;
+  target_month date;
+  due_date     date;
+  new_id       uuid;
+  created      integer := 0;
+begin
+  for r in
+    select * from public.recurring_expenses where active
+  loop
+    target_month := coalesce(r.last_month + interval '1 month', date_trunc('month', current_date))::date;
+
+    while target_month <= date_trunc('month', current_date)::date loop
+      due_date := target_month
+        + (least(
+             r.day_of_month,
+             extract(day from (target_month + interval '1 month' - interval '1 day'))::int
+           ) - 1) * interval '1 day';
+
+      exit when due_date > current_date;
+
+      insert into public.expenses (group_id, title, amount, currency, rate_to_base, paid_by, date, category)
+      values (r.group_id, r.title, r.amount, r.currency, r.rate_to_base, r.paid_by, due_date, r.category)
+      returning id into new_id;
+
+      insert into public.expense_shares (expense_id, member_id, weight)
+      select new_id, s.member_id, s.weight
+      from public.recurring_expense_shares s
+      where s.recurring_id = r.id;
+
+      -- Nunca dejamos un gasto sin participantes (rompía los balances, bug F2).
+      if not found then
+        insert into public.expense_shares (expense_id, member_id, weight)
+        values (new_id, r.paid_by, 1);
+      end if;
+
+      update public.recurring_expenses set last_month = target_month where id = r.id;
+      created := created + 1;
+      target_month := (target_month + interval '1 month')::date;
+    end loop;
+  end loop;
+
+  return created;
+end;
+$$;
+
+grant execute on function public.generate_recurring_expenses() to authenticated;
+
+-- ============================================================
 -- Reemplazo atómico del reparto de un gasto (F9, ver
 -- migration_expense_shares_atomic.sql). Sin esto, el cliente borraba los
 -- shares y después insertaba: si fallaba el insert, el gasto quedaba sin
