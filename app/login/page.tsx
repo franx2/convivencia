@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Apple } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
 import { Button, Card, Input, Label } from '@/components/ui'
@@ -15,7 +14,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [oauthBusy, setOauthBusy] = useState<'google' | 'apple' | null>(null)
+  const [oauthBusy, setOauthBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
 
@@ -35,21 +34,21 @@ export default function LoginPage() {
     }
   }, [user, loading, router])
 
-  async function signInWithProvider(provider: 'google' | 'apple') {
+  async function signInWithGoogle() {
     if (typeof window === 'undefined') return
-    setOauthBusy(provider)
+    setOauthBusy(true)
     setError(null)
     setInfo(null)
     const next = new URLSearchParams(window.location.search).get('next')
     if (next?.startsWith('/')) sessionStorage.setItem('oauth-next', next)
 
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider,
+      provider: 'google',
       options: { redirectTo: `${window.location.origin}/login` },
     })
     if (oauthError) {
       setError(oauthError.message)
-      setOauthBusy(null)
+      setOauthBusy(false)
     }
   }
 
@@ -131,21 +130,12 @@ export default function LoginPage() {
             <div className="mb-5 space-y-2">
               <button
                 type="button"
-                onClick={() => void signInWithProvider('google')}
-                disabled={busy || oauthBusy !== null}
+                onClick={() => void signInWithGoogle()}
+                disabled={busy || oauthBusy}
                 className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#f4f7f6] dark:hover:bg-[#18201d]"
               >
                 <span className="grid h-5 w-5 place-items-center rounded-full bg-[#4285f4] text-xs font-black text-white">G</span>
-                {oauthBusy === 'google' ? 'Conectando...' : 'Continuar con Google'}
-              </button>
-              <button
-                type="button"
-                onClick={() => void signInWithProvider('apple')}
-                disabled={busy || oauthBusy !== null}
-                className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#f4f7f6] dark:hover:bg-[#18201d]"
-              >
-                <Apple size={18} strokeWidth={2.3} />
-                {oauthBusy === 'apple' ? 'Conectando...' : 'Continuar con Apple'}
+                {oauthBusy ? 'Conectando...' : 'Continuar con Google'}
               </button>
               <div className="flex items-center gap-3 pt-1 text-xs text-slate-400 dark:text-[#94a19c]" aria-hidden="true">
                 <span className="h-px flex-1 bg-slate-200 dark:bg-[#26312d]" />
@@ -194,7 +184,7 @@ export default function LoginPage() {
             )}
             {error && <p className="text-sm text-red-600">{error}</p>}
             {info && <p className="text-sm text-emerald-700">{info}</p>}
-            <Button type="submit" disabled={busy || oauthBusy !== null} className="w-full">
+            <Button type="submit" disabled={busy || oauthBusy} className="w-full">
               {busy
                 ? 'Procesando…'
                 : mode === 'signin'
