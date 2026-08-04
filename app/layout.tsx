@@ -29,7 +29,7 @@ export const viewport: Viewport = {
 };
 
 // Aplica el tema guardado antes del primer paint para evitar flash.
-const themeScript = `(function(){try{var t=localStorage.getItem('theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
+const themeScript = `(function(){try{var t=localStorage.getItem('theme');var m=t==='light'||t==='dark'?t:'auto';var d=m==='dark'||m==='auto'&&window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);}catch(e){}})();`;
 
 export default function RootLayout({
   children,

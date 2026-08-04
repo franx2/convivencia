@@ -244,24 +244,61 @@ export function useConfirm() {
 }
 
 /** Lee/escribe el tema. Compartido por el toggle del Header y el de Configuración. */
+export type ThemeMode = 'auto' | 'light' | 'dark'
+
+function storedThemeMode(): ThemeMode {
+  try {
+    const saved = localStorage.getItem('theme')
+    return saved === 'light' || saved === 'dark' || saved === 'auto' ? saved : 'auto'
+  } catch {
+    return 'auto'
+  }
+}
+
 export function useDarkMode() {
   const [dark, setDark] = useState(false)
+  const [mode, setThemeMode] = useState<ThemeMode>('auto')
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- lee el tema que fijó el script anti-flash antes de hidratar
-    setDark(document.documentElement.classList.contains('dark'))
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const sync = () => {
+      const nextMode = storedThemeMode()
+      const nextDark = nextMode === 'dark' || (nextMode === 'auto' && media.matches)
+      setThemeMode(nextMode)
+      setDark(nextDark)
+      document.documentElement.classList.toggle('dark', nextDark)
+    }
+    const onSystemThemeChange = (event: MediaQueryListEvent) => {
+      if (storedThemeMode() !== 'auto') return
+      setDark(event.matches)
+      document.documentElement.classList.toggle('dark', event.matches)
+    }
+    sync()
+    media.addEventListener('change', onSystemThemeChange)
+    window.addEventListener('covivencia-theme-change', sync)
+    return () => {
+      media.removeEventListener('change', onSystemThemeChange)
+      window.removeEventListener('covivencia-theme-change', sync)
+    }
   }, [])
+
+  function setMode(nextMode: ThemeMode) {
+    const nextDark = nextMode === 'dark' || (nextMode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    setThemeMode(nextMode)
+    setDark(nextDark)
+    document.documentElement.classList.toggle('dark', nextDark)
+    try {
+      localStorage.setItem('theme', nextMode)
+    } catch {
+      // Ignore private mode or browsers without storage.
+    }
+    window.dispatchEvent(new Event('covivencia-theme-change'))
+  }
 
   function toggle() {
     const next = !dark
-    setDark(next)
-    document.documentElement.classList.toggle('dark', next)
-    try {
-      localStorage.setItem('theme', next ? 'dark' : 'light')
-    } catch {
-      // ignorar (modo privado / sin storage)
-    }
+    setMode(next ? 'dark' : 'light')
   }
 
-  return { dark, toggle }
+  return { dark, mode, setMode, toggle }
 }

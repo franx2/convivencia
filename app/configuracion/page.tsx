@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Moon, Smartphone, Sun, type LucideIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth, useRequireAuth } from '@/components/AuthProvider'
 import { PageShell } from '@/components/PageShell'
@@ -23,7 +24,7 @@ export default function ConfiguracionPage() {
   const [name, setName] = useState('')
   const [alias, setAlias] = useState('')
   const [stores, setStores] = useState<string[]>([])
-  const { dark, toggle: toggleDark } = useDarkMode()
+  const { mode, setMode } = useDarkMode()
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -127,30 +128,50 @@ export default function ConfiguracionPage() {
         </Button>
       </Card>
 
-      <Card className="mt-4 flex items-center justify-between">
+      <Card className="mt-4">
         <div>
-          <p className="font-semibold">Modo oscuro</p>
-          <p className="text-xs text-slate-400">Cambia el aspecto de la app.</p>
+          <p className="font-semibold">Apariencia</p>
+          <p className="text-xs text-slate-400">Automatico sigue el modo configurado en tu celular.</p>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={dark}
-          aria-label="Modo oscuro"
-          onClick={toggleDark}
-          className={`relative h-7 w-12 shrink-0 rounded-full transition ${
-            dark ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-          }`}
-        >
-          <span
-            className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${dark ? 'left-[22px]' : 'left-0.5'}`}
-          />
-        </button>
+        <div role="radiogroup" aria-label="Apariencia" className="mt-3 grid grid-cols-3 rounded-xl bg-slate-100 p-1 dark:bg-[#1c1c1e]">
+          <ThemeModeButton active={mode === 'auto'} label="Auto" Icon={Smartphone} onClick={() => setMode('auto')} />
+          <ThemeModeButton active={mode === 'light'} label="Claro" Icon={Sun} onClick={() => setMode('light')} />
+          <ThemeModeButton active={mode === 'dark'} label="Oscuro" Icon={Moon} onClick={() => setMode('dark')} />
+        </div>
       </Card>
 
       <Button variant="danger" onClick={handleSignOut} className="mt-4 w-full py-3 font-bold">
         Cerrar sesión
       </Button>
     </PageShell>
+  )
+}
+
+function ThemeModeButton({
+  active,
+  label,
+  Icon,
+  onClick,
+}: {
+  active: boolean
+  label: string
+  Icon: LucideIcon
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onClick}
+      className={`flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold transition ${
+        active
+          ? 'bg-white text-emerald-700 shadow-sm dark:bg-[#303030] dark:text-emerald-300'
+          : 'text-slate-500 hover:text-slate-700 dark:text-[#a8a8ad] dark:hover:text-[#f5f5f7]'
+      }`}
+    >
+      <Icon size={15} strokeWidth={2.3} />
+      {label}
+    </button>
   )
 }
