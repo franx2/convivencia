@@ -75,7 +75,7 @@ export function BottomNav({ active, personalHref }: BottomNavProps) {
 
   return (
     <nav className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-50 px-3">
-      <div className="mx-auto grid max-w-lg grid-cols-5 gap-1 rounded-[1.75rem] border border-slate-200/90 bg-white/95 p-1.5 shadow-[0_12px_35px_rgba(15,23,42,0.22)] backdrop-blur dark:border-slate-700/90 dark:bg-slate-950/95">
+      <div className="mx-auto grid max-w-lg grid-cols-5 gap-1 rounded-[1.75rem] border border-slate-200/90 bg-white/95 p-1.5 shadow-[0_12px_35px_rgba(15,23,42,0.22)] backdrop-blur dark:border-[#2a2a2a] dark:bg-[#0c0c0d]/95 dark:shadow-[0_14px_38px_rgba(0,0,0,0.7)]">
         <NavItem
           active={active === 'personal'}
           disabled={!resolvedPersonalHref}
@@ -112,8 +112,8 @@ function NavItem({
 }) {
   const cls = `flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-[1.25rem] px-1 py-2 text-center transition ${
     active
-      ? 'bg-emerald-700 text-white shadow-sm dark:bg-emerald-600'
-      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
+      ? 'bg-emerald-700 text-white shadow-sm dark:bg-[#2c2c2e]'
+      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-[#a8a8ad] dark:hover:bg-[#1c1c1e] dark:hover:text-white'
   } ${disabled ? 'pointer-events-none opacity-45' : ''}`
 
   const body = (

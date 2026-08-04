@@ -72,7 +72,7 @@ export function AmountCalculator({ value, currency, onChange, autoOpen = false }
       <button
         type="button"
         onClick={openCalc}
-        className="flex min-h-10 w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm outline-none transition hover:border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-emerald-900/40"
+        className="flex min-h-10 w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm outline-none transition hover:border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#303030] dark:bg-[#121212] dark:text-[#f5f5f7] dark:focus:ring-emerald-900/40"
       >
         <span className={value ? 'font-semibold text-slate-800 dark:text-slate-100' : 'text-slate-400'}>
           {value ? moneyPreview(Number(value), currency) : '0,00'}
@@ -84,7 +84,7 @@ export function AmountCalculator({ value, currency, onChange, autoOpen = false }
 
       {open && (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 px-0 sm:items-center sm:px-4">
-          <div className="w-full max-w-md overflow-hidden rounded-t-[28px] bg-white shadow-2xl dark:bg-slate-950 sm:rounded-[28px]">
+          <div className="w-full max-w-md overflow-hidden rounded-t-[28px] bg-white shadow-2xl dark:bg-[#0c0c0d] sm:rounded-[28px]">
             <div className="bg-rose-400 px-6 pb-10 pt-7 text-white">
               <div className="mb-8 flex items-center justify-between">
                 <button
@@ -119,7 +119,7 @@ export function AmountCalculator({ value, currency, onChange, autoOpen = false }
               </div>
             </div>
 
-            <div className="-mt-6 rounded-t-[28px] bg-white px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-6 dark:bg-slate-950">
+            <div className="-mt-6 rounded-t-[28px] bg-white px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-6 dark:bg-[#0c0c0d]">
               <div className="grid grid-cols-4 gap-4">
                 {['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '-', '0', ',', '=', '+'].map((key) => (
                   <button
@@ -129,7 +129,7 @@ export function AmountCalculator({ value, currency, onChange, autoOpen = false }
                     className={`aspect-square rounded-full text-3xl font-bold shadow-sm transition active:scale-95 ${
                       ops.has(key) || key === '='
                         ? 'bg-rose-400 text-white hover:bg-rose-500'
-                        : 'border border-slate-200 bg-white text-rose-400 hover:border-rose-200 dark:border-slate-800 dark:bg-slate-900'
+                        : 'border border-slate-200 bg-white text-rose-400 hover:border-rose-200 dark:border-[#303030] dark:bg-[#171717]'
                     }`}
                   >
                     {key}
