@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  CalendarDays,
   ChevronRight,
   CircleHelp,
   PiggyBank,
@@ -45,12 +46,19 @@ export function PersonalDashboard({
   const baseOf = (expense: Expense) => Number(expense.amount) * Number(expense.rate_to_base)
   const today = new Date().toISOString().slice(0, 10)
   const currentMonth = today.slice(0, 7)
-  const monthExpenses = expenses.filter((expense) => String(expense.date).slice(0, 7) === currentMonth)
-  const monthIncomes = incomes.filter((income) => String(income.date).slice(0, 7) === currentMonth)
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth)
+  const availableMonths = new Set<string>([currentMonth])
+  for (const movement of [...expenses, ...incomes, ...savings]) {
+    const date = String(movement.date)
+    if (/^\d{4}-\d{2}/.test(date)) availableMonths.add(date.slice(0, 7))
+  }
+  const monthOptions = [...availableMonths].sort((a, b) => b.localeCompare(a))
+  const monthExpenses = expenses.filter((expense) => String(expense.date).slice(0, 7) === selectedMonth)
+  const monthIncomes = incomes.filter((income) => String(income.date).slice(0, 7) === selectedMonth)
   const monthExpenseTotal = monthExpenses.reduce((sum, expense) => sum + baseOf(expense), 0)
   const monthIncomeTotal = monthIncomes.reduce((sum, income) => sum + Number(income.amount), 0)
   const monthSavings = savings
-    .filter((saving) => String(saving.date).slice(0, 7) === currentMonth)
+    .filter((saving) => String(saving.date).slice(0, 7) === selectedMonth)
     .reduce((sum, saving) => sum + Number(saving.amount), 0)
 
   const baselineDate = group.baseline_date ?? null
@@ -105,9 +113,22 @@ export function PersonalDashboard({
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-600 dark:text-[#4ee6b0]">Espacio personal</p>
           <h1 className="mt-1 text-3xl font-bold text-slate-950 dark:text-[#f4f7f6]">Mis cuentas</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-[#94a19c]">
-            {monthLabelEs(currentMonth)} · {group.base_currency}
-          </p>
+          <label className="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-500 shadow-sm dark:border-[#26312d] dark:bg-[#131816] dark:text-[#94a19c]">
+            <CalendarDays size={15} className="shrink-0 text-emerald-700 dark:text-[#4ee6b0]" />
+            <select
+              value={selectedMonth}
+              onChange={(event) => setSelectedMonth(event.target.value)}
+              aria-label="Mes del dashboard"
+              className="min-w-0 bg-transparent font-semibold text-slate-700 outline-none dark:text-[#f4f7f6]"
+            >
+              {monthOptions.map((month) => (
+                <option key={month} value={month}>
+                  {monthLabelEs(month)}
+                </option>
+              ))}
+            </select>
+            <span className="border-l border-slate-200 pl-2 text-xs font-medium dark:border-[#26312d]">{group.base_currency}</span>
+          </label>
         </div>
         <Link
           href="/configuracion"
@@ -198,7 +219,7 @@ export function PersonalDashboard({
           {budgets.length === 0 ? (
             <span className="flex items-center justify-between gap-3">
               <span>
-                <span className="block text-sm text-slate-500 dark:text-[#94a19c]">Este mes</span>
+                <span className="block text-sm text-slate-500 dark:text-[#94a19c]">{monthLabelEs(selectedMonth)}</span>
                 <span className="mt-1 block text-lg font-bold text-slate-900 dark:text-[#f4f7f6]">Agregá un presupuesto</span>
               </span>
               <span className="grid h-10 w-10 place-items-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-[#173e32] dark:text-[#4ee6b0]">
@@ -217,7 +238,7 @@ export function PersonalDashboard({
               <span className="mt-4 block h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-[#27312e]">
                 <span className="block h-full rounded-full bg-emerald-500 dark:bg-[#4ee6b0]" style={{ width: `${budgetPct}%` }} />
               </span>
-              <span className="mt-2 block text-xs text-slate-500 dark:text-[#94a19c]">Gastaste {fmt(budgetSpent)} este mes</span>
+              <span className="mt-2 block text-xs text-slate-500 dark:text-[#94a19c]">Gastaste {fmt(budgetSpent)} en {monthLabelEs(selectedMonth)}</span>
             </span>
           )}
         </button>
@@ -238,7 +259,7 @@ export function PersonalDashboard({
             onClick={() => onOpenTab('resumen')}
             className="w-full rounded-[1.35rem] border border-slate-200 bg-white p-4 text-left text-sm text-slate-500 shadow-sm dark:border-[#26312d] dark:bg-[#131816] dark:text-[#94a19c] dark:shadow-none"
           >
-            Todavía no hay gastos este mes.
+            Todavía no hay gastos en {monthLabelEs(selectedMonth)}.
           </button>
         ) : (
           <button type="button" onClick={() => onOpenTab('resumen')} className="w-full space-y-2 text-left">
