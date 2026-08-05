@@ -56,6 +56,30 @@ alter table public.group_users
   add column if not exists member_id uuid references public.members(id) on delete set null;
 create index if not exists idx_group_users_member on public.group_users(member_id);
 
+-- ---------- Metricas de actividad ----------
+
+create table if not exists public.user_activity_events (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  event_type text not null check (event_type in (
+    'app_opened',
+    'expense_created',
+    'income_created',
+    'saving_created',
+    'shopping_item_created',
+    'card_created',
+    'budget_created',
+    'payment_registered'
+  )),
+  group_id   uuid references public.groups(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_activity_events_user_created
+  on public.user_activity_events(user_id, created_at desc);
+create index if not exists idx_activity_events_type_created
+  on public.user_activity_events(event_type, created_at desc);
+
 -- ---------- Funciones de apoyo (SECURITY DEFINER, evitan recursion en RLS) ----------
 
 -- ¿el usuario actual pertenece al grupo?
@@ -758,5 +782,66 @@ begin
     end;
   end loop;
 end $$;
+
+-- ============================================================
+-- Metricas de actividad (ver migration_activity_metrics.sql)
+-- ============================================================
+
+alter table public.user_activity_events enable row level security;
+
+drop policy if exists user_activity_events_insert_own on public.user_activity_events;
+create policy user_activity_events_insert_own on public.user_activity_events
+  for insert to authenticated
+  with check (user_id = auth.uid());
+
+grant insert on public.user_activity_events to authenticated;
+
+create or replace function public.log_user_activity()
+returns trigger
+language plpgsql
+as $$
+begin
+  if auth.uid() is not null then
+    insert into public.user_activity_events (user_id, event_type, group_id)
+    values (auth.uid(), TG_ARGV[0], new.group_id);
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_activity_expense_created on public.expenses;
+create trigger trg_activity_expense_created
+  after insert on public.expenses
+  for each row execute function public.log_user_activity('expense_created');
+
+drop trigger if exists trg_activity_income_created on public.incomes;
+create trigger trg_activity_income_created
+  after insert on public.incomes
+  for each row execute function public.log_user_activity('income_created');
+
+drop trigger if exists trg_activity_saving_created on public.savings;
+create trigger trg_activity_saving_created
+  after insert on public.savings
+  for each row execute function public.log_user_activity('saving_created');
+
+drop trigger if exists trg_activity_shopping_item_created on public.shopping_items;
+create trigger trg_activity_shopping_item_created
+  after insert on public.shopping_items
+  for each row execute function public.log_user_activity('shopping_item_created');
+
+drop trigger if exists trg_activity_card_created on public.cards;
+create trigger trg_activity_card_created
+  after insert on public.cards
+  for each row execute function public.log_user_activity('card_created');
+
+drop trigger if exists trg_activity_budget_created on public.budgets;
+create trigger trg_activity_budget_created
+  after insert on public.budgets
+  for each row execute function public.log_user_activity('budget_created');
+
+drop trigger if exists trg_activity_payment_registered on public.payments;
+create trigger trg_activity_payment_registered
+  after insert on public.payments
+  for each row execute function public.log_user_activity('payment_registered');
 
 notify pgrst, 'reload schema';

@@ -38,6 +38,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe()
   }, [])
 
+  useEffect(() => {
+    if (!user || typeof window === 'undefined') return
+
+    // Una apertura por pestana: evita inflar el contador en cada navegacion,
+    // pero registra una nueva sesion cuando la persona vuelve a usar la app.
+    const openedKey = `convivencia:activity-opened:${user.id}`
+    if (window.sessionStorage.getItem(openedKey)) return
+    window.sessionStorage.setItem(openedKey, '1')
+
+    void supabase.from('user_activity_events').insert({ event_type: 'app_opened' })
+  }, [user])
+
   const signOut = async () => {
     await supabase.auth.signOut()
   }
