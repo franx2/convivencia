@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { createGroupWithOwner } from '@/lib/groups'
 import { PageShell } from '@/components/PageShell'
-import { Button, Card, ErrorText, Input, Spinner } from '@/components/ui'
+import { Button, Card, Checkbox, ErrorText, Input, selectableBox, Spinner } from '@/components/ui'
 import { SUPERMARKETS } from '@/lib/stores'
 import { userPaymentAlias, userPreferredStores } from '@/lib/profile'
 import { House, UserRound, UsersRound, type LucideIcon } from 'lucide-react'
@@ -165,13 +165,9 @@ export default function OnboardingPage() {
               {SUPERMARKETS.map((s) => (
                 <label
                   key={s}
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
-                    stores.includes(s)
-                      ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/40'
-                      : 'border-slate-200 dark:border-slate-700'
-                  }`}
+                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${selectableBox(stores.includes(s))}`}
                 >
-                  <input type="checkbox" checked={stores.includes(s)} onChange={() => toggleStore(s)} />
+                  <Checkbox checked={stores.includes(s)} onChange={() => toggleStore(s)} />
                   {s}
                 </label>
               ))}

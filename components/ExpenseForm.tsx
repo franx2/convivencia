@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
 import { AmountCalculator } from '@/components/AmountCalculator'
 import { NotFoundScreen, PageShell } from '@/components/PageShell'
-import { Button, Card, ErrorText, Input, Label, Select, Spinner } from '@/components/ui'
+import { Button, Card, Checkbox, ErrorText, Input, Label, Select, Spinner, selectableBox } from '@/components/ui'
 import { CURRENCIES } from '@/lib/currencies'
 import { fetchDolarOficialVenta } from '@/lib/dolar'
 import {
@@ -497,12 +497,8 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
             <div>
               <div className="mb-1 flex items-center justify-between">
                 <Label>Se reparte entre</Label>
-                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500">
-                  <input
-                    type="checkbox"
-                    checked={proportional}
-                    onChange={(e) => setProportional(e.target.checked)}
-                  />
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  <Checkbox checked={proportional} onChange={(e) => setProportional(e.target.checked)} />
                   Reparto proporcional
                 </label>
               </div>
@@ -511,11 +507,9 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
                   {members.map((m) => (
                     <div
                       key={m.id}
-                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
-                        selected.has(m.id) ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200'
-                      }`}
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${selectableBox(selected.has(m.id))}`}
                     >
-                      <input type="checkbox" checked={selected.has(m.id)} onChange={() => toggle(m.id)} />
+                      <Checkbox checked={selected.has(m.id)} onChange={() => toggle(m.id)} />
                       <span className="flex-1">{m.name}</span>
                       <Input
                         type="number"
@@ -537,11 +531,9 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
                   {members.map((m) => (
                     <label
                       key={m.id}
-                      className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
-                        selected.has(m.id) ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200'
-                      }`}
+                      className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${selectableBox(selected.has(m.id))}`}
                     >
-                      <input type="checkbox" checked={selected.has(m.id)} onChange={() => toggle(m.id)} />
+                      <Checkbox checked={selected.has(m.id)} onChange={() => toggle(m.id)} />
                       {m.name}
                     </label>
                   ))}

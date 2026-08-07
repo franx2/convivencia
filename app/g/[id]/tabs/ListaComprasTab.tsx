@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Button, Card, EmptyState, ErrorText, IconButton, Input, Modal, Select, Spinner } from '@/components/ui'
+import { Button, Card, Checkbox, EmptyState, ErrorText, IconButton, Input, Modal, Select, Spinner } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { correctGroceryTerm } from '@/lib/grocery-glossary'
 import { DEFAULT_GROCERY_CATEGORY, GROCERY_CATEGORIES, suggestGroceryCategory } from '@/lib/grocery-categories'
@@ -109,7 +109,7 @@ export function ListaComprasTab({
                   {catItems.map((item) => (
                     <Card key={item.id} className="flex items-center justify-between gap-3 py-2.5">
                       <label className="flex min-w-0 flex-1 items-center gap-3">
-                        <input type="checkbox" checked={false} onChange={() => toggle(item)} className="h-5 w-5 shrink-0" />
+                        <Checkbox checked={false} onChange={() => toggle(item)} className="h-5 w-5" />
                         <span className="truncate">{item.text}</span>
                       </label>
                       <button
@@ -140,7 +140,7 @@ export function ListaComprasTab({
                 {bought.map((item) => (
                   <Card key={item.id} className="flex items-center justify-between gap-3 py-2.5 opacity-60">
                     <label className="flex min-w-0 flex-1 items-center gap-3">
-                      <input type="checkbox" checked={true} onChange={() => toggle(item)} className="h-5 w-5 shrink-0" />
+                      <Checkbox checked={true} onChange={() => toggle(item)} className="h-5 w-5" />
                       <span className="truncate line-through">{item.text}</span>
                     </label>
                     <IconButton label="Borrar" onClick={() => remove(item.id)} className="shrink-0">

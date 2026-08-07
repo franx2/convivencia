@@ -30,6 +30,28 @@ export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInpu
   )
 }
 
+/** Checkbox con el verde de la app: sin esto queda el azul default del navegador. */
+export function Checkbox({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      type="checkbox"
+      className={`h-4 w-4 shrink-0 cursor-pointer accent-emerald-600 dark:accent-[#4ee6b0] ${className}`}
+      {...props}
+    />
+  )
+}
+
+/**
+ * Clases para una caja seleccionable (elegir miembros, supermercados…).
+ * Centralizado porque el estado "elegido" se venía escribiendo a mano y en
+ * varios lugares quedaba con fondo claro en modo oscuro (texto ilegible).
+ */
+export function selectableBox(selected: boolean): string {
+  return selected
+    ? 'border-emerald-300 bg-emerald-50 dark:border-[#2f6b55] dark:bg-[#122620]'
+    : 'border-slate-200 dark:border-[#26312d]'
+}
+
 export function Select({ className = '', children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
