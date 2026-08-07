@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { type User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { Button, Card, Input, Select } from '@/components/ui'
+import { Button, Card, ErrorText, Input, Select } from '@/components/ui'
 import { userDisplayName, userPaymentAlias } from '@/lib/profile'
 import { type Group, type Member } from '@/lib/types'
 
@@ -112,7 +112,11 @@ export function IdentityPrompt({
       <p className="mt-2 text-xs text-emerald-700/80 dark:text-emerald-300/80">
         Lo guardo para sugerirlo en otros grupos y para copiarlo rapido al liquidar.
       </p>
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && (
+        <div className="mt-2">
+          <ErrorText>{error}</ErrorText>
+        </div>
+      )}
     </Card>
   )
 }

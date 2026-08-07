@@ -7,6 +7,7 @@ import { Button, Card, ErrorText, IconButton, Input } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { type Group, type Income, type Member } from '@/lib/types'
 import { HistoryList } from './shared'
+import { todayISO } from '@/lib/dates'
 
 export function PersonalIncomesTab({
   group,
@@ -22,7 +23,7 @@ export function PersonalIncomesTab({
   onChanged: () => void
 }) {
   const [amount, setAmount] = useState('')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => todayISO())
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

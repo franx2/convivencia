@@ -7,6 +7,7 @@ import { formatMoney } from '@/lib/currencies'
 import { type CatMeta } from '@/lib/categories'
 import { type Budget, type Expense, type Group } from '@/lib/types'
 import { HistoryList } from './shared'
+import { currentMonth } from '@/lib/dates'
 
 export function PersonalBudgetsTab({
   group,
@@ -26,7 +27,7 @@ export function PersonalBudgetsTab({
   const [category, setCategory] = useState('supermercado')
   const [amount, setAmount] = useState('')
   const [busy, setBusy] = useState(false)
-  const month = new Date().toISOString().slice(0, 7)
+  const month = currentMonth()
   const spentByCat = new Map<string, number>()
   for (const e of expenses) {
     if (String(e.date).slice(0, 7) !== month) continue

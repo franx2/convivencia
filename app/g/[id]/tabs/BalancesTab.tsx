@@ -9,6 +9,7 @@ import { type CatMeta } from '@/lib/categories'
 import { computeBalances, spendByCategory, spendByMonth } from '@/lib/balances'
 import { type Budget, type Expense, type ExpenseShare, type Group, type Income, type Member, type Payment } from '@/lib/types'
 import { monthLabelEs } from './shared'
+import { currentMonth, todayISO } from '@/lib/dates'
 
 export function BalancesTab({
   group,
@@ -46,11 +47,11 @@ export function BalancesTab({
     const set = new Set<string>()
     for (const e of expenses) if (/^\d{4}-\d{2}/.test(e.date)) set.add(String(e.date).slice(0, 7))
     for (const i of incomes) if (/^\d{4}-\d{2}/.test(i.date)) set.add(String(i.date).slice(0, 7))
-    set.add(new Date().toISOString().slice(0, 7))
+    set.add(currentMonth())
     return [...set].sort((a, b) => b.localeCompare(a))
   }, [expenses, incomes])
 
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [month, setMonth] = useState(() => currentMonth())
   const [who, setWho] = useState<string>('all') // 'all' | member_id
 
   const monthExpenses = expenses.filter(
@@ -94,7 +95,7 @@ export function BalancesTab({
   const [showIncForm, setShowIncForm] = useState(false)
   const [incMember, setIncMember] = useState('')
   const [incAmount, setIncAmount] = useState('')
-  const [incDate, setIncDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [incDate, setIncDate] = useState(() => todayISO())
   const [incNote, setIncNote] = useState('')
   const [incBusy, setIncBusy] = useState(false)
   const [incError, setIncError] = useState<string | null>(null)

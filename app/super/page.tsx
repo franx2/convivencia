@@ -86,10 +86,24 @@ export default function SuperPage() {
       return
     }
 
-    const { error: selectError } = await supabase.from('groups').update({ kind: 'convivencia' }).eq('id', groupId)
+    // `select()` para saber si realmente se actualizó: RLS permite cambiar el
+    // grupo solo al dueño, y un update bloqueado no devuelve error, devuelve
+    // cero filas. Sin este chequeo la pantalla mostraba el cambio aplicado
+    // aunque en la base no hubiera pasado nada.
+    const { data: updated, error: selectError } = await supabase
+      .from('groups')
+      .update({ kind: 'convivencia' })
+      .eq('id', groupId)
+      .select('id')
     if (selectError) {
       setError(selectError.message)
       setMigrating(false)
+      return
+    }
+    if (!updated || updated.length === 0) {
+      setError('Solo el dueño del grupo puede elegirlo como tu convivencia.')
+      setMigrating(false)
+      void loadGroups()
       return
     }
 

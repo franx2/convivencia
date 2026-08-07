@@ -11,6 +11,7 @@ import { CURRENCIES, formatMoney } from '@/lib/currencies'
 import { createGroupWithOwner } from '@/lib/groups'
 import { userDisplayName, userPaymentAlias } from '@/lib/profile'
 import type { Group } from '@/lib/types'
+import { currentMonth } from '@/lib/dates'
 
 // useSearchParams (para ?nuevo=1) exige boundary de Suspense en Next 16.
 export default function HomePage() {
@@ -85,7 +86,7 @@ function HomePageInner() {
         .from('expenses')
         .select('group_id, amount, rate_to_base, date')
         .in('group_id', ids)
-      const month = new Date().toISOString().slice(0, 7)
+      const month = currentMonth()
       const t: Record<string, number> = {}
       const lifetime: Record<string, number> = {}
       for (const e of (ex ?? []) as {
@@ -315,7 +316,7 @@ function HomePageInner() {
                     : 'No se puede cambiar después de creado.'}
                 </p>
               </div>
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              <ErrorText>{error}</ErrorText>
               <Button type="submit" disabled={busy || !name.trim()}>
                 {busy ? 'Creando…' : 'Crear grupo'}
               </Button>

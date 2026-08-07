@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
-import { Button, Card, Input, Label } from '@/components/ui'
+import { Button, Card, ErrorText, Input, Label } from '@/components/ui'
 import { Brand } from '@/components/Brand'
 
 export default function LoginPage() {
@@ -94,8 +94,8 @@ export default function LoginPage() {
         <Card>
           {mode === 'forgot' ? (
             <div className="mb-4">
-              <h2 className="text-base font-semibold text-slate-700">Recuperar contraseña</h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <h2 className="text-base font-semibold text-slate-700 dark:text-slate-200">Recuperar contraseña</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Ingresá tu email y te mandamos un link para crear una nueva contraseña.
               </p>
             </div>
@@ -182,8 +182,8 @@ export default function LoginPage() {
                 )}
               </div>
             )}
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            {info && <p className="text-sm text-emerald-700">{info}</p>}
+            <ErrorText>{error}</ErrorText>
+            {info && <p className="text-sm text-emerald-700 dark:text-emerald-400">{info}</p>}
             <Button type="submit" disabled={busy || oauthBusy} className="w-full">
               {busy
                 ? 'Procesando…'

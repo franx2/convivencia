@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ErrorText } from '@/components/ui'
 
 type Props = {
   value: string
@@ -137,7 +138,11 @@ export function AmountCalculator({ value, currency, onChange, autoOpen = false }
                 ))}
               </div>
 
-              {error && <p className="mt-4 text-center text-sm font-medium text-red-600">{error}</p>}
+              {error && (
+                <div className="mt-4 text-center">
+                  <ErrorText>{error}</ErrorText>
+                </div>
+              )}
 
               <button
                 type="button"

@@ -3,11 +3,12 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { Button, Card, IconButton, Input, Select, useConfirm } from '@/components/ui'
+import { Button, Card, ErrorText, IconButton, Input, Select, useConfirm } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { BANK_DISCOUNT_SOURCES, sourceIdsForBanks } from '@/lib/bank-discounts'
 import { type BankDiscount, type CreditCard, type Expense, type Group } from '@/lib/types'
 import { HistoryList } from './shared'
+import { currentMonth, toISODate, todayISO } from '@/lib/dates'
 
 export function daysInMonth(year: number, monthIndex0: number): number {
   return new Date(year, monthIndex0 + 1, 0).getDate()
@@ -36,8 +37,8 @@ export function computeLastStatement(
   const from = new Date(prevClosing)
   from.setDate(from.getDate() + 1)
 
-  const toStr = closing.toISOString().slice(0, 10)
-  const fromStr = from.toISOString().slice(0, 10)
+  const toStr = toISODate(closing)
+  const fromStr = toISODate(from)
 
   let dueStr: string | null = null
   if (card.due_day) {
@@ -45,7 +46,7 @@ export function computeLastStatement(
     // si el día de vto. es mayor al de cierre, asumimos que vence el mismo mes.
     const dueMonthOffset = card.due_day <= card.closing_day ? 1 : 0
     const due = dateFromDay(closing.getFullYear(), closing.getMonth() + dueMonthOffset, card.due_day)
-    dueStr = due.toISOString().slice(0, 10)
+    dueStr = toISODate(due)
   }
 
   const total = expenses
@@ -83,7 +84,7 @@ export function CardsTab({
   const [syncInfo, setSyncInfo] = useState<string | null>(null)
   const [selectedSourceIds, setSelectedSourceIds] = useState(() => BANK_DISCOUNT_SOURCES.map((source) => source.id))
   const [discountRubricFilter, setDiscountRubricFilter] = useState<DiscountRubricId | 'all'>('all')
-  const month = new Date().toISOString().slice(0, 7)
+  const month = currentMonth()
   const sourceIds = useMemo(
     () => sourceIdsForBanks(cards.flatMap((card) => [card.bank, card.name])),
     [cards]
@@ -243,7 +244,11 @@ export function CardsTab({
           })}
         </div>
         {syncInfo && <p className="mt-3 text-xs text-emerald-800 dark:text-emerald-300">{syncInfo}</p>}
-        {syncError && <p className="mt-3 text-sm text-red-600">{syncError}</p>}
+        {syncError && (
+          <div className="mt-3">
+            <ErrorText>{syncError}</ErrorText>
+          </div>
+        )}
       </Card>
 
       {discounts.length > 0 && (
@@ -445,7 +450,7 @@ export function isStorableBankDiscount(discount: BankDiscount): boolean {
 }
 
 export function isCurrentDiscount(discount: BankDiscount): boolean {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayISO()
   return (!discount.valid_from || discount.valid_from <= today) && (!discount.valid_to || discount.valid_to >= today)
 }
 

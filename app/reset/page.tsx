@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Button, Card, Input, Label, Spinner } from '@/components/ui'
+import { Button, Card, ErrorText, Input, Label, Spinner } from '@/components/ui'
 import { Brand } from '@/components/Brand'
 
 export default function ResetPasswordPage() {
@@ -121,7 +121,7 @@ export default function ResetPasswordPage() {
                   autoComplete="new-password"
                 />
               </div>
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              <ErrorText>{error}</ErrorText>
               <Button type="submit" disabled={busy} className="w-full">
                 {busy ? 'Guardando…' : 'Guardar contraseña'}
               </Button>

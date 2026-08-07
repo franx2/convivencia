@@ -38,6 +38,7 @@ import { PersonalDashboard } from './tabs/PersonalDashboard'
 import { PersonalIncomesTab } from './tabs/PersonalIncomesTab'
 import { PersonalSummaryTab } from './tabs/PersonalSummaryTab'
 import { SavingsTab } from './tabs/SavingsTab'
+import { currentMonth } from '@/lib/dates'
 
 export default function GroupPage() {
   const { user, loading } = useRequireAuth()
@@ -198,9 +199,9 @@ export default function GroupPage() {
   // Para destacar Lista/Gastos en el visual del grupo compartido (hero + badge de tab).
   const pendingShopping = useMemo(() => shoppingItems.filter((i) => !i.checked).length, [shoppingItems])
   const monthExpenseTotal = useMemo(() => {
-    const currentMonth = new Date().toISOString().slice(0, 7)
+    const month = currentMonth()
     return expenses
-      .filter((e) => String(e.date).slice(0, 7) === currentMonth)
+      .filter((e) => String(e.date).slice(0, 7) === month)
       .reduce((sum, e) => sum + Number(e.amount) * Number(e.rate_to_base), 0)
   }, [expenses])
 

@@ -21,6 +21,7 @@ import {
   type CatMeta,
 } from '@/lib/categories'
 import type { Category, Expense, ExpenseShare, Group, Member } from '@/lib/types'
+import { todayISO } from '@/lib/dates'
 
 /**
  * Form de gasto compartido entre crear (/nuevo) y editar (/editar/[eid]).
@@ -44,7 +45,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
   const [rateLoading, setRateLoading] = useState(false)
   const [rateInfo, setRateInfo] = useState<string | null>(null)
   const [paidBy, setPaidBy] = useState('')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => todayISO())
   const [category, setCategory] = useState<string>(DEFAULT_CATEGORY)
   const [categoryTouched, setCategoryTouched] = useState(false)
   const [history, setHistory] = useState<{ title: string; category: string }[]>([])

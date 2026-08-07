@@ -21,6 +21,7 @@ import { spendByCategory } from '@/lib/balances'
 import { type Budget, type Expense, type Group, type Income, type Saving } from '@/lib/types'
 import { monthLabelEs } from './shared'
 import { type PersonalTab } from '../tabs-types'
+import { todayISO } from '@/lib/dates'
 
 export function PersonalDashboard({
   group,
@@ -44,7 +45,7 @@ export function PersonalDashboard({
   const fmt = (n: number) => formatMoney(n, group.base_currency)
   const fmtDate = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString('es-AR')
   const baseOf = (expense: Expense) => Number(expense.amount) * Number(expense.rate_to_base)
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayISO()
   const currentMonth = today.slice(0, 7)
   const [selectedMonth, setSelectedMonth] = useState(currentMonth)
   const availableMonths = new Set<string>([currentMonth])

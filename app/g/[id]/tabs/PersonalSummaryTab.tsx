@@ -5,6 +5,7 @@ import { Card, Select } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { type Expense, type Group, type Income, type Saving } from '@/lib/types'
 import { MetricCard, monthLabelEs } from './shared'
+import { currentMonth } from '@/lib/dates'
 
 export function PersonalSummaryTab({
   group,
@@ -24,10 +25,10 @@ export function PersonalSummaryTab({
     for (const e of expenses) if (/^\d{4}-\d{2}/.test(e.date)) set.add(String(e.date).slice(0, 7))
     for (const i of incomes) if (/^\d{4}-\d{2}/.test(i.date)) set.add(String(i.date).slice(0, 7))
     for (const s of savings) if (/^\d{4}-\d{2}/.test(s.date)) set.add(String(s.date).slice(0, 7))
-    set.add(new Date().toISOString().slice(0, 7))
+    set.add(currentMonth())
     return [...set].sort((a, b) => b.localeCompare(a))
   }, [expenses, incomes, savings])
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [month, setMonth] = useState(() => currentMonth())
   const baseOf = (e: Expense) => Number(e.amount) * Number(e.rate_to_base)
   const monthExpenses = expenses.filter((e) => String(e.date).slice(0, 7) === month)
   const monthIncomes = incomes.filter((i) => String(i.date).slice(0, 7) === month)

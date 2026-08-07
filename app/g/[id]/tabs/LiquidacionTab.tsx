@@ -6,6 +6,7 @@ import { Button, Card, EmptyState, ErrorText, IconButton, Input, Label, Select, 
 import { formatMoney } from '@/lib/currencies'
 import { computeBalances, settle } from '@/lib/balances'
 import { type Expense, type ExpenseShare, type Group, type Member, type Payment } from '@/lib/types'
+import { todayISO } from '@/lib/dates'
 
 export function LiquidacionTab({
   group,
@@ -34,7 +35,7 @@ export function LiquidacionTab({
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [amount, setAmount] = useState('')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => todayISO())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
@@ -62,7 +63,7 @@ export function LiquidacionTab({
       from_member: fromId,
       to_member: toId,
       amount: amt,
-      date: when ?? new Date().toISOString().slice(0, 10),
+      date: when ?? todayISO(),
     })
     setBusy(false)
     if (insErr) {
