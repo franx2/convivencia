@@ -37,14 +37,17 @@ export function RecurringExpenses({
   const [day, setDay] = useState('1')
   const [paidBy, setPaidBy] = useState('')
   const [category, setCategory] = useState('otros')
+  const [accountNumber, setAccountNumber] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { confirm, dialog } = useConfirm()
 
   const missingTable = (msg: string) =>
-    /recurring_expenses/i.test(msg)
-      ? 'Falta correr supabase/migration_recurring_expenses.sql en Supabase.'
-      : msg
+    /account_number/i.test(msg)
+      ? 'Falta correr supabase/migration_servicio_cuenta.sql en Supabase.'
+      : /recurring_expenses/i.test(msg)
+        ? 'Falta correr supabase/migration_recurring_expenses.sql en Supabase.'
+        : msg
 
   async function add(e: React.FormEvent) {
     e.preventDefault()
@@ -68,6 +71,7 @@ export function RecurringExpenses({
         paid_by: payer,
         category,
         day_of_month: d,
+        account_number: accountNumber.trim() || null,
       })
       .select('id')
       .single()
@@ -86,6 +90,7 @@ export function RecurringExpenses({
     setTitle('')
     setAmount('')
     setDay('1')
+    setAccountNumber('')
     setBusy(false)
     setAdding(false)
     onChanged()
@@ -150,6 +155,9 @@ export function RecurringExpenses({
                   {members.length > 1 ? ` · paga ${memberName(item.paid_by)}` : ''}
                   {item.active ? '' : ' · en pausa'}
                 </p>
+                {item.account_number && (
+                  <p className="truncate text-xs text-slate-400">NIC/cuenta: {item.account_number}</p>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <button
@@ -197,6 +205,11 @@ export function RecurringExpenses({
               </Select>
             </label>
           </div>
+          <Input
+            value={accountNumber}
+            onChange={(e) => setAccountNumber(e.target.value)}
+            placeholder="NIC / N° de cuenta (opcional)"
+          />
           {members.length > 1 && (
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-slate-500">Lo paga</span>

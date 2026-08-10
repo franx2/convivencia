@@ -610,6 +610,8 @@ create table if not exists public.recurring_expenses (
   category      text not null default 'otros',
   day_of_month  integer not null check (day_of_month between 1 and 31),
   active        boolean not null default true,
+  -- NIC / N° de cliente del servicio (luz, gas, internet…), a mano para tenerlo a la vista.
+  account_number text,
   last_month    date,
   created_by    uuid default auth.uid() references auth.users(id) on delete set null,
   created_at    timestamptz not null default now()

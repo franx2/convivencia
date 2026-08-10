@@ -64,6 +64,7 @@ export type RecurringExpense = {
   category: string
   day_of_month: number
   active: boolean
+  account_number: string | null // NIC / N° de cliente del servicio (luz, gas, internet…)
   last_month: string | null // mes ya generado (día 1), para no duplicar
   created_by: string | null
   created_at: string
