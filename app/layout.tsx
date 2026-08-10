@@ -17,6 +17,9 @@ export const metadata: Metadata = {
     title: "covivencia.",
   },
   icons: {
+    // Se declara a mano: definir `icons` acá desactiva la detección automática
+    // del archivo especial app/icon.png (por eso no alcanzaba con solo el archivo).
+    icon: "/icon-192.png",
     apple: "/apple-touch-icon.png",
   },
 };
