@@ -10,17 +10,22 @@ import { type Group, type Member } from '@/lib/types'
 export function IdentityPrompt({
   group,
   members,
+  takenMemberIds,
   user,
   onSaved,
 }: {
   group: Group
   members: Member[]
+  // Miembros ya vinculados a OTRA cuenta: no deben poder elegirse de nuevo
+  // (antes cualquiera podía "ser" alguien que ya se había unido).
+  takenMemberIds: Set<string>
   user: User
   onSaved: (memberId: string) => void
 }) {
-  const [selected, setSelected] = useState(members[0]?.id ?? '')
+  const available = members.filter((m) => !takenMemberIds.has(m.id))
+  const [selected, setSelected] = useState(available[0]?.id ?? '__new__')
   const [newName, setNewName] = useState(userDisplayName(user))
-  const [alias, setAlias] = useState(members[0]?.alias ?? userPaymentAlias(user))
+  const [alias, setAlias] = useState(available[0]?.alias ?? userPaymentAlias(user))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const creating = selected === '__new__'
@@ -31,7 +36,7 @@ export function IdentityPrompt({
       setAlias(userPaymentAlias(user))
       return
     }
-    const member = members.find((m) => m.id === value)
+    const member = available.find((m) => m.id === value)
     setAlias(member?.alias ?? userPaymentAlias(user))
   }
 
@@ -89,7 +94,7 @@ export function IdentityPrompt({
       <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
         <div className="space-y-2">
           <Select value={selected} onChange={(e) => changeSelected(e.target.value)}>
-            {members.map((m) => (
+            {available.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
               </option>

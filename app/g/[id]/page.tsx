@@ -60,6 +60,7 @@ export default function GroupPage() {
   const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([])
   const [recurring, setRecurring] = useState<RecurringExpense[]>([])
   const [myMemberId, setMyMemberId] = useState<string | null>(null)
+  const [takenMemberIds, setTakenMemberIds] = useState<Set<string>>(new Set())
   const [fetching, setFetching] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [tab, setTab] = useState<Tab>('inicio')
@@ -73,15 +74,22 @@ export default function GroupPage() {
     }
     setGroup(g as Group)
     let linkedMemberId: string | null = null
+    // Miembros ya elegidos por OTRA cuenta en este grupo: no deben ofrecerse
+    // como opción al preguntar "¿quién sos?" (antes se podían pisar entre sí).
+    const claimedMemberIds = new Set<string>()
     if (user) {
-      const { data: link, error: linkError } = await supabase
+      const { data: links, error: linksError } = await supabase
         .from('group_users')
-        .select('member_id')
+        .select('user_id, member_id')
         .eq('group_id', groupId)
-        .eq('user_id', user.id)
-        .maybeSingle()
-      if (!linkError) linkedMemberId = ((link ?? {}) as { member_id?: string | null }).member_id ?? null
+      if (!linksError) {
+        for (const row of (links ?? []) as { user_id: string; member_id: string | null }[]) {
+          if (row.member_id && row.user_id !== user.id) claimedMemberIds.add(row.member_id)
+          if (row.member_id && row.user_id === user.id) linkedMemberId = row.member_id
+        }
+      }
     }
+    setTakenMemberIds(claimedMemberIds)
     const [
       { data: m },
       { data: e },
@@ -300,6 +308,7 @@ export default function GroupPage() {
           <IdentityPrompt
             group={group}
             members={members}
+            takenMemberIds={takenMemberIds}
             user={user}
             onSaved={(id) => {
               setMyMemberId(id)

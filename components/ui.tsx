@@ -24,7 +24,7 @@ export function Button({
 export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#f4f7f6] dark:focus:border-[#4ee6b0] dark:focus:ring-[#173e32] ${className}`}
+      className={`w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#f4f7f6] dark:focus:border-[#4ee6b0] dark:focus:ring-[#173e32] ${className}`}
       {...props}
     />
   )
@@ -55,7 +55,7 @@ export function selectableBox(selected: boolean): string {
 export function Select({ className = '', children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={`w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#f4f7f6] dark:focus:border-[#4ee6b0] dark:focus:ring-[#173e32] ${className}`}
+      className={`w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#f4f7f6] dark:focus:border-[#4ee6b0] dark:focus:ring-[#173e32] ${className}`}
       {...props}
     >
       {children}
