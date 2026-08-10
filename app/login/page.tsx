@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
 import { Button, Card, ErrorText, Input, Label } from '@/components/ui'
 import { Brand } from '@/components/Brand'
+import { clientRateLimited } from '@/lib/client-rate-limit'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -54,9 +55,14 @@ export default function LoginPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    setBusy(true)
     setError(null)
     setInfo(null)
+    // Freno de intentos (login/registro/reset comparten el límite): ver lib/client-rate-limit.ts.
+    if (clientRateLimited('auth-attempt', 8, 5 * 60_000)) {
+      setError('Demasiados intentos. Esperá unos minutos y volvé a intentar.')
+      return
+    }
+    setBusy(true)
     try {
       if (mode === 'forgot') {
         const redirectTo =
