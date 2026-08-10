@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { toISODate } from './dates.ts'
+import { isServiceDue, toISODate } from './dates.ts'
 
 // Regresión: `toISOString().slice(0,10)` devolvía la fecha en UTC, así que en
 // Argentina (UTC-3) todo lo cargado después de las 21:00 quedaba con la fecha
@@ -20,4 +20,22 @@ test('rellena mes y día con cero a la izquierda', () => {
 
 test('la medianoche local pertenece a ese mismo día', () => {
   assert.equal(toISODate(new Date(2026, 2, 1, 0, 0, 0)), '2026-03-01')
+})
+
+// Gastos fijos de monto variable (luz, gas): recordar solo cuando llegó el
+// día y todavía no se cargó el gasto real de este mes.
+test('isServiceDue: no llegó el día todavía', () => {
+  assert.equal(isServiceDue(15, null, new Date(2026, 7, 10)), false)
+})
+
+test('isServiceDue: llegó el día y nunca se cargó', () => {
+  assert.equal(isServiceDue(15, null, new Date(2026, 7, 15)), true)
+})
+
+test('isServiceDue: llegó el día pero ya se cargó este mes', () => {
+  assert.equal(isServiceDue(15, '2026-08-01', new Date(2026, 7, 20)), false)
+})
+
+test('isServiceDue: llegó el día, lo último cargado fue el mes pasado', () => {
+  assert.equal(isServiceDue(15, '2026-07-01', new Date(2026, 7, 20)), true)
 })

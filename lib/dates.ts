@@ -23,3 +23,13 @@ export function todayISO(): string {
 export function currentMonth(): string {
   return todayISO().slice(0, 7)
 }
+
+/**
+ * Gasto fijo de monto variable (luz, gas): ¿ya llegó el día elegido y todavía
+ * no se cargó el gasto real de este mes? `lastMonth` es la fecha (cualquier
+ * día) del último mes ya cargado, o null si nunca se cargó.
+ */
+export function isServiceDue(dayOfMonth: number, lastMonth: string | null, now: Date = new Date()): boolean {
+  if (now.getDate() < dayOfMonth) return false
+  return (lastMonth ?? '').slice(0, 7) !== toISODate(now).slice(0, 7)
+}

@@ -57,7 +57,8 @@ export type RecurringExpense = {
   id: string
   group_id: string
   title: string
-  amount: number
+  amount: number | null // null cuando amount_fixed=false (monto variable, solo referencia)
+  amount_fixed: boolean // false = no se auto-genera; se recuerda para cargar el monto real a mano
   currency: string
   rate_to_base: number
   paid_by: string
@@ -65,7 +66,7 @@ export type RecurringExpense = {
   day_of_month: number
   active: boolean
   account_number: string | null // NIC / N° de cliente del servicio (luz, gas, internet…)
-  last_month: string | null // mes ya generado (día 1), para no duplicar
+  last_month: string | null // mes ya generado/cargado (día 1), para no duplicar
   created_by: string | null
   created_at: string
 }

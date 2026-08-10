@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { Button, Card, ErrorText, IconButton, Input, SectionTitle, Select, useConfirm } from '@/components/ui'
+import { Button, Card, Checkbox, ErrorText, IconButton, Input, SectionTitle, Select, useConfirm } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
+import { isServiceDue } from '@/lib/dates'
 import { type CatMeta } from '@/lib/categories'
 import { type Group, type Member, type RecurringExpense } from '@/lib/types'
 
@@ -38,16 +40,19 @@ export function RecurringExpenses({
   const [paidBy, setPaidBy] = useState('')
   const [category, setCategory] = useState('otros')
   const [accountNumber, setAccountNumber] = useState('')
+  const [amountFixed, setAmountFixed] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { confirm, dialog } = useConfirm()
 
   const missingTable = (msg: string) =>
-    /account_number/i.test(msg)
-      ? 'Falta correr supabase/migration_servicio_cuenta.sql en Supabase.'
-      : /recurring_expenses/i.test(msg)
-        ? 'Falta correr supabase/migration_recurring_expenses.sql en Supabase.'
-        : msg
+    /amount_fixed/i.test(msg)
+      ? 'Falta correr supabase/migration_gastos_variables.sql en Supabase.'
+      : /account_number/i.test(msg)
+        ? 'Falta correr supabase/migration_servicio_cuenta.sql en Supabase.'
+        : /recurring_expenses/i.test(msg)
+          ? 'Falta correr supabase/migration_recurring_expenses.sql en Supabase.'
+          : msg
 
   async function add(e: React.FormEvent) {
     e.preventDefault()
@@ -55,7 +60,7 @@ export function RecurringExpenses({
     const d = Number(day)
     const payer = paidBy || defaultPaidBy || members[0]?.id
     if (!title.trim()) return setError('Poné un nombre (ej: Alquiler).')
-    if (!(amt > 0)) return setError('Ingresá un monto válido.')
+    if (amountFixed && !(amt > 0)) return setError('Ingresá un monto válido.')
     if (!(d >= 1 && d <= 31)) return setError('El día tiene que estar entre 1 y 31.')
     if (!payer) return setError('Agregá un miembro antes de crear un gasto fijo.')
 
@@ -66,7 +71,8 @@ export function RecurringExpenses({
       .insert({
         group_id: group.id,
         title: title.trim(),
-        amount: amt,
+        amount: amt > 0 ? amt : null,
+        amount_fixed: amountFixed,
         currency: group.base_currency,
         paid_by: payer,
         category,
@@ -91,6 +97,7 @@ export function RecurringExpenses({
     setAmount('')
     setDay('1')
     setAccountNumber('')
+    setAmountFixed(true)
     setBusy(false)
     setAdding(false)
     onChanged()
@@ -139,40 +146,60 @@ export function RecurringExpenses({
         </p>
       ) : (
         <div className="space-y-2">
-          {recurring.map((item) => (
-            <div
-              key={item.id}
-              className={`flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2 dark:border-slate-800 ${
-                item.active ? '' : 'opacity-50'
-              }`}
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">
-                  {catMeta(item.category).symbol} {item.title}
-                </p>
-                <p className="text-xs text-slate-400">
-                  Día {item.day_of_month} · {formatMoney(Number(item.amount), item.currency)}
-                  {members.length > 1 ? ` · paga ${memberName(item.paid_by)}` : ''}
-                  {item.active ? '' : ' · en pausa'}
-                </p>
-                {item.account_number && (
-                  <p className="truncate text-xs text-slate-400">NIC/cuenta: {item.account_number}</p>
+          {recurring.map((item) => {
+            const pending = isPending(item)
+            return (
+              <div
+                key={item.id}
+                className={`rounded-lg border px-3 py-2 ${
+                  pending
+                    ? 'border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30'
+                    : 'border-slate-100 dark:border-slate-800'
+                } ${item.active ? '' : 'opacity-50'}`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {catMeta(item.category).symbol} {item.title}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      Día {item.day_of_month} ·{' '}
+                      {item.amount_fixed
+                        ? formatMoney(Number(item.amount), item.currency)
+                        : item.amount != null
+                          ? `~${formatMoney(Number(item.amount), item.currency)} (variable)`
+                          : 'monto variable'}
+                      {members.length > 1 ? ` · paga ${memberName(item.paid_by)}` : ''}
+                      {item.active ? '' : ' · en pausa'}
+                    </p>
+                    {item.account_number && (
+                      <p className="truncate text-xs text-slate-400">NIC/cuenta: {item.account_number}</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleActive(item)}
+                      className="text-xs font-medium text-slate-400 hover:text-emerald-600"
+                    >
+                      {item.active ? 'Pausar' : 'Reanudar'}
+                    </button>
+                    <IconButton label="Borrar" onClick={() => remove(item)}>
+                      ✕
+                    </IconButton>
+                  </div>
+                </div>
+                {pending && (
+                  <Link
+                    href={recurringHref(group.id, item)}
+                    className="mt-2 inline-flex items-center gap-1 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:brightness-95"
+                  >
+                    Ya llegó el día — cargar {item.title} con el monto real →
+                  </Link>
                 )}
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => toggleActive(item)}
-                  className="text-xs font-medium text-slate-400 hover:text-emerald-600"
-                >
-                  {item.active ? 'Pausar' : 'Reanudar'}
-                </button>
-                <IconButton label="Borrar" onClick={() => remove(item)}>
-                  ✕
-                </IconButton>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -186,9 +213,18 @@ export function RecurringExpenses({
               min="0"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder={`Monto (${group.base_currency})`}
+              placeholder={amountFixed ? `Monto (${group.base_currency})` : 'Monto de referencia (opcional)'}
             />
           </div>
+          <label className="flex cursor-pointer items-start gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <Checkbox checked={amountFixed} onChange={(e) => setAmountFixed(e.target.checked)} className="mt-0.5" />
+            <span>
+              Monto fijo: se carga solo todos los meses con este monto.
+              <br />
+              Desmarcá esto para servicios de monto variable (luz, gas): no se carga solo, te lo recuerdo el día
+              elegido para que lo cargues vos con el monto real de la factura.
+            </span>
+          </label>
           <div className="grid gap-2 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-slate-500">Día del mes</span>
@@ -236,4 +272,17 @@ export function RecurringExpenses({
       {dialog}
     </Card>
   )
+}
+
+// Recordatorio de monto variable: llegó el día y todavía no se cargó el gasto
+// real de este mes (last_month solo se actualiza cuando se carga desde acá).
+function isPending(item: RecurringExpense): boolean {
+  if (!item.active || item.amount_fixed) return false
+  return isServiceDue(item.day_of_month, item.last_month)
+}
+
+function recurringHref(groupId: string, item: RecurringExpense): string {
+  const p = new URLSearchParams({ title: item.title, category: item.category, recurring: item.id })
+  if (item.amount != null) p.set('amount', String(item.amount))
+  return `/g/${groupId}/nuevo?${p.toString()}`
 }

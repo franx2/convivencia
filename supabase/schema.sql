@@ -603,7 +603,12 @@ create table if not exists public.recurring_expenses (
   id            uuid primary key default gen_random_uuid(),
   group_id      uuid not null references public.groups(id) on delete cascade,
   title         text not null,
-  amount        numeric(14,2) not null check (amount > 0),
+  -- Nulo cuando amount_fixed=false (servicios de monto variable: luz, gas...):
+  -- ahí es solo una referencia opcional, no se auto-genera con este valor.
+  amount        numeric(14,2) check (amount is null or amount > 0),
+  -- true = se auto-genera solo todos los meses con "amount" (alquiler, etc).
+  -- false = monto variable: no se auto-genera, se recuerda para cargarlo a mano.
+  amount_fixed  boolean not null default true,
   currency      text not null default 'ARS',
   rate_to_base  numeric(18,8) not null default 1 check (rate_to_base > 0),
   paid_by       uuid not null references public.members(id) on delete cascade,
@@ -684,8 +689,10 @@ declare
   new_id       uuid;
   created      integer := 0;
 begin
+  -- amount_fixed=false (monto variable) nunca se auto-genera: es solo un
+  -- recordatorio para cargarlo a mano con el monto real.
   for r in
-    select * from public.recurring_expenses where active
+    select * from public.recurring_expenses where active and amount_fixed
   loop
     target_month := coalesce(r.last_month + interval '1 month', date_trunc('month', current_date))::date;
 

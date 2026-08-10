@@ -21,7 +21,7 @@ import {
   type CatMeta,
 } from '@/lib/categories'
 import type { Category, Expense, ExpenseShare, Group, Member } from '@/lib/types'
-import { todayISO } from '@/lib/dates'
+import { currentMonth, todayISO } from '@/lib/dates'
 
 /**
  * Form de gasto compartido entre crear (/nuevo) y editar (/editar/[eid]).
@@ -57,6 +57,9 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
   const [weights, setWeights] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Si viene de un recordatorio de gasto fijo variable (luz, gas: RecurringExpenses.tsx),
+  // al guardar marcamos ese recordatorio como cargado este mes.
+  const [recurringId, setRecurringId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const { data: g } = await supabase.from('groups').select('*').eq('id', groupId).maybeSingle()
@@ -163,6 +166,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
           setCategoryTouched(true) // la plantilla ya fijó la categoría
         }
         if (amt) setAmount(amt)
+        setRecurringId(sp.get('recurring'))
       }
     }
     setFetching(false)
@@ -332,6 +336,12 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
       if (shErr) {
         setError(shErr.message)
         return
+      }
+      if (recurringId) {
+        await supabase
+          .from('recurring_expenses')
+          .update({ last_month: `${currentMonth()}-01` })
+          .eq('id', recurringId)
       }
     }
     router.replace(`/g/${groupId}`)
