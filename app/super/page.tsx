@@ -141,7 +141,7 @@ export default function SuperPage() {
           <Card>
             <p className="font-semibold">Elegí tu grupo de convivencia</p>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Ese grupo tendrá la lista Super principal. Los demás grupos compartidos pasarán a Viajes y conservarán sus
+              Ese grupo tendrá la lista Super principal. Los demás grupos compartidos pasarán a Grupal y conservarán sus
               propias listas.
             </p>
           </Card>
@@ -150,7 +150,7 @@ export default function SuperPage() {
               <div className="min-w-0">
                 <p className="truncate font-semibold">{group.name}</p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {group.kind === 'viaje' ? 'Actualmente en Viajes' : 'Grupo de convivencia'}
+                  {group.kind === 'viaje' ? 'Actualmente en Grupal' : 'Grupo de convivencia'}
                 </p>
               </div>
               <Button onClick={() => void chooseConvivencia(group.id)} disabled={migrating} className="shrink-0">

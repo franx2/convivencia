@@ -168,7 +168,7 @@ export function GastosTab({
 
   return (
     <div id="section-gastos" className="scroll-mt-24 space-y-3">
-      {hasMembers && (
+      {hasMembers && group.kind !== 'viaje' && (
         <RecurringExpenses
           group={group}
           members={members}

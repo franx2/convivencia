@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/components/AuthProvider'
 import { supabase } from '@/lib/supabase'
-import { House, Plane, Settings, ShoppingBasket, UsersRound, type LucideIcon } from 'lucide-react'
+import { House, PartyPopper, Settings, ShoppingBasket, UsersRound, type LucideIcon } from 'lucide-react'
 
 type BottomNavProps = {
   active: 'personal' | 'convivencia' | 'super' | 'viajes' | 'settings'
@@ -90,7 +90,7 @@ export function BottomNav({ active, personalHref }: BottomNavProps) {
           label="Convivencia"
         />
         <NavItem active={active === 'super'} href="/super" Icon={ShoppingBasket} label="Super" />
-        <NavItem active={active === 'viajes'} href="/?section=viajes" Icon={Plane} label="Viajes" />
+        <NavItem active={active === 'viajes'} href="/?section=viajes" Icon={PartyPopper} label="Grupal" />
         <NavItem active={active === 'settings'} href="/configuracion" Icon={Settings} label="Config." />
       </div>
     </nav>

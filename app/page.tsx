@@ -254,7 +254,7 @@ function HomePageInner() {
   return (
     <PageShell nav={section} personalHref={personalGroup ? `/g/${personalGroup.id}` : null}>
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold">{section === 'viajes' ? 'Viajes' : 'Convivencia'}</h1>
+          <h1 className="text-2xl font-bold">{section === 'viajes' ? 'Grupal' : 'Convivencia'}</h1>
           {canCreateGroup && (
             <Button onClick={() => { setKind(section === 'viajes' ? 'viaje' : 'convivencia'); setShowForm((s) => !s) }}>
               {showForm ? 'Cancelar' : '+ Nuevo grupo'}
@@ -307,12 +307,12 @@ function HomePageInner() {
                         : 'border-slate-200 text-slate-500 dark:border-slate-700'
                     }`}
                   >
-                    ✈️ Viaje
+                    🎉 Grupal
                   </button>
                 </div>
                 <p className="mt-1 text-xs text-slate-400">
                   {kind === 'viaje'
-                    ? 'En un viaje los gastos y balances se ven en total, sin separar por mes.'
+                    ? 'Para viajes, asados y juntadas con amigos: los gastos se ven en total, sin separar por mes.'
                     : 'No se puede cambiar después de creado.'}
                 </p>
               </div>
@@ -332,7 +332,7 @@ function HomePageInner() {
         {fetching ? (
           <Spinner />
         ) : visibleGroups.length === 0 ? (
-          <EmptyState>{section === 'viajes' ? 'Todavía no tenés viajes. Creá uno para llevar los gastos del recorrido.' : 'Todavía no tenés grupos de convivencia. Creá uno para repartir gastos.'}</EmptyState>
+          <EmptyState>{section === 'viajes' ? 'Todavía no tenés grupos. Creá uno para viajes, asados o juntadas con amigos.' : 'Todavía no tenés grupos de convivencia. Creá uno para repartir gastos.'}</EmptyState>
         ) : (
           <div className="space-y-2">{visibleGroups.map(groupCard)}</div>
         )}

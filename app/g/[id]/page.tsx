@@ -226,13 +226,22 @@ export default function GroupPage() {
         { key: 'tarjetas', label: 'Tarjetas' },
         { key: 'resumen', label: 'Resumen' },
       ]
-    : [
-        { key: 'gastos', label: 'Gastos' },
-        { key: 'lista', label: pendingShopping > 0 ? `Lista (${pendingShopping})` : 'Lista' },
-        { key: 'balances', label: 'Balances' },
-        { key: 'liquidacion', label: 'Liquidación' },
-        { key: 'miembros', label: 'Miembros' },
-      ]
+    : group.kind === 'viaje'
+      ? [
+          // Grupal (ex "viaje"): interfaz simplificada, lo que importa es
+          // cargar gastos y ver quién le debe a quién. Sin tab de Balances.
+          { key: 'gastos', label: 'Gastos' },
+          { key: 'liquidacion', label: 'Liquidación' },
+          { key: 'lista', label: pendingShopping > 0 ? `Lista (${pendingShopping})` : 'Lista' },
+          { key: 'miembros', label: 'Miembros' },
+        ]
+      : [
+          { key: 'gastos', label: 'Gastos' },
+          { key: 'lista', label: pendingShopping > 0 ? `Lista (${pendingShopping})` : 'Lista' },
+          { key: 'balances', label: 'Balances' },
+          { key: 'liquidacion', label: 'Liquidación' },
+          { key: 'miembros', label: 'Miembros' },
+        ]
   const activeTab: Tab = group.is_personal
     ? (isPersonalTab(tab) ? tab : 'inicio')
     : (isSharedTab(tab) ? tab : 'gastos')
@@ -266,7 +275,7 @@ export default function GroupPage() {
 
         )}
 
-        {!group.is_personal && (
+        {!group.is_personal && group.kind !== 'viaje' && (
           <div className="mb-5 grid grid-cols-2 gap-3">
             <button
               type="button"
@@ -289,6 +298,18 @@ export default function GroupPage() {
               <span className="mt-0.5 block text-xl font-bold">{formatMoney(monthExpenseTotal, group.base_currency)}</span>
             </button>
           </div>
+        )}
+
+        {!group.is_personal && group.kind === 'viaje' && (
+          <button
+            type="button"
+            onClick={() => setTab('liquidacion')}
+            className="mb-5 block w-full rounded-2xl border border-emerald-700 bg-emerald-700 p-5 text-left text-white shadow-sm transition hover:brightness-95 dark:border-[#29614f] dark:bg-[#1d5d48] dark:text-[#b8ffe6] dark:shadow-none"
+          >
+            <span className="text-3xl">🤝</span>
+            <span className="mt-2 block text-sm font-semibold text-emerald-50">Liquidación</span>
+            <span className="mt-0.5 block text-xl font-bold">Ver quién le debe a quién</span>
+          </button>
         )}
 
         {group.is_personal && activeTab === 'inicio' && (
