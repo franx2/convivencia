@@ -106,7 +106,7 @@ export function AmountCalculator({ value, currency, onChange, autoOpen = false }
                 </button>
               </div>
               <div className="flex items-center justify-end gap-2">
-                <p className="min-h-[64px] max-w-full truncate text-right text-6xl font-bold tracking-normal">
+                <p className={`min-h-[64px] max-w-full truncate text-right font-bold tracking-normal ${displayFontSize(expr)}`}>
                   ${displayExpr(expr)}
                 </p>
                 <button
@@ -115,7 +115,7 @@ export function AmountCalculator({ value, currency, onChange, autoOpen = false }
                   className="shrink-0 rounded-full bg-white/25 px-3 py-1 text-xl font-bold"
                   aria-label="Borrar dígito"
                 >
-                  ×
+                  ⌫
                 </button>
               </div>
             </div>
@@ -164,8 +164,32 @@ function lastNumber(expr: string): string {
   return parts.at(-1) ?? ''
 }
 
+function groupThousands(intPart: string): string {
+  return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
 function displayExpr(expr: string): string {
-  return expr || '0,00'
+  if (!expr) return '0,00'
+  // Separa por operadores manteniéndolos, y agrupa de a miles cada número (formato AR: 1.234.567,89).
+  return expr
+    .split(/([+\-×÷])/)
+    .map((part) => {
+      if (!/^\d/.test(part)) return part
+      const [intPart, decPart] = part.split(',')
+      const grouped = groupThousands(intPart)
+      return decPart !== undefined ? `${grouped},${decPart}` : grouped
+    })
+    .join('')
+}
+
+// Imita la calculadora de Apple: en vez de truncar con "...", el número achica
+// la letra a medida que crece para seguir siendo legible entero.
+function displayFontSize(expr: string): string {
+  const digits = expr.replace(/\D/g, '').length
+  if (digits > 12) return 'text-2xl'
+  if (digits > 9) return 'text-3xl'
+  if (digits > 6) return 'text-4xl'
+  return 'text-6xl'
 }
 
 function formatResult(value: number): string {
