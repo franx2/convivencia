@@ -103,6 +103,13 @@ export function MiembrosTab({
     return parts.length ? parts.join(', ') : null
   }
 
+  async function updateName(id: string, val: string, current: string) {
+    const name = val.trim()
+    if (!name || name === current) return
+    await supabase.from('members').update({ name }).eq('id', id)
+    onChanged()
+  }
+
   async function updateWeight(id: string, val: string) {
     const w = Number(val)
     if (!(w > 0)) return
@@ -139,7 +146,12 @@ export function MiembrosTab({
             members.map((m) => (
               <div key={m.id} className="border-b border-slate-100 pb-2 last:border-0">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="flex-1 font-medium">{m.name}</span>
+                  <Input
+                    defaultValue={m.name}
+                    onBlur={(e) => updateName(m.id, e.target.value, m.name)}
+                    className="flex-1 font-medium"
+                    aria-label={`Nombre de ${m.name}`}
+                  />
                   <label className="flex items-center gap-1 text-xs text-slate-400" title="Peso para el reparto proporcional">
                     peso
                     <Input
