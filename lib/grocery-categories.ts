@@ -51,9 +51,35 @@ function stripAccents(s: string): string {
   return s.normalize('NFD').replace(/\p{Diacritic}/gu, '')
 }
 
-/** Sugiere una categoría por palabra clave en el texto del producto. Best-effort, editable. */
-export function suggestGroceryCategory(text: string): string {
-  const normalized = ` ${stripAccents(text.toLowerCase())} `
+/**
+ * Sugiere una categoría para un producto de la lista. Primero mira el
+ * historial de items ya comprados (checked=true) del propio grupo: si un
+ * producto igual o parecido ya se categorizó antes y se le dio el "ok"
+ * (se marcó como comprado), usa esa categoría — aprende de las elecciones
+ * confirmadas en vez de repetir siempre la misma palabra clave fija.
+ * Sin historial que matchee, cae a las palabras clave (mismo criterio que
+ * suggestCategory de gastos, lib/categories.ts).
+ */
+export function suggestGroceryCategory(
+  text: string,
+  history: { text: string; category: string }[] = []
+): string {
+  const t = stripAccents(text.trim().toLowerCase())
+  if (t) {
+    const matches = history.filter((h) => {
+      const ht = stripAccents((h.text ?? '').trim().toLowerCase())
+      if (!ht) return false
+      if (ht === t) return true
+      return t.length >= 3 && (ht.includes(t) || t.includes(ht))
+    })
+    if (matches.length) {
+      const count = new Map<string, number>()
+      for (const m of matches) count.set(m.category, (count.get(m.category) ?? 0) + 1)
+      return [...count.entries()].sort((a, b) => b[1] - a[1])[0][0]
+    }
+  }
+
+  const normalized = ` ${t} `
   for (const [category, words] of Object.entries(KEYWORDS)) {
     if (words.some((w) => normalized.includes(stripAccents(w)))) return category
   }

@@ -25,6 +25,9 @@ export function ListaComprasTab({
 
   const pending = items.filter((i) => !i.checked)
   const bought = items.filter((i) => i.checked)
+  // Historial "confirmado": items a los que ya se les dio el ok (comprados),
+  // con su categoría. Sirve de base para aprender y sugerir mejor con el tiempo.
+  const confirmedHistory = bought.map((i) => ({ text: i.text, category: i.category || DEFAULT_GROCERY_CATEGORY }))
   // Pendientes agrupados por categoría de súper (carnes, lácteos, etc.), en el
   // orden fijo de GROCERY_CATEGORIES; se omiten las categorías sin ítems.
   const pendingByCategory = GROCERY_CATEGORIES.map((cat) => ({
@@ -34,7 +37,7 @@ export function ListaComprasTab({
 
   function onTextChange(value: string) {
     setText(value)
-    if (!categoryTouched) setCategory(suggestGroceryCategory(value))
+    if (!categoryTouched) setCategory(suggestGroceryCategory(value, confirmedHistory))
   }
 
   async function add(e: React.FormEvent) {
