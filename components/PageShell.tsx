@@ -26,8 +26,13 @@ export function PageShell({
 }) {
   return (
     <>
-      <Header />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 pt-5 sm:pt-6">
+      <Header accountOnPhone={!nav} />
+      {/* El piso de abajo cuenta el home indicator: con pb fijo, la barra flotante tapaba lo último en iPhone. */}
+      <main
+        className={`mx-auto w-full max-w-3xl flex-1 px-4 pt-4 sm:pt-6 ${
+          nav ? 'pb-[calc(env(safe-area-inset-bottom)+7rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+2rem)]'
+        }`}
+      >
         <div className={width === 'narrow' ? 'mx-auto w-full max-w-lg' : ''}>{children}</div>
       </main>
       {nav && <BottomNav active={nav} personalHref={personalHref} />}
@@ -40,7 +45,7 @@ export function NotFoundScreen({ children, backHref = '/' }: { children: ReactNo
   return (
     <>
       <Header />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-16 text-center text-slate-500 dark:text-[#94a19c]">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-16 text-center text-muted">
         <p>{children}</p>
         <Link href={backHref} className="mt-3 inline-block font-medium text-emerald-700 underline dark:text-emerald-400">
           Volver

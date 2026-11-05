@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { HandCoins, ReceiptText, ShoppingBasket } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { NotFoundScreen, PageShell } from '@/components/PageShell'
@@ -184,9 +184,14 @@ export default function GroupPage() {
 
   // Desplaza la pestaña activa a la vista al cambiar (la barra es scrolleable en mobile).
   const tabsRef = useRef<HTMLDivElement>(null)
+  const tabsTopRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = tabsRef.current?.querySelector<HTMLElement>('[data-active="true"]')
     el?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+    // La tira queda pegada arriba al bajar: al cambiar de pestaña, el contenido
+    // nuevo tiene que arrancar desde su principio y no desde la mitad.
+    const top = tabsTopRef.current?.getBoundingClientRect().top ?? 0
+    if (top < 0) window.scrollBy({ top })
   }, [tab])
 
   const memberName = useMemo(() => {
@@ -252,50 +257,44 @@ export default function GroupPage() {
       personalHref={group.is_personal ? `/g/${group.id}` : null}
     >
         {(!group.is_personal || activeTab !== 'inicio') && (
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold">
-              {group.name}
-              {group.is_personal && <Badge>personal</Badge>}
-            </h1>
-            <p className="text-sm text-slate-500">
-              {group.is_personal ? 'Espacio personal · ' : ''}Moneda base: {group.base_currency}
-            </p>
-          </div>
-          {group.is_personal && (
-            <Link
-              href="/configuracion"
-              aria-label="Configuración"
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-slate-200 text-xl text-slate-500 hover:bg-slate-50 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#94a19c] dark:hover:bg-[#18201d]"
-            >
-              ⚙️
-            </Link>
-          )}
+        <div className="mb-3 min-w-0">
+          <h1 className="flex flex-wrap items-center gap-x-2 text-2xl font-bold leading-tight">
+            {group.name}
+            {group.is_personal && <Badge>personal</Badge>}
+          </h1>
+          <p className="text-sm text-muted">
+            {group.is_personal ? 'Espacio personal · ' : ''}Moneda base: {group.base_currency}
+          </p>
         </div>
-
         )}
 
         {!group.is_personal && group.kind !== 'viaje' && (
-          <div className="mb-5 grid grid-cols-2 gap-3">
+          <div className="mb-3 grid grid-cols-2 gap-2.5">
             <button
               type="button"
               onClick={() => setTab('lista')}
-              className="rounded-2xl border border-amber-400 bg-amber-500 p-4 text-left text-white shadow-sm transition hover:brightness-95 dark:border-[#665027] dark:bg-[#4a351d] dark:text-[#ffe0a8] dark:shadow-none"
+              className="min-w-0 rounded-2xl border border-amber-400 bg-amber-400 p-3.5 text-left text-amber-950 shadow-sm transition active:scale-[0.98] dark:border-[#665027] dark:bg-[#4a351d] dark:text-[#ffe0a8] dark:shadow-none"
             >
-              <span className="text-3xl">🛒</span>
-              <span className="mt-2 block text-sm font-semibold text-amber-50">Lista de compras</span>
-              <span className="mt-0.5 block text-xl font-bold">
+              <span className="flex items-center gap-1.5 text-[13px] font-semibold">
+                <ShoppingBasket size={17} strokeWidth={2.3} aria-hidden="true" className="shrink-0" />
+                Lista de compras
+              </span>
+              <span className="mt-1 block text-lg font-bold leading-tight">
                 {pendingShopping > 0 ? `${pendingShopping} pendiente${pendingShopping === 1 ? '' : 's'}` : 'Todo listo ✓'}
               </span>
             </button>
             <button
               type="button"
               onClick={() => setTab('gastos')}
-              className="rounded-2xl border border-emerald-700 bg-emerald-700 p-4 text-left text-white shadow-sm transition hover:brightness-95 dark:border-[#29614f] dark:bg-[#1d5d48] dark:text-[#b8ffe6] dark:shadow-none"
+              className="min-w-0 rounded-2xl border border-emerald-700 bg-emerald-700 p-3.5 text-left text-white shadow-sm transition active:scale-[0.98] dark:border-[#29614f] dark:bg-[#1d5d48] dark:text-[#b8ffe6] dark:shadow-none"
             >
-              <span className="text-3xl">💸</span>
-              <span className="mt-2 block text-sm font-semibold text-emerald-50">Gastos del mes</span>
-              <span className="mt-0.5 block text-xl font-bold">{formatMoney(monthExpenseTotal, group.base_currency)}</span>
+              <span className="flex items-center gap-1.5 text-[13px] font-semibold">
+                <ReceiptText size={17} strokeWidth={2.3} aria-hidden="true" className="shrink-0" />
+                Gastos del mes
+              </span>
+              <span className="mt-1 block break-words text-lg font-bold leading-tight tabular-nums">
+                {formatMoney(monthExpenseTotal, group.base_currency)}
+              </span>
             </button>
           </div>
         )}
@@ -304,25 +303,14 @@ export default function GroupPage() {
           <button
             type="button"
             onClick={() => setTab('liquidacion')}
-            className="mb-5 block w-full rounded-2xl border border-emerald-700 bg-emerald-700 p-5 text-left text-white shadow-sm transition hover:brightness-95 dark:border-[#29614f] dark:bg-[#1d5d48] dark:text-[#b8ffe6] dark:shadow-none"
+            className="mb-3 block w-full rounded-2xl border border-emerald-700 bg-emerald-700 p-3.5 text-left text-white shadow-sm transition active:scale-[0.98] dark:border-[#29614f] dark:bg-[#1d5d48] dark:text-[#b8ffe6] dark:shadow-none"
           >
-            <span className="text-3xl">🤝</span>
-            <span className="mt-2 block text-sm font-semibold text-emerald-50">Liquidación</span>
-            <span className="mt-0.5 block text-xl font-bold">Ver quién le debe a quién</span>
+            <span className="flex items-center gap-1.5 text-sm font-semibold">
+              <HandCoins size={17} strokeWidth={2.3} aria-hidden="true" className="shrink-0" />
+              Liquidación
+            </span>
+            <span className="mt-1 block text-lg font-bold leading-tight">Ver quién le debe a quién</span>
           </button>
-        )}
-
-        {group.is_personal && activeTab === 'inicio' && (
-          <PersonalDashboard
-            group={group}
-            expenses={expenses}
-            incomes={incomes}
-            savings={savings}
-            budgets={budgets}
-            catMeta={catMeta}
-            onOpenTab={(next) => setTab(next)}
-            onChanged={load}
-          />
         )}
 
         {!group.is_personal && members.length > 0 && !members.some((m) => m.id === myMemberId) && (
@@ -338,22 +326,40 @@ export default function GroupPage() {
           />
         )}
 
-        <div ref={tabsRef} className="mb-5 flex gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1.5 text-sm dark:bg-[#131816]">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              data-active={activeTab === t.key}
-              onClick={() => setTab(t.key)}
-              className={`flex-1 whitespace-nowrap rounded-md px-3 py-1.5 font-medium ${
-                activeTab === t.key
-                  ? 'bg-white shadow-sm dark:bg-[#18201d] dark:text-[#4ee6b0]'
-                  : 'text-slate-500 dark:text-[#94a19c]'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div ref={tabsTopRef} />
+        <div className="sticky top-0 z-30 -mx-4 mb-3 bg-slate-50 px-4 py-1.5 dark:bg-[#0b0e0d]">
+          <div ref={tabsRef} role="tablist" className="no-scrollbar flex gap-1 overflow-x-auto rounded-2xl bg-slate-200/70 p-1 text-sm dark:bg-[#131816]">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                role="tab"
+                aria-selected={activeTab === t.key}
+                data-active={activeTab === t.key}
+                onClick={() => setTab(t.key)}
+                className={`min-h-11 flex-1 shrink-0 whitespace-nowrap rounded-xl px-3.5 font-semibold transition ${
+                  activeTab === t.key
+                    ? 'bg-white text-emerald-800 shadow-sm dark:bg-[#22302a] dark:text-[#4ee6b0]'
+                    : 'text-muted'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {group.is_personal && activeTab === 'inicio' && (
+          <PersonalDashboard
+            group={group}
+            expenses={expenses}
+            incomes={incomes}
+            savings={savings}
+            budgets={budgets}
+            catMeta={catMeta}
+            onOpenTab={(next) => setTab(next)}
+            onChanged={load}
+          />
+        )}
 
         {activeTab === 'gastos' && (
           <GastosTab

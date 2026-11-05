@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { NotFoundScreen, PageShell } from '@/components/PageShell'
-import { Button, Card, ErrorText, Input, Select, Spinner } from '@/components/ui'
+import { Button, Card, ErrorText, Input, Select, Spinner, Disclosure, IconButton, TextButton } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { fetchDolarOficialVenta } from '@/lib/dolar'
 import { mergeCategories, type CatMeta } from '@/lib/categories'
@@ -241,12 +241,17 @@ function ImportarPageClient() {
   function itemCard(r: ParsedTx, i: number) {
     return (
       <Card key={i} className="space-y-2">
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          <Input value={r.title} onChange={(e) => updateRow(i, { title: e.target.value })} aria-label="Título" className="flex-1" />
+          <IconButton label={`Quitar ${r.title}`} onClick={() => removeRow(i)} />
+        </div>
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_5.5rem] gap-2">
           <Input
             type="date"
             value={r.date}
             onChange={(e) => updateRow(i, { date: e.target.value })}
-            className="max-w-[150px]"
+            aria-label="Fecha"
+            className="px-2"
           />
           <Input
             type="number"
@@ -254,25 +259,19 @@ function ImportarPageClient() {
             min="0"
             value={r.amount}
             onChange={(e) => updateRow(i, { amount: Number(e.target.value) })}
-            className="max-w-[120px] text-right"
+            aria-label="Monto"
+            className="px-2 text-right tabular-nums"
           />
           <Select
             value={r.currency}
             onChange={(e) => updateRow(i, { currency: e.target.value === 'USD' ? 'USD' : 'ARS' })}
-            className="max-w-[80px]"
+            aria-label="Moneda"
+            className="px-2"
           >
             <option value="ARS">ARS</option>
             <option value="USD">USD</option>
           </Select>
-          <button
-            onClick={() => removeRow(i)}
-            className="px-1 text-slate-300 hover:text-red-500"
-            title="Quitar"
-          >
-            ✕
-          </button>
         </div>
-        <Input value={r.title} onChange={(e) => updateRow(i, { title: e.target.value })} />
         <Select value={r.category} onChange={(e) => updateRow(i, { category: e.target.value })}>
           {cats.map((c) => (
             <option key={c.value} value={c.value}>
@@ -280,7 +279,7 @@ function ImportarPageClient() {
             </option>
           ))}
         </Select>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Input
             value={r.bank ?? ''}
             placeholder="Banco"
@@ -417,8 +416,8 @@ function ImportarPageClient() {
           <span aria-hidden="true" className="text-lg leading-none">←</span>
           Volver al grupo
         </Link>
-        <h1 className="mb-1 mt-1 text-2xl font-bold">Importar resumen</h1>
-        <p className="mb-4 text-sm text-slate-500">
+        <h1 className="mb-1 mt-3 text-2xl font-bold">Importar resumen</h1>
+        <p className="mb-4 text-sm text-muted">
           Subí el PDF del resumen de tu tarjeta. Detecto las transacciones, las podés revisar y
           editar, y se cargan como gastos.
         </p>
@@ -435,13 +434,13 @@ function ImportarPageClient() {
               </option>
             ))}
           </Select>
-          <p className="mt-1 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-muted">
             Si elegís una tarjeta, el resumen queda asociado a ella y se evita duplicar consumos ya cargados.
           </p>
         </Card>
 
         {noMember && (
-          <Card className="mb-4 text-sm text-amber-600">
+          <Card className="mb-4 text-sm text-amber-700 dark:text-amber-400">
             Este grupo no tiene miembros. Agregá uno antes de importar.
           </Card>
         )}
@@ -456,12 +455,12 @@ function ImportarPageClient() {
               accept="application/pdf"
               onChange={onFile}
               disabled={noMember}
-              className="block w-full text-sm text-slate-500 file:mr-3 file:rounded-xl file:border-0 file:bg-emerald-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-emerald-700 dark:text-[#94a19c] dark:file:bg-[#4ee6b0] dark:file:text-[#062419] dark:hover:file:bg-[#72efc1]"
+              className="block w-full text-sm text-muted file:mr-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-emerald-700 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-emerald-800 dark:text-[#94a19c] dark:file:bg-[#4ee6b0] dark:file:text-[#062419] dark:hover:file:bg-[#72efc1]"
             />
           </label>
-          {fileName && <p className="mt-2 text-xs text-slate-400">{fileName}</p>}
-          {parsing && <p className="mt-2 text-sm text-slate-500">Leyendo el PDF…</p>}
-          {parseError && <p className="mt-2 text-sm text-amber-600">{parseError}</p>}
+          {fileName && <p className="mt-2 text-xs text-muted">{fileName}</p>}
+          {parsing && <p className="mt-2 text-sm text-muted">Leyendo el PDF…</p>}
+          {parseError && <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">{parseError}</p>}
 
           {needsPassword && file && (
             <div className="mt-2 flex gap-2">
@@ -490,7 +489,8 @@ function ImportarPageClient() {
           )}
 
           {file && (
-            <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+            <div className="-mx-4 -mb-4 mt-3 border-t border-slate-100 dark:border-slate-800">
+              <Disclosure summary={<span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Mejorar la lectura con IA</span>}>
               <div className="mb-3 space-y-1.5">
                 <span className="block text-sm font-medium text-slate-600 dark:text-slate-300">
                   API key de ChatGPT
@@ -510,7 +510,7 @@ function ImportarPageClient() {
                     </Button>
                   )}
                 </div>
-                <p className="text-xs text-slate-400">Se guarda solo en este dispositivo.</p>
+                <p className="text-xs text-muted">Se guarda solo en este dispositivo.</p>
               </div>
 
               <div className="mb-3 space-y-1.5">
@@ -532,7 +532,7 @@ function ImportarPageClient() {
                     </Button>
                   )}
                 </div>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-muted">
                   Gratis en{' '}
                   <a
                     href="https://aistudio.google.com/apikey"
@@ -546,7 +546,7 @@ function ImportarPageClient() {
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="grid gap-2">
                 <Button
                   type="button"
                   variant="ghost"
@@ -572,7 +572,7 @@ function ImportarPageClient() {
                   {aiBusy === 'claude' ? 'Procesando con Claude…' : 'Mejorar con Claude'}
                 </Button>
               </div>
-              <p className="mt-1.5 text-xs text-slate-400">
+              <p className="mt-1.5 text-xs text-muted">
                 Gemini y ChatGPT usan la API key que pegás acá (gratis la de Gemini). Claude usa la
                 key configurada en el servidor.
               </p>
@@ -581,19 +581,16 @@ function ImportarPageClient() {
                   <ErrorText>{aiError}</ErrorText>
                 </div>
               )}
+              </Disclosure>
             </div>
           )}
         </Card>
 
         {pdfText && (
           <div className="mb-4">
-            <button
-              type="button"
-              onClick={() => setShowText((v) => !v)}
-              className="text-xs font-medium text-slate-400 hover:text-slate-600"
-            >
+            <TextButton tone="muted" onClick={() => setShowText((v) => !v)}>
               {showText ? 'Ocultar texto extraído' : 'Ver texto extraído del PDF'}
-            </button>
+            </TextButton>
             {showText && (
               <pre className="mt-2 max-h-64 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
                 {pdfText}
@@ -613,7 +610,7 @@ function ImportarPageClient() {
               {(totals.usd !== null || detected.usd > 0) && (
                 <ReconRow label="Dólares" stmt={totals.usd} detected={detected.usd} currency="USD" />
               )}
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-muted">
                 Si la diferencia no es 0, revisá filas faltantes o repetidas antes de guardar.
               </p>
             </Card>
@@ -623,7 +620,7 @@ function ImportarPageClient() {
                 <div key={mg.key} className="space-y-2">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-1 dark:border-slate-700">
                     <span className="text-sm font-semibold">{mg.label}</span>
-                    <span className="text-xs text-slate-500">{curLabel(mg.totals)}</span>
+                    <span className="text-xs text-muted">{curLabel(mg.totals)}</span>
                   </div>
                   {mg.banks.map((bg) => (
                     <div key={bg.bank} className="space-y-2">
@@ -631,7 +628,7 @@ function ImportarPageClient() {
                         <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">
                           🏦 {bg.bank}
                         </span>
-                        <span className="text-xs text-slate-400">{curLabel(bg.totals)}</span>
+                        <span className="text-xs text-muted">{curLabel(bg.totals)}</span>
                       </div>
                       {bg.cards.map((cg) => (
                         <div key={cg.card} className="space-y-2">
@@ -639,7 +636,7 @@ function ImportarPageClient() {
                             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                               💳 {cg.card}
                             </span>
-                            <span className="text-xs text-slate-400">{curLabel(cg.totals)}</span>
+                            <span className="text-xs text-muted">{curLabel(cg.totals)}</span>
                           </div>
                           <div className="space-y-2">{cg.items.map((it) => itemCard(it.r, it.i))}</div>
                         </div>
@@ -655,8 +652,8 @@ function ImportarPageClient() {
                 <ErrorText>{saveError}</ErrorText>
               </div>
             )}
-            <div className="mt-4 flex gap-2">
-              <Button onClick={save} disabled={busy} className="flex-1">
+            <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-20 mt-4 flex gap-2 sm:static">
+              <Button onClick={save} disabled={busy} className="min-h-12 flex-1 text-base shadow-[0_6px_20px_rgba(4,120,87,0.35)] sm:shadow-none dark:shadow-none">
                 {busy ? 'Guardando…' : `Guardar ${rows.filter((r) => r.amount > 0).length} gastos`}
               </Button>
             </div>
@@ -748,16 +745,16 @@ function ReconRow({
   const ok = diff !== null && Math.abs(diff) < 1
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-3 py-0.5 text-sm">
-      <span className="text-slate-500">{label}</span>
-      <span className="flex items-center gap-3">
-        <span className="text-slate-400">
+      <span className="text-muted">{label}</span>
+      <span className="flex flex-wrap items-center gap-x-3">
+        <span className="text-muted">
           {stmt === null ? 'resumen —' : `resumen ${formatMoney(stmt, currency)}`}
         </span>
         <span className="tabular-nums text-slate-600 dark:text-slate-300">
           detectado {formatMoney(detected, currency)}
         </span>
         {diff !== null && (
-          <span className={`tabular-nums font-medium ${ok ? 'text-emerald-600' : 'text-red-600'}`}>
+          <span className={`tabular-nums font-medium ${ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600'}`}>
             {ok ? '✓ cuadra' : `dif ${formatMoney(diff, currency)}`}
           </span>
         )}

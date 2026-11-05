@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
 import { AmountCalculator } from '@/components/AmountCalculator'
 import { NotFoundScreen, PageShell } from '@/components/PageShell'
-import { Button, Card, Checkbox, ErrorText, Input, Label, Select, Spinner, selectableBox } from '@/components/ui'
+import { Button, Card, Checkbox, ErrorText, Input, Label, Select, Spinner, selectableBox, IconButton, TextButton } from '@/components/ui'
 import { CURRENCIES } from '@/lib/currencies'
 import { fetchDolarOficialVenta } from '@/lib/dolar'
 import {
@@ -366,7 +366,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
           <span aria-hidden="true" className="text-lg leading-none">←</span>
           Volver al grupo
         </Link>
-        <h1 className="mb-4 mt-1 text-2xl font-bold">{isEdit ? 'Editar gasto' : 'Nuevo gasto'}</h1>
+        <h1 className="mb-3 mt-3 text-2xl font-bold">{isEdit ? 'Editar gasto' : 'Nuevo gasto'}</h1>
 
         <Card>
           <form onSubmit={submit} className="space-y-4">
@@ -384,6 +384,8 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
                 }}
                 placeholder="Cena, nafta, super…"
                 required
+                enterKeyHint="next"
+                autoCapitalize="sentences"
               />
             </div>
 
@@ -418,16 +420,11 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
                   required
                 />
                 {currency === 'USD' && group.base_currency === 'ARS' && (
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={traerDolar}
-                      disabled={rateLoading}
-                      className="text-sm font-medium text-emerald-700 hover:underline disabled:opacity-50 dark:text-emerald-400"
-                    >
+                  <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <TextButton onClick={traerDolar} disabled={rateLoading}>
                       {rateLoading ? 'Trayendo…' : '↻ Traer dólar oficial (venta)'}
-                    </button>
-                    {rateInfo && <span className="text-xs text-slate-400">{rateInfo}</span>}
+                    </TextButton>
+                    {rateInfo && <span className="text-xs text-muted">{rateInfo}</span>}
                   </div>
                 )}
               </div>
@@ -480,35 +477,30 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
                       }
                     }}
                   />
-                  <Button type="button" variant="ghost" onClick={addCategory}>
+                  <Button type="button" variant="ghost" onClick={addCategory} className="shrink-0">
                     Agregar
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
+                  <IconButton
+                    label="Cancelar"
+                    tone="default"
+                    className="my-0 mr-0"
                     onClick={() => {
                       setAdding(false)
                       setNewCat('')
                     }}
-                  >
-                    ✕
-                  </Button>
+                  />
                 </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setAdding(true)}
-                  className="mt-1.5 text-sm font-medium text-emerald-700 hover:underline"
-                >
-                  + Nueva categoría
-                </button>
+                <div className="mt-2.5">
+                  <TextButton onClick={() => setAdding(true)}>+ Nueva categoría</TextButton>
+                </div>
               )}
             </div>
 
             <div>
-              <div className="mb-1 flex items-center justify-between">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3">
                 <Label>Se reparte entre</Label>
-                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                <label className="-my-2 flex min-h-11 cursor-pointer items-center gap-2 text-sm text-muted">
                   <Checkbox checked={proportional} onChange={(e) => setProportional(e.target.checked)} />
                   Reparto proporcional
                 </label>
@@ -521,7 +513,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
                       className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${selectableBox(selected.has(m.id))}`}
                     >
                       <Checkbox checked={selected.has(m.id)} onChange={() => toggle(m.id)} />
-                      <span className="flex-1">{m.name}</span>
+                      <span className="min-w-0 flex-1 break-words">{m.name}</span>
                       <Input
                         type="number"
                         step="0.01"
@@ -529,11 +521,11 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
                         value={weights[m.id] ?? '1'}
                         onChange={(e) => setWeight(m.id, e.target.value)}
                         disabled={!selected.has(m.id)}
-                        className="w-20 text-right"
+                        className="max-w-20 text-right tabular-nums"
                       />
                     </div>
                   ))}
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-muted">
                     El monto se reparte proporcional al peso (ej: pesos 2 y 1 = 66% y 33%).
                   </p>
                 </div>
@@ -542,7 +534,7 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
                   {members.map((m) => (
                     <label
                       key={m.id}
-                      className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${selectableBox(selected.has(m.id))}`}
+                      className={`flex min-w-0 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm ${selectableBox(selected.has(m.id))}`}
                     >
                       <Checkbox checked={selected.has(m.id)} onChange={() => toggle(m.id)} />
                       {m.name}
@@ -553,9 +545,12 @@ export function ExpenseForm({ groupId, expenseId }: { groupId: string; expenseId
             </div>
 
             <ErrorText>{error}</ErrorText>
-            <Button type="submit" disabled={busy} className="w-full">
-              {busy ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar gasto'}
-            </Button>
+            {/* Queda a mano sobre la barra inferior aunque el reparto haga largo el formulario. */}
+            <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-20 sm:static">
+              <Button type="submit" disabled={busy} className="min-h-12 w-full text-base shadow-[0_6px_20px_rgba(4,120,87,0.35)] sm:shadow-none dark:shadow-none">
+                {busy ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar gasto'}
+              </Button>
+            </div>
           </form>
         </Card>
     </PageShell>

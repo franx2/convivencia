@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { MessageCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { NotFoundScreen, PageShell } from '@/components/PageShell'
-import { Button, Card, IconButton, Input, Spinner } from '@/components/ui'
+import { Button, Card, IconButton, Input, Spinner, TextButton } from '@/components/ui'
 import type { Group, Member } from '@/lib/types'
 
 /**
@@ -102,27 +103,23 @@ export default function InvitarPage() {
   return (
     <PageShell nav={group.kind === 'viaje' ? 'viajes' : 'convivencia'} width="narrow">
       <div className="mb-4 flex items-center justify-between">
-          <p className="text-sm font-semibold text-slate-400">Paso {step} de 2</p>
-          <button
-            type="button"
-            onClick={() => router.push(`/g/${groupId}`)}
-            className="text-sm text-slate-400 hover:text-slate-600"
-          >
+          <p className="text-sm font-semibold text-muted">Paso {step} de 2</p>
+          <TextButton tone="muted" onClick={() => router.push(`/g/${groupId}`)}>
             Saltar →
-          </button>
+          </TextButton>
         </div>
 
         {step === 1 ? (
           <Card>
             <h1 className="text-xl font-bold">Sumá integrantes</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted">
               Agregá a las personas con las que compartís gastos en <span className="font-medium">{group.name}</span>. No
               necesitan tener cuenta todavía.
             </p>
 
             <form onSubmit={addMember} className="mt-4 flex gap-2">
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del integrante" autoFocus />
-              <Button type="submit" disabled={busy || !name.trim()}>
+              <Button type="submit" disabled={busy || !name.trim()} className="shrink-0">
                 Agregar
               </Button>
             </form>
@@ -131,16 +128,14 @@ export default function InvitarPage() {
               {members.map((m) => (
                 <div
                   key={m.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2 text-sm dark:border-slate-800"
+                  className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-slate-100 px-3 text-sm dark:border-slate-800"
                 >
                   <span className="font-medium">
                     {m.name}
-                    {m.id === myMemberId && <span className="ml-2 text-xs text-emerald-600">vos</span>}
+                    {m.id === myMemberId && <span className="ml-2 text-xs text-emerald-700 dark:text-emerald-400">vos</span>}
                   </span>
                   {m.id !== myMemberId && (
-                    <IconButton label="Quitar" onClick={() => removeMember(m.id)}>
-                      ✕
-                    </IconButton>
+                    <IconButton label="Quitar" onClick={() => removeMember(m.id)} />
                   )}
                 </div>
               ))}
@@ -153,13 +148,13 @@ export default function InvitarPage() {
         ) : (
           <Card>
             <h1 className="text-xl font-bold">Compartí la invitación</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted">
               Mandales este link. Quien lo abra (con sesión iniciada) entra al grupo y elige quién es.
             </p>
 
             <div className="mt-4 flex gap-2">
-              <Input readOnly value={inviteUrl} className="text-xs" />
-              <Button variant="ghost" onClick={copy}>
+              <Input readOnly value={inviteUrl} aria-label="Link de invitación" />
+              <Button variant="ghost" onClick={copy} className="shrink-0">
                 {copied ? '¡Copiado!' : 'Copiar'}
               </Button>
             </div>
@@ -168,9 +163,9 @@ export default function InvitarPage() {
               <button
                 type="button"
                 onClick={shareWhatsapp}
-                className="flex items-center justify-center gap-2 rounded-lg bg-[#25D366] px-4 py-3 text-base font-bold text-white transition hover:brightness-95"
+                className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#128C7E] px-4 py-3 text-base font-bold text-white transition active:scale-[0.99]"
               >
-                <span className="text-xl">🟢</span> Enviar por WhatsApp
+                <MessageCircle size={20} aria-hidden="true" /> Enviar por WhatsApp
               </button>
               <Button onClick={shareNative} className="w-full">
                 Compartir por otro medio…
@@ -178,16 +173,10 @@ export default function InvitarPage() {
             </div>
 
             <div className="mt-5 flex items-center justify-between">
-              <button type="button" onClick={() => setStep(1)} className="text-sm text-slate-400 hover:text-slate-600">
+              <TextButton tone="muted" onClick={() => setStep(1)}>
                 ← Integrantes
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push(`/g/${groupId}`)}
-                className="text-sm font-bold text-emerald-700 hover:underline dark:text-emerald-400"
-              >
-                Ir al grupo →
-              </button>
+              </TextButton>
+              <TextButton onClick={() => router.push(`/g/${groupId}`)}>Ir al grupo →</TextButton>
             </div>
           </Card>
         )}

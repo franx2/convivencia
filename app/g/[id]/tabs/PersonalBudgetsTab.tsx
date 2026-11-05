@@ -81,7 +81,7 @@ export function PersonalBudgetsTab({
 
       <HistoryList title="Presupuestos">
         {budgets.length === 0 ? (
-          <p className="text-sm text-slate-500">Todavía no hay presupuestos cargados.</p>
+          <p className="text-sm text-muted">Todavía no hay presupuestos cargados.</p>
         ) : (
           <div className="space-y-3">
             {budgets.map((b) => {
@@ -92,17 +92,15 @@ export function PersonalBudgetsTab({
               const bar = ratio >= 1 ? 'bg-red-500' : ratio >= 0.8 ? 'bg-amber-500' : 'bg-emerald-500'
               return (
                 <div key={b.id}>
-                  <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                  <div className="mb-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${catMeta(b.category).color}`}>
                       {catMeta(b.category).symbol} {catMeta(b.category).label}
                     </span>
-                    <span className="flex items-center gap-2">
-                      <span className="text-slate-500">
+                    <span className="flex items-center gap-1">
+                      <span className="tabular-nums text-muted">
                         {formatMoney(spent, group.base_currency)} / {formatMoney(limit, group.base_currency)}
                       </span>
-                      <IconButton label="Quitar" onClick={() => remove(b.id)}>
-                    ✕
-                  </IconButton>
+                      <IconButton label="Quitar" onClick={() => remove(b.id)} />
                     </span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">

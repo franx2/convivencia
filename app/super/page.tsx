@@ -124,9 +124,9 @@ export default function SuperPage() {
 
       {sharedGroups.length === 0 ? (
         <Card className="space-y-3 text-center">
-          <ShoppingBasket className="mx-auto text-emerald-700" size={30} aria-hidden="true" />
+          <ShoppingBasket className="mx-auto text-emerald-700 dark:text-emerald-400" size={30} aria-hidden="true" />
           <p className="font-semibold">Todavía no tenés un grupo compartido</p>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-muted">
             Creá un grupo de convivencia para organizar su lista de compras.
           </p>
           <Link
@@ -140,7 +140,7 @@ export default function SuperPage() {
         <div className="space-y-3">
           <Card>
             <p className="font-semibold">Elegí tu grupo de convivencia</p>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-sm text-muted">
               Ese grupo tendrá la lista Super principal. Los demás grupos compartidos pasarán a Grupal y conservarán sus
               propias listas.
             </p>
@@ -149,7 +149,7 @@ export default function SuperPage() {
             <Card key={group.id} className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-semibold">{group.name}</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="text-sm text-muted">
                   {group.kind === 'viaje' ? 'Actualmente en Grupal' : 'Grupo de convivencia'}
                 </p>
               </div>

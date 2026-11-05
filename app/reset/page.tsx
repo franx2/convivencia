@@ -72,7 +72,7 @@ export default function ResetPasswordPage() {
     <div className="flex flex-1 items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="mb-1 text-center"><Brand centered /></div>
-        <p className="mb-6 text-center text-sm text-slate-500">Crear una nueva contraseña</p>
+        <p className="mb-6 text-center text-sm text-muted">Crear una nueva contraseña</p>
         <Card>
           {status === 'checking' && <Spinner />}
 
@@ -90,7 +90,7 @@ export default function ResetPasswordPage() {
 
           {status === 'ready' && done && (
             <div className="space-y-3 text-center">
-              <p className="text-sm text-emerald-700">
+              <p className="text-sm text-emerald-700 dark:text-emerald-400">
                 Contraseña actualizada. Te llevamos a tus grupos…
               </p>
               <Spinner />

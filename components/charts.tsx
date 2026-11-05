@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { EChartsOption, EChartsType } from 'echarts'
 import type { MonthTotal } from '@/lib/balances'
 
@@ -164,7 +164,7 @@ function buildCategoryChartOption({
 export function Donut({
   data,
   format,
-  size = 292,
+  size = 260,
 }: {
   data: DonutSlice[]
   format: (n: number) => string
@@ -173,14 +173,18 @@ export function Donut({
 }) {
   const chartRef = useRef<HTMLDivElement | null>(null)
   const total = data.reduce((s, d) => s + d.value, 0)
-  const wheelData = useMemo(
-    () =>
-      topWheelData(data).map((d) => ({
-        ...d,
-        pct: total > 0 ? Math.round((d.value / total) * 100) : 0,
-      })),
-    [data, total]
-  )
+  const wheelData = topWheelData(data).map((d) => ({
+    ...d,
+    pct: total > 0 ? Math.round((d.value / total) * 100) : 0,
+  }))
+  // Cada pantalla pasa `format` y `data` como objetos nuevos en cada render, y el
+  // poll del grupo re-renderiza cada 25s: el gráfico se destruía y volvía a dibujar
+  // solo, gastando batería. Ahora se redibuja recién si cambian los números.
+  const signature = JSON.stringify(wheelData)
+  const formatRef = useRef(format)
+  useEffect(() => {
+    formatRef.current = format
+  }, [format])
 
   useEffect(() => {
     const el = chartRef.current
@@ -196,7 +200,14 @@ export function Donut({
 
       const dark = document.documentElement.classList.contains('dark')
       chart = echarts.init(el, dark ? 'dark' : undefined, { renderer: 'svg' })
-      chart.setOption(buildCategoryChartOption({ data: wheelData, total, format, dark }))
+      chart.setOption(
+        buildCategoryChartOption({
+          data: JSON.parse(signature) as CategoryChartItem[],
+          total,
+          format: (n) => formatRef.current(n),
+          dark,
+        })
+      )
 
       resizeObserver = new ResizeObserver(() => chart?.resize())
       resizeObserver.observe(el)
@@ -209,12 +220,12 @@ export function Donut({
       resizeObserver?.disconnect()
       chart?.dispose()
     }
-  }, [format, total, wheelData])
+  }, [signature, total])
 
   return (
     <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
-      <div className="relative mx-auto w-full max-w-[292px] shrink-0">
-        <div ref={chartRef} className="h-[292px] w-full" style={{ width: size, maxWidth: '100%' }} />
+      <div className="relative mx-auto w-full shrink-0" style={{ maxWidth: size }}>
+        <div ref={chartRef} className="w-full" style={{ height: size }} />
       </div>
 
       <ul className="w-full space-y-2">
@@ -230,8 +241,8 @@ export function Donut({
                   {d.symbol ?? '•'}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-slate-600 dark:text-slate-300">{d.label}</span>
-                <span className="tabular-nums text-slate-500 dark:text-slate-400">{format(d.value)}</span>
-                <span className="w-9 text-right tabular-nums text-xs text-slate-400">{pct}%</span>
+                <span className="shrink-0 tabular-nums text-muted">{format(d.value)}</span>
+                <span className="w-9 text-right tabular-nums text-xs text-muted">{pct}%</span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                 <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: d.color }} />
@@ -261,10 +272,12 @@ export function MonthlyBars({
     ? withSpend.reduce((s, d) => s + d.total, 0) / withSpend.length
     : 0
   const avgPct = max > 0 ? (avg / max) * 100 : 0
+  // Seis columnas en un celular: el monto completo no entra, "746 mil" sí.
+  const compact = new Intl.NumberFormat('es-AR', { notation: 'compact', maximumFractionDigits: 1 })
 
   return (
     <div>
-      <div className="mb-1 flex justify-between text-[10px] text-slate-400 dark:text-slate-500">
+      <div className="mb-1 flex flex-wrap justify-between gap-x-3 text-xs tabular-nums text-muted">
         <span>{avg > 0 ? `prom ${format(avg)}` : ''}</span>
         <span>máx {format(max)}</span>
       </div>
@@ -296,9 +309,9 @@ export function MonthlyBars({
       <div className="mt-1 flex gap-2">
         {data.map((d) => (
           <div key={d.key} className="flex-1 text-center">
-            <div className="text-xs text-slate-500 dark:text-slate-400">{d.label}</div>
-            <div className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500">
-              {d.total > 0 ? format(d.total) : '—'}
+            <div className="text-xs font-medium text-muted">{d.label}</div>
+            <div className="text-[11px] tabular-nums text-muted">
+              {d.total > 0 ? compact.format(d.total) : '—'}
             </div>
           </div>
         ))}

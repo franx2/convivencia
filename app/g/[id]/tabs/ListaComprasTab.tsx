@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Button, Card, Checkbox, EmptyState, ErrorText, IconButton, Input, Modal, Select, Spinner } from '@/components/ui'
+import { Button, Card, Checkbox, EmptyState, ErrorText, IconButton, Input, Modal, Select, Spinner, TextButton } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { correctGroceryTerm } from '@/lib/grocery-glossary'
 import { DEFAULT_GROCERY_CATEGORY, GROCERY_CATEGORIES, suggestGroceryCategory } from '@/lib/grocery-categories'
@@ -15,16 +15,22 @@ export function ListaComprasTab({
 }: {
   groupId: string
   items: ShoppingItem[]
-  onChanged: () => void
+  onChanged: () => void | Promise<void>
 }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Marcado optimista: en el súper la señal es mala y el tilde tiene que responder
+  // al instante, sin esperar el viaje a la base.
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({})
+  const [toggleError, setToggleError] = useState<string | null>(null)
   const [text, setText] = useState('')
   const [category, setCategory] = useState(DEFAULT_GROCERY_CATEGORY)
   const [categoryTouched, setCategoryTouched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [searchFor, setSearchFor] = useState<ShoppingItem | null>(null)
 
-  const pending = items.filter((i) => !i.checked)
-  const bought = items.filter((i) => i.checked)
+  const shown = items.map((i) => (i.id in overrides ? { ...i, checked: overrides[i.id] } : i))
+  const pending = shown.filter((i) => !i.checked)
+  const bought = shown.filter((i) => i.checked)
   // Historial "confirmado": items a los que ya se les dio el ok (comprados),
   // con su categoría. Sirve de base para aprender y sugerir mejor con el tiempo.
   const confirmedHistory = bought.map((i) => ({ text: i.text, category: i.category || DEFAULT_GROCERY_CATEGORY }))
@@ -50,11 +56,22 @@ export function ListaComprasTab({
     setCategoryTouched(false)
     setBusy(false)
     onChanged()
+    // Sigue el teclado abierto para cargar varios de corrido.
+    inputRef.current?.focus()
   }
 
   async function toggle(item: ShoppingItem) {
-    await supabase.from('shopping_items').update({ checked: !item.checked }).eq('id', item.id)
-    onChanged()
+    const checked = !item.checked
+    setToggleError(null)
+    setOverrides((current) => ({ ...current, [item.id]: checked }))
+    const { error } = await supabase.from('shopping_items').update({ checked }).eq('id', item.id)
+    if (error) setToggleError('No se pudo guardar el cambio. Revisá la conexión y probá de nuevo.')
+    else await onChanged()
+    setOverrides((current) => {
+      const next = { ...current }
+      delete next[item.id]
+      return next
+    })
   }
 
   async function remove(id: string) {
@@ -68,17 +85,20 @@ export function ListaComprasTab({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <Card>
         <form onSubmit={add} className="space-y-2">
           <div className="flex gap-2">
+            {/* Sin autoFocus: al abrir la lista en el súper el teclado taparía los ítems. */}
             <Input
+              ref={inputRef}
               value={text}
               onChange={(e) => onTextChange(e.target.value)}
               placeholder="Leche, pan, detergente…"
-              autoFocus
+              enterKeyHint="send"
+              autoCapitalize="sentences"
             />
-            <Button type="submit" disabled={busy || !text.trim()}>
+            <Button type="submit" disabled={busy || !text.trim()} className="shrink-0">
               Agregar
             </Button>
           </div>
@@ -98,61 +118,54 @@ export function ListaComprasTab({
         </form>
       </Card>
 
+      <ErrorText>{toggleError}</ErrorText>
+
       {items.length === 0 ? (
         <EmptyState>Todavía no hay nada en la lista.</EmptyState>
       ) : (
         <>
-          <div className="space-y-4">
-            {pendingByCategory.map(({ cat, items: catItems }) => (
-              <div key={cat.value}>
-                <p className="mb-2 text-sm font-semibold text-slate-400">
-                  {cat.emoji} {cat.label} ({catItems.length})
-                </p>
-                <div className="space-y-2">
-                  {catItems.map((item) => (
-                    <Card key={item.id} className="flex items-center justify-between gap-3 py-2.5">
-                      <label className="flex min-w-0 flex-1 items-center gap-3">
-                        <Checkbox checked={false} onChange={() => toggle(item)} className="h-5 w-5" />
-                        <span className="truncate">{item.text}</span>
-                      </label>
-                      <button
-                        onClick={() => setSearchFor(item)}
-                        className="shrink-0 text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
-                      >
-                        Precio
-                      </button>
-                      <IconButton label="Borrar" onClick={() => remove(item.id)} className="shrink-0">
-                    ✕
-                  </IconButton>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+          {pendingByCategory.map(({ cat, items: catItems }) => (
+            <Card key={cat.value} className="px-4 pb-1 pt-3">
+              <p className="text-sm font-semibold text-muted">
+                {cat.emoji} {cat.label} ({catItems.length})
+              </p>
+              <ul className="divide-y divide-slate-100 dark:divide-[#26312d]">
+                {catItems.map((item) => (
+                  <li key={item.id} className="flex items-center gap-3">
+                    <label className="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-3 py-2">
+                      <Checkbox checked={false} onChange={() => toggle(item)} className="h-6 w-6" />
+                      <span className="min-w-0 break-words leading-snug">{item.text}</span>
+                    </label>
+                    <TextButton onClick={() => setSearchFor(item)} className="mx-0">
+                      Precio
+                    </TextButton>
+                    <IconButton label={`Borrar ${item.text}`} onClick={() => remove(item.id)} />
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ))}
 
           {bought.length > 0 && (
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-sm font-semibold text-slate-400">Comprado ({bought.length})</p>
-                <button onClick={clearBought} className="text-sm font-medium text-slate-400 hover:text-red-500">
+            <Card className="px-4 pb-1 pt-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-muted">Comprado ({bought.length})</p>
+                <TextButton tone="muted" onClick={clearBought}>
                   Vaciar
-                </button>
+                </TextButton>
               </div>
-              <div className="space-y-2">
+              <ul className="divide-y divide-slate-100 dark:divide-[#26312d]">
                 {bought.map((item) => (
-                  <Card key={item.id} className="flex items-center justify-between gap-3 py-2.5 opacity-60">
-                    <label className="flex min-w-0 flex-1 items-center gap-3">
-                      <Checkbox checked={true} onChange={() => toggle(item)} className="h-5 w-5" />
-                      <span className="truncate line-through">{item.text}</span>
+                  <li key={item.id} className="flex items-center gap-3">
+                    <label className="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-3 py-2 text-muted">
+                      <Checkbox checked={true} onChange={() => toggle(item)} className="h-6 w-6" />
+                      <span className="min-w-0 break-words leading-snug line-through">{item.text}</span>
                     </label>
-                    <IconButton label="Borrar" onClick={() => remove(item.id)} className="shrink-0">
-                    ✕
-                  </IconButton>
-                  </Card>
+                    <IconButton label={`Borrar ${item.text}`} onClick={() => remove(item.id)} />
+                  </li>
                 ))}
-              </div>
-            </div>
+              </ul>
+            </Card>
           )}
         </>
       )}
@@ -210,12 +223,12 @@ export function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string
             }}
             className="flex gap-2"
           >
-            <Input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Qué buscar…" autoFocus />
-            <Button type="submit" disabled={loading || !term.trim()}>
+            <Input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Qué buscar…" enterKeyHint="search" />
+            <Button type="submit" disabled={loading || !term.trim()} className="shrink-0">
               {loading ? '…' : 'Buscar'}
             </Button>
           </form>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted">
             Precios de Vea, Changomas, Carrefour, Jumbo, Disco y La Anónima, orientativos. Mismo producto en varios
             supermercados aparece agrupado para comparar.
           </p>
@@ -224,7 +237,7 @@ export function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string
           {loading ? (
             <Spinner />
           ) : groups.length === 0 ? (
-            <p className="text-center text-sm text-slate-500">Sin resultados.</p>
+            <p className="text-center text-sm text-muted">Sin resultados.</p>
           ) : (
             <div className="space-y-3">
               {groups.map((g) => (
@@ -236,7 +249,7 @@ export function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string
                     ) : (
                       <div className="h-12 w-12 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800" />
                     )}
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium">{g.name}</p>
+                    <p className="line-clamp-2 min-w-0 flex-1 text-sm font-medium leading-snug">{g.name}</p>
                   </div>
                   <div className="mt-2 space-y-1">
                     {g.offers.map((o, i) => (
@@ -245,19 +258,19 @@ export function PriceSearchModal({ initialTerm, onClose }: { initialTerm: string
                         href={o.url}
                         target="_blank"
                         rel="noreferrer"
-                        className={`flex items-center justify-between rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-900 ${
+                        className={`flex min-h-11 items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-900 ${
                           i === 0 && g.offers.length > 1 ? 'bg-emerald-50 dark:bg-emerald-950/30' : ''
                         }`}
                       >
-                        <span className="text-slate-500">
+                        <span className="text-muted">
                           {o.store}
                           {i === 0 && g.offers.length > 1 && (
-                            <span className="ml-1.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                            <span className="ml-1.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[11px] font-bold uppercase text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
                               Mejor precio
                             </span>
                           )}
                         </span>
-                        <span className="shrink-0 font-bold text-emerald-700 dark:text-emerald-400">
+                        <span className="shrink-0 font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
                           {o.price != null ? formatMoney(o.price, 'ARS') : '—'}
                         </span>
                       </a>

@@ -92,12 +92,12 @@ export default function ConfiguracionPage() {
         <div>
           <Label>Nombre visible</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" />
-          <p className="mt-1 text-xs text-slate-400">Con este nombre aparecés en los grupos compartidos.</p>
+          <p className="mt-1 text-xs text-muted">Con este nombre aparecés en los grupos compartidos.</p>
         </div>
         <div>
           <Label>Alias de cobro</Label>
-          <Input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="alias.mp / CBU" />
-          <p className="mt-1 text-xs text-slate-400">
+          <Input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="alias.mp / CBU" autoCapitalize="none" autoCorrect="off" />
+          <p className="mt-1 text-xs text-muted">
             Se completa solo cuando elegís quién sos en un grupo, así te pueden transferir.
           </p>
         </div>
@@ -107,14 +107,14 @@ export default function ConfiguracionPage() {
             {SUPERMARKETS.map((s) => (
               <label
                 key={s}
-                className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${selectableBox(stores.includes(s))}`}
+                className={`flex min-w-0 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm ${selectableBox(stores.includes(s))}`}
               >
                 <Checkbox checked={stores.includes(s)} onChange={() => toggleStore(s)} />
                 {s}
               </label>
             ))}
           </div>
-          <p className="mt-1 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-muted">
             Filtra el buscador de precios de la lista de compras. Sin ninguno marcado, busca en todos.
           </p>
         </div>
@@ -127,7 +127,7 @@ export default function ConfiguracionPage() {
       <Card className="mt-4">
         <div>
           <p className="font-semibold">Apariencia</p>
-          <p className="text-xs text-slate-400">Automatico sigue el modo configurado en tu celular.</p>
+          <p className="text-xs text-muted">Automatico sigue el modo configurado en tu celular.</p>
         </div>
         <div role="radiogroup" aria-label="Apariencia" className="mt-3 grid grid-cols-3 rounded-xl bg-slate-100 p-1 dark:bg-[#18201d]">
           <ThemeModeButton active={mode === 'auto'} label="Auto" Icon={Smartphone} onClick={() => setMode('auto')} />
@@ -160,10 +160,10 @@ function ThemeModeButton({
       role="radio"
       aria-checked={active}
       onClick={onClick}
-      className={`flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold transition ${
+      className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-semibold transition ${
         active
           ? 'bg-white text-emerald-700 shadow-sm dark:bg-[#22302a] dark:text-[#4ee6b0]'
-          : 'text-slate-500 hover:text-slate-700 dark:text-[#94a19c] dark:hover:text-[#f4f7f6]'
+          : 'text-muted hover:text-slate-700 dark:text-[#94a19c] dark:hover:text-[#f4f7f6]'
       }`}
     >
       <Icon size={15} strokeWidth={2.3} />

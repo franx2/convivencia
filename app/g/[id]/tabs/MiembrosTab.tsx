@@ -135,47 +135,51 @@ export function MiembrosTab({
       <Card>
         <form onSubmit={add} className="flex gap-2">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del participante" />
-          <Button type="submit" disabled={busy || !name.trim()}>
+          <Button type="submit" disabled={busy || !name.trim()} className="shrink-0">
             Agregar
           </Button>
         </form>
-        <div className="mt-3 space-y-2">
+        <div className="mt-1">
           {members.length === 0 ? (
-            <p className="text-sm text-slate-500">Todavía no hay miembros.</p>
+            <p className="text-sm text-muted">Todavía no hay miembros.</p>
           ) : (
             members.map((m) => (
-              <div key={m.id} className="border-b border-slate-100 pb-2 last:border-0">
-                <div className="flex items-center justify-between gap-3">
+              <div key={m.id} className="border-b border-slate-100 py-3 last:border-0 last:pb-0 dark:border-[#26312d]">
+                {/* Una fila por dato: en una sola, el nombre quedaba de 26px de ancho. */}
+                <div className="flex items-center gap-3">
                   <Input
                     defaultValue={m.name}
                     onBlur={(e) => updateName(m.id, e.target.value, m.name)}
                     className="flex-1 font-medium"
                     aria-label={`Nombre de ${m.name}`}
+                    autoCapitalize="words"
                   />
-                  <label className="flex items-center gap-1 text-xs text-slate-400" title="Peso para el reparto proporcional">
-                    peso
+                  <IconButton label={`Quitar a ${m.name}`} onClick={() => remove(m.id, m.name)} />
+                </div>
+                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_4.5rem] gap-2">
+                  <label className="block text-xs font-medium text-muted" title="Alias o CBU para cobrar">
+                    Alias o CBU
+                    <Input
+                      defaultValue={m.alias ?? ''}
+                      onBlur={(e) => updateAlias(m.id, e.target.value, m.alias)}
+                      placeholder="alias.mercadopago"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      className="mt-1"
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-muted" title="Peso para el reparto proporcional">
+                    Peso
                     <Input
                       type="number"
                       step="0.01"
                       min="0"
                       defaultValue={String(m.weight ?? 1)}
                       onBlur={(e) => updateWeight(m.id, e.target.value)}
-                      className="w-14 text-right"
+                      className="mt-1 text-right tabular-nums"
                     />
                   </label>
-                  <IconButton label="Quitar" onClick={() => remove(m.id, m.name)}>
-                    ✕
-                  </IconButton>
                 </div>
-                <label className="mt-1 flex items-center gap-1 text-xs text-slate-400" title="Alias o CBU para cobrar">
-                  alias
-                  <Input
-                    defaultValue={m.alias ?? ''}
-                    onBlur={(e) => updateAlias(m.id, e.target.value, m.alias)}
-                    placeholder="alias.mercadopago / CBU"
-                    className="flex-1"
-                  />
-                </label>
               </div>
             ))
           )}
@@ -184,15 +188,23 @@ export function MiembrosTab({
 
       <Card>
         <SectionTitle>Invitar a alguien con cuenta</SectionTitle>
-        <p className="mb-2 text-xs text-slate-400">
+        <p className="mb-2 text-xs text-muted">
           Compartí este link. Quien lo abra (con sesión iniciada) podrá ver y editar el grupo.
         </p>
         <div className="flex gap-2">
-          <Input readOnly value={inviteUrl} className="text-xs" />
-          <Button variant="ghost" onClick={copyInvite}>
+          <Input readOnly value={inviteUrl} aria-label="Link de invitación" />
+          <Button variant="ghost" onClick={copyInvite} className="shrink-0">
             {copied ? '¡Copiado!' : 'Copiar'}
           </Button>
         </div>
+        {typeof navigator !== 'undefined' && 'share' in navigator && (
+          <Button
+            onClick={() => navigator.share({ title: group.name, url: inviteUrl }).catch(() => undefined)}
+            className="mt-2 w-full"
+          >
+            Compartir invitación
+          </Button>
+        )}
       </Card>
       {dialog}
     </div>

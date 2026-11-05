@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { Button, Card, Checkbox, ErrorText, IconButton, Input, SectionTitle, Select, useConfirm } from '@/components/ui'
+import { Badge, Button, Checkbox, Disclosure, ErrorText, IconButton, Input, Select, TextButton, useConfirm } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { isServiceDue } from '@/lib/dates'
 import { type CatMeta } from '@/lib/categories'
@@ -121,27 +121,33 @@ export function RecurringExpenses({
     })
   }
 
+  const pendingCount = recurring.filter(isPending).length
+
   return (
-    <Card>
-      <SectionTitle
-        action={
-          <button
-            type="button"
-            onClick={() => {
-              setAdding((v) => !v)
-              setError(null)
-            }}
-            className="text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
-          >
-            {adding ? 'Cancelar' : '+ Agregar'}
-          </button>
-        }
-      >
-        Gastos fijos
-      </SectionTitle>
+    // Plegado para que la lista de gastos arranque arriba; si hay uno por cargar, abierto.
+    <Disclosure
+      defaultOpen={pendingCount > 0}
+      summary={
+        <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
+          Gastos fijos
+          {recurring.length > 0 && <Badge tone="slate">{recurring.length}</Badge>}
+          {pendingCount > 0 && <Badge tone="amber">{pendingCount} por cargar</Badge>}
+        </span>
+      }
+    >
+      <div className="mb-2 flex justify-end">
+        <TextButton
+          onClick={() => {
+            setAdding((v) => !v)
+            setError(null)
+          }}
+        >
+          {adding ? 'Cancelar' : '+ Agregar'}
+        </TextButton>
+      </div>
 
       {recurring.length === 0 && !adding ? (
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-muted">
           Alquiler, expensas, servicios: se cargan solos todos los meses el día que elijas.
         </p>
       ) : (
@@ -151,7 +157,7 @@ export function RecurringExpenses({
             return (
               <div
                 key={item.id}
-                className={`rounded-lg border px-3 py-2 ${
+                className={`rounded-xl border px-3 py-2.5 ${
                   pending
                     ? 'border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30'
                     : 'border-slate-100 dark:border-slate-800'
@@ -162,7 +168,7 @@ export function RecurringExpenses({
                     <p className="truncate text-sm font-medium">
                       {catMeta(item.category).symbol} {item.title}
                     </p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-muted">
                       Día {item.day_of_month} ·{' '}
                       {item.amount_fixed
                         ? formatMoney(Number(item.amount), item.currency)
@@ -173,26 +179,20 @@ export function RecurringExpenses({
                       {item.active ? '' : ' · en pausa'}
                     </p>
                     {item.account_number && (
-                      <p className="truncate text-xs text-slate-400">NIC/cuenta: {item.account_number}</p>
+                      <p className="truncate text-xs text-muted">NIC/cuenta: {item.account_number}</p>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleActive(item)}
-                      className="text-xs font-medium text-slate-400 hover:text-emerald-600"
-                    >
+                  <div className="flex shrink-0 items-center gap-3">
+                    <TextButton tone="muted" onClick={() => toggleActive(item)}>
                       {item.active ? 'Pausar' : 'Reanudar'}
-                    </button>
-                    <IconButton label="Borrar" onClick={() => remove(item)}>
-                      ✕
-                    </IconButton>
+                    </TextButton>
+                    <IconButton label="Borrar" onClick={() => remove(item)} />
                   </div>
                 </div>
                 {pending && (
                   <Link
                     href={recurringHref(group.id, item)}
-                    className="mt-2 inline-flex items-center gap-1 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:brightness-95"
+                    className="mt-2 flex min-h-11 items-center rounded-xl bg-amber-400 px-3 py-2 text-sm font-semibold leading-snug text-amber-950 transition active:scale-[0.99]"
                   >
                     Ya llegó el día — cargar {item.title} con el monto real →
                   </Link>
@@ -206,7 +206,7 @@ export function RecurringExpenses({
       {adding && (
         <form onSubmit={add} className="mt-3 space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
           <div className="grid gap-2 sm:grid-cols-2">
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nombre (ej: Alquiler)" autoFocus />
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nombre (ej: Alquiler)" autoFocus enterKeyHint="next" />
             <Input
               type="number"
               step="0.01"
@@ -216,7 +216,7 @@ export function RecurringExpenses({
               placeholder={amountFixed ? `Monto (${group.base_currency})` : 'Monto de referencia (opcional)'}
             />
           </div>
-          <label className="flex cursor-pointer items-start gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <label className="flex cursor-pointer items-start gap-2.5 py-1 text-sm text-muted">
             <Checkbox checked={amountFixed} onChange={(e) => setAmountFixed(e.target.checked)} className="mt-0.5" />
             <span>
               Monto fijo: se carga solo todos los meses con este monto.
@@ -225,13 +225,13 @@ export function RecurringExpenses({
               elegido para que lo cargues vos con el monto real de la factura.
             </span>
           </label>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2">
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-slate-500">Día del mes</span>
-              <Input type="number" min="1" max="31" value={day} onChange={(e) => setDay(e.target.value)} />
+              <span className="mb-1 block text-xs font-semibold text-muted">Día del mes</span>
+              <Input type="number" inputMode="numeric" min="1" max="31" value={day} onChange={(e) => setDay(e.target.value)} />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-slate-500">Categoría</span>
+              <span className="mb-1 block text-xs font-semibold text-muted">Categoría</span>
               <Select value={category} onChange={(e) => setCategory(e.target.value)}>
                 {cats.map((c) => (
                   <option key={c.value} value={c.value}>
@@ -248,7 +248,7 @@ export function RecurringExpenses({
           />
           {members.length > 1 && (
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-slate-500">Lo paga</span>
+              <span className="mb-1 block text-xs font-semibold text-muted">Lo paga</span>
               <Select value={paidBy || defaultPaidBy || members[0]?.id} onChange={(e) => setPaidBy(e.target.value)}>
                 {members.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -258,19 +258,19 @@ export function RecurringExpenses({
               </Select>
             </label>
           )}
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted">
             {members.length > 1
               ? 'Se reparte entre todos los miembros. Podés editar el gasto de cada mes después.'
               : 'Se genera automáticamente todos los meses.'}
           </p>
           <ErrorText>{error}</ErrorText>
-          <Button type="submit" disabled={busy}>
+          <Button type="submit" disabled={busy} className="w-full">
             {busy ? 'Guardando…' : 'Guardar gasto fijo'}
           </Button>
         </form>
       )}
       {dialog}
-    </Card>
+    </Disclosure>
   )
 }
 

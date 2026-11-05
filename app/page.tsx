@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { PartyPopper, UsersRound } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { PageShell } from '@/components/PageShell'
@@ -230,19 +231,19 @@ function HomePageInner() {
               <span className="truncate">{g.name}</span>
               {g.is_personal && <Badge>personal</Badge>}
             </span>
-            <span className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
+            <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs tabular-nums text-muted">
               {isTravel ? 'Gasto total' : 'Este mes'}: {formatMoney(total, g.base_currency)}
               {!g.is_personal && (pending[g.id] ?? 0) > 0 && <Badge tone="amber">🛒 {pending[g.id]}</Badge>}
             </span>
           </span>
-          <span className="shrink-0 text-sm text-slate-400">{g.base_currency}</span>
+          <span className="shrink-0 text-sm text-muted">{g.base_currency}</span>
         </Link>
         {g.owner_id === user!.id && (
           <button
             type="button"
             onClick={() => askDeleteGroup(g)}
             disabled={deletingId !== null}
-            className="border-l border-slate-100 px-3 text-sm font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:hover:bg-red-950/30"
+            className="border-l border-slate-100 px-3 text-sm font-medium text-muted hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:hover:bg-red-950/30"
           >
             {deletingId === g.id ? 'Borrando…' : 'Borrar'}
           </button>
@@ -256,7 +257,7 @@ function HomePageInner() {
         <div className="mb-4 flex items-center justify-between gap-3">
           <h1 className="text-2xl font-bold">{section === 'viajes' ? 'Grupal' : 'Convivencia'}</h1>
           {canCreateGroup && (
-            <Button onClick={() => { setKind(section === 'viajes' ? 'viaje' : 'convivencia'); setShowForm((s) => !s) }}>
+            <Button className="shrink-0" onClick={() => { setKind(section === 'viajes' ? 'viaje' : 'convivencia'); setShowForm((s) => !s) }}>
               {showForm ? 'Cancelar' : '+ Nuevo grupo'}
             </Button>
           )}
@@ -290,34 +291,34 @@ function HomePageInner() {
                   <button
                     type="button"
                     onClick={() => setKind('convivencia')}
-                    className={`rounded-lg border px-3 py-2 text-left text-sm ${
+                    className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm ${
                       kind === 'convivencia'
                         ? 'border-emerald-400 bg-emerald-50 font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                        : 'border-slate-200 text-slate-500 dark:border-slate-700'
+                        : 'border-slate-200 text-muted dark:border-slate-700'
                     }`}
                   >
-                    🏡 Convivencia
+                    <UsersRound size={17} aria-hidden="true" className="shrink-0" /> Convivencia
                   </button>
                   <button
                     type="button"
                     onClick={() => setKind('viaje')}
-                    className={`rounded-lg border px-3 py-2 text-left text-sm ${
+                    className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm ${
                       kind === 'viaje'
                         ? 'border-emerald-400 bg-emerald-50 font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                        : 'border-slate-200 text-slate-500 dark:border-slate-700'
+                        : 'border-slate-200 text-muted dark:border-slate-700'
                     }`}
                   >
-                    🎉 Grupal
+                    <PartyPopper size={17} aria-hidden="true" className="shrink-0" /> Grupal
                   </button>
                 </div>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-muted">
                   {kind === 'viaje'
                     ? 'Para viajes, asados y juntadas con amigos: los gastos se ven en total, sin separar por mes.'
                     : 'No se puede cambiar después de creado.'}
                 </p>
               </div>
               <ErrorText>{error}</ErrorText>
-              <Button type="submit" disabled={busy || !name.trim()}>
+              <Button type="submit" disabled={busy || !name.trim()} className="w-full">
                 {busy ? 'Creando…' : 'Crear grupo'}
               </Button>
             </form>

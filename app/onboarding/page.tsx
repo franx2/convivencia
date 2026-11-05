@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { createGroupWithOwner } from '@/lib/groups'
 import { PageShell } from '@/components/PageShell'
-import { Button, Card, Checkbox, ErrorText, Input, selectableBox, Spinner } from '@/components/ui'
+import { Button, Card, Checkbox, ErrorText, Input, selectableBox, Spinner, TextButton } from '@/components/ui'
 import { SUPERMARKETS } from '@/lib/stores'
 import { userPaymentAlias, userPreferredStores } from '@/lib/profile'
 import { House, UserRound, UsersRound, type LucideIcon } from 'lucide-react'
@@ -100,12 +100,12 @@ export default function OnboardingPage() {
 
   return (
     <PageShell width="narrow">
-      <p className="mb-4 text-sm font-semibold text-slate-400">Paso {step} de 3</p>
+      <p className="mb-4 text-sm font-semibold text-muted">Paso {step} de 3</p>
 
         {step === 1 && (
           <Card>
             <h1 className="text-xl font-bold">¿Cómo vas a usar covivencia?</h1>
-            <p className="mt-1 text-sm text-slate-500">Así te llevamos directo a lo que más vas a usar.</p>
+            <p className="mt-1 text-sm text-muted">Así te llevamos directo a lo que más vas a usar.</p>
             <div className="mt-4 space-y-2">
               {USO_OPTIONS.map((o) => (
                 <button
@@ -123,7 +123,7 @@ export default function OnboardingPage() {
                   </span>
                   <span>
                     <span className="block font-semibold">{o.title}</span>
-                    <span className="block text-xs text-slate-500">{o.desc}</span>
+                    <span className="block text-xs text-muted">{o.desc}</span>
                   </span>
                 </button>
               ))}
@@ -137,16 +137,16 @@ export default function OnboardingPage() {
         {step === 2 && (
           <Card>
             <h1 className="text-xl font-bold">Alias para cobrar</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted">
               Así te pueden transferir cuando alguien te debe plata. Se completa solo cuando elegís quién sos en un grupo.
             </p>
             <div className="mt-4">
-              <Input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="tu.alias / CBU" autoFocus />
+              <Input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="tu.alias / CBU" autoFocus autoCapitalize="none" autoCorrect="off" enterKeyHint="next" />
             </div>
             <div className="mt-5 flex items-center justify-between">
-              <button type="button" onClick={() => setStep(1)} className="text-sm text-slate-400 hover:text-slate-600">
+              <TextButton tone="muted" onClick={() => setStep(1)}>
                 ← Atrás
-              </button>
+              </TextButton>
               <Button onClick={() => setStep(3)} disabled={!alias.trim()}>
                 Continuar
               </Button>
@@ -157,7 +157,7 @@ export default function OnboardingPage() {
         {step === 3 && (
           <Card>
             <h1 className="text-xl font-bold">¿Qué supermercados usás?</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted">
               Elegí todos los que compres: el buscador de precios de la lista de compras va a mostrar solo esos. Podés
               dejarlo vacío y buscamos en todos.
             </p>
@@ -165,7 +165,7 @@ export default function OnboardingPage() {
               {SUPERMARKETS.map((s) => (
                 <label
                   key={s}
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${selectableBox(stores.includes(s))}`}
+                  className={`flex min-w-0 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm ${selectableBox(stores.includes(s))}`}
                 >
                   <Checkbox checked={stores.includes(s)} onChange={() => toggleStore(s)} />
                   {s}
@@ -176,9 +176,9 @@ export default function OnboardingPage() {
               <ErrorText>{error}</ErrorText>
             </div>
             <div className="mt-5 flex items-center justify-between">
-              <button type="button" onClick={() => setStep(2)} className="text-sm text-slate-400 hover:text-slate-600">
+              <TextButton tone="muted" onClick={() => setStep(2)}>
                 ← Atrás
-              </button>
+              </TextButton>
               <Button onClick={finish} disabled={busy}>
                 {busy ? 'Guardando…' : 'Empezar'}
               </Button>

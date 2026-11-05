@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react'
+import { useEffect, useState, type ButtonHTMLAttributes, type ComponentProps, type HTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react'
+import { ChevronDown, X } from 'lucide-react'
 
 export function Button({
   variant = 'primary',
@@ -10,7 +11,7 @@ export function Button({
   variant?: 'primary' | 'ghost' | 'danger'
 }) {
   const base =
-    'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed'
+    'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed'
   const variants = {
     primary: 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-[#4ee6b0] dark:text-[#062419] dark:hover:bg-[#72efc1]',
     ghost:
@@ -21,10 +22,11 @@ export function Button({
   return <button className={`${base} ${variants[variant]} ${className}`} {...props} />
 }
 
-export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
+export function Input({ className = '', ...props }: ComponentProps<'input'>) {
   return (
     <input
-      className={`w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#f4f7f6] dark:focus:border-[#4ee6b0] dark:focus:ring-[#173e32] ${className}`}
+      // text-base es a propósito: con menos de 16px, iOS hace zoom al enfocar el campo.
+      className={`w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#f4f7f6] dark:focus:border-[#4ee6b0] dark:focus:ring-[#173e32] ${className}`}
       {...props}
     />
   )
@@ -35,7 +37,7 @@ export function Checkbox({ className = '', ...props }: InputHTMLAttributes<HTMLI
   return (
     <input
       type="checkbox"
-      className={`h-4 w-4 shrink-0 cursor-pointer accent-emerald-600 dark:accent-[#4ee6b0] ${className}`}
+      className={`h-5 w-5 shrink-0 cursor-pointer accent-emerald-600 dark:accent-[#4ee6b0] ${className}`}
       {...props}
     />
   )
@@ -47,15 +49,17 @@ export function Checkbox({ className = '', ...props }: InputHTMLAttributes<HTMLI
  * varios lugares quedaba con fondo claro en modo oscuro (texto ilegible).
  */
 export function selectableBox(selected: boolean): string {
-  return selected
-    ? 'border-emerald-300 bg-emerald-50 dark:border-[#2f6b55] dark:bg-[#122620]'
-    : 'border-slate-200 dark:border-[#26312d]'
+  return `min-h-11 ${
+    selected
+      ? 'border-emerald-300 bg-emerald-50 dark:border-[#2f6b55] dark:bg-[#122620]'
+      : 'border-slate-200 dark:border-[#26312d]'
+  }`
 }
 
 export function Select({ className = '', children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={`w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#f4f7f6] dark:focus:border-[#4ee6b0] dark:focus:ring-[#173e32] ${className}`}
+      className={`min-h-[46px] w-full min-w-0 truncate rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#f4f7f6] dark:focus:border-[#4ee6b0] dark:focus:ring-[#173e32] ${className}`}
       {...props}
     >
       {children}
@@ -84,7 +88,7 @@ export function Label({ children }: { children: ReactNode }) {
 
 export function Spinner() {
   return (
-    <div className="flex items-center justify-center py-16 text-slate-400">
+    <div className="flex items-center justify-center py-16 text-muted">
       <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-emerald-600" />
     </div>
   )
@@ -98,7 +102,7 @@ export function PageTitle({ children, subtitle }: { children: ReactNode; subtitl
   return (
     <div className="mb-4">
       <h1 className="flex items-center gap-2 text-2xl font-bold">{children}</h1>
-      {subtitle && <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
+      {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
     </div>
   )
 }
@@ -124,11 +128,14 @@ export function ErrorText({ children }: { children: ReactNode }) {
 
 /** Estado vacío. Antes había 15 variantes (unas en Card, otras texto suelto). */
 export function EmptyState({ children, inCard = true }: { children: ReactNode; inCard?: boolean }) {
-  const text = <p className="text-center text-sm text-slate-500 dark:text-slate-400">{children}</p>
+  const text = <p className="text-center text-sm text-muted">{children}</p>
   return inCard ? <Card>{text}</Card> : text
 }
 
-/** Botón de ícono (borrar/editar). Exige label accesible: antes varios no lo tenían. */
+/**
+ * Botón de ícono (borrar/editar). Exige label accesible: antes varios no lo tenían.
+ * Blanco táctil de 44px; el margen negativo evita que agrande la fila donde vive.
+ */
 export function IconButton({
   label,
   tone = 'danger',
@@ -138,23 +145,97 @@ export function IconButton({
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   label: string
   tone?: 'danger' | 'default'
-  children: ReactNode
+  children?: ReactNode
 }) {
   const tones = {
-    danger: 'text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400',
-    default: 'text-slate-300 hover:text-emerald-600 dark:text-slate-600 dark:hover:text-emerald-400',
+    danger: 'text-muted hover:text-red-500 active:text-red-600 dark:hover:text-red-400',
+    default: 'text-muted hover:text-emerald-700 active:text-emerald-700 dark:hover:text-emerald-400',
   }
   return (
     <button
       type="button"
       title={label}
       aria-label={label}
-      className={`shrink-0 transition ${tones[tone]} ${className}`}
+      className={`-my-2 -mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-full transition active:bg-slate-100 dark:active:bg-[#22302a] ${tones[tone]} ${className}`}
       {...props}
     >
-      {children}
+      {children ?? <X size={18} strokeWidth={2.2} aria-hidden="true" />}
     </button>
   )
+}
+
+/** Acción de texto ("+ Agregar", "Editar", "Cancelar"). Se ve liviana pero mide 44px para el dedo. */
+export function TextButton({
+  tone = 'accent',
+  className = '',
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'accent' | 'muted' }) {
+  const tones = {
+    accent: 'text-emerald-700 dark:text-[#4ee6b0]',
+    muted: 'text-muted hover:text-slate-700 dark:hover:text-slate-200',
+  }
+  return (
+    <button
+      type="button"
+      className={`-mx-2 -my-2 inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg px-2 text-sm font-semibold transition active:opacity-60 disabled:opacity-50 ${tones[tone]} ${className}`}
+      {...props}
+    />
+  )
+}
+
+/**
+ * Bloque plegable. En el celular, lo secundario (gastos fijos, gráficos, API keys)
+ * empujaba la lista principal varias pantallas hacia abajo. Lo de adentro recién
+ * se monta al abrir, así ECharts no se descarga si nadie lo pide.
+ */
+export function Disclosure({
+  summary,
+  defaultOpen = false,
+  children,
+}: {
+  summary: ReactNode
+  defaultOpen?: boolean
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-[#26312d] dark:bg-[#131816] dark:shadow-none">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left"
+      >
+        <span className="min-w-0 flex-1">{summary}</span>
+        <ChevronDown
+          size={20}
+          aria-hidden="true"
+          className={`shrink-0 text-muted transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
+    </div>
+  )
+}
+
+/** Fecha corta para listas ("4 nov"): el mes ya lo da el separador y el ISO no entraba en la fila. */
+export function shortDate(iso: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}/.test(iso)) return iso
+  return new Date(`${iso.slice(0, 10)}T00:00:00`)
+    .toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+    .replace('.', '')
+}
+
+/** Mientras hay un diálogo abierto, el fondo no se desplaza con el dedo. */
+export function useBodyScrollLock(locked: boolean) {
+  useEffect(() => {
+    if (!locked) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previous
+    }
+  }, [locked])
 }
 
 export function Badge({
@@ -189,20 +270,37 @@ export function Modal({
   children: ReactNode
   maxWidth?: string
 }) {
+  useBodyScrollLock(true)
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 px-0 sm:items-center sm:px-4">
+    <div
+      className="scrim-in fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 px-0 sm:items-center sm:px-4"
+      onClick={(event) => {
+        // Tocar afuera cierra: es lo que se espera de una hoja inferior en el celular.
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
       <div
-        className={`max-h-[85vh] w-full ${maxWidth} overflow-y-auto rounded-t-[28px] bg-white shadow-2xl dark:bg-[#0b0e0d] sm:rounded-[28px]`}
+        role="dialog"
+        aria-modal="true"
+        className={`sheet-in max-h-[85dvh] w-full ${maxWidth} overflow-y-auto overscroll-contain rounded-t-[28px] bg-white shadow-2xl dark:bg-[#0b0e0d] sm:rounded-[28px]`}
       >
-        <div className="sticky top-0 flex items-center justify-between gap-3 border-b border-slate-100 bg-white px-5 py-4 dark:border-[#26312d] dark:bg-[#0b0e0d]">
-          <h3 className="text-lg font-bold">{title}</h3>
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-100 bg-white py-2 pl-5 pr-3 dark:border-[#26312d] dark:bg-[#0b0e0d]">
+          <h3 className="min-w-0 text-lg font-bold">{title}</h3>
           <button
             type="button"
             onClick={onClose}
-            className="text-2xl leading-none text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted transition hover:text-slate-600 active:bg-slate-100 dark:hover:text-slate-200 dark:active:bg-[#22302a]"
             aria-label="Cerrar"
           >
-            ×
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
         <div className="px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-4">{children}</div>
@@ -245,7 +343,7 @@ export function useConfirm() {
   const dialog = request ? (
     <Modal title={request.title} onClose={() => (busy ? undefined : setRequest(null))}>
       {request.message && <div className="text-sm text-slate-600 dark:text-slate-300">{request.message}</div>}
-      <div className="mt-5 flex justify-end gap-2">
+      <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
         {!request.infoOnly && (
           <Button variant="ghost" onClick={() => setRequest(null)} disabled={busy}>
             Cancelar
@@ -255,6 +353,7 @@ export function useConfirm() {
           variant={request.tone === 'danger' ? 'danger' : 'primary'}
           onClick={request.infoOnly ? () => setRequest(null) : accept}
           disabled={busy}
+          className={request.infoOnly ? 'col-span-2' : ''}
         >
           {busy ? 'Procesando…' : request.infoOnly ? 'Entendido' : (request.confirmLabel ?? 'Confirmar')}
         </Button>

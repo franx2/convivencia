@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Button, Card, EmptyState, ErrorText, IconButton, Input, Label, Select, useConfirm } from '@/components/ui'
+import { Button, Card, EmptyState, ErrorText, IconButton, Input, Label, Select, shortDate, TextButton, useConfirm } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { computeBalances, settle } from '@/lib/balances'
 import { type Expense, type ExpenseShare, type Group, type Member, type Payment } from '@/lib/types'
@@ -100,24 +100,24 @@ export function LiquidacionTab({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <p className="px-1 text-xs font-medium uppercase tracking-wide text-slate-400">Para saldar</p>
+        <p className="px-1 text-xs font-medium uppercase tracking-wide text-muted">Para saldar</p>
         {transfers.length === 0 ? (
           <EmptyState>Todo saldado. Nadie le debe a nadie. 🎉</EmptyState>
         ) : (
           transfers.map((t, i) => (
             <Card key={i} className="space-y-2">
               <div className="flex items-start justify-between gap-3">
-                <span className="text-sm">
-                  <span className="font-medium text-red-600">{t.fromName}</span>
-                  <span className="text-slate-400"> le paga a </span>
-                  <span className="font-medium text-emerald-600">{t.toName}</span>
+                <span className="min-w-0 text-sm">
+                  <span className="font-medium text-red-600 dark:text-red-400">{t.fromName}</span>
+                  <span className="text-muted"> le paga a </span>
+                  <span className="font-medium text-emerald-700 dark:text-emerald-400">{t.toName}</span>
                   {aliasOf(t.toId) && (
-                    <span className="mt-0.5 block text-xs text-slate-400">alias: {aliasOf(t.toId)}</span>
+                    <span className="mt-0.5 block break-all text-xs text-muted">alias: {aliasOf(t.toId)}</span>
                   )}
                 </span>
-                <span className="font-semibold">{fmt(t.amount)}</span>
+                <span className="shrink-0 font-semibold tabular-nums">{fmt(t.amount)}</span>
               </div>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <Button variant="ghost" disabled={!aliasOf(t.toId)} onClick={() => copyAlias(`t${i}`, t.toId)}>
                   {copiedKey === `t${i}` ? '¡Copiado!' : aliasOf(t.toId) ? 'Copiar alias' : 'Sin alias'}
                 </Button>
@@ -176,7 +176,7 @@ export function LiquidacionTab({
               </div>
             </div>
             <ErrorText>{error}</ErrorText>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <Button type="submit" disabled={busy}>
                 {busy ? 'Guardando…' : 'Guardar pago'}
               </Button>
@@ -186,37 +186,33 @@ export function LiquidacionTab({
             </div>
           </form>
         ) : (
-          <button
-            type="button"
+          <TextButton
             onClick={() => {
               setShowForm(true)
               setError(null)
             }}
-            className="text-sm font-medium text-emerald-700 hover:underline"
           >
             + Registrar un pago manualmente
-          </button>
+          </TextButton>
         )}
       </Card>
 
       {payments.length > 0 && (
         <div className="space-y-2">
-          <p className="px-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+          <p className="px-1 text-xs font-medium uppercase tracking-wide text-muted">
             Pagos registrados
           </p>
           {payments.map((p) => (
             <Card key={p.id} className="flex items-center justify-between gap-3">
-              <span className="text-sm text-slate-600">
+              <span className="min-w-0 text-sm text-slate-600 dark:text-slate-300">
                 <span className="font-medium">{memberName(p.from_member)}</span>
-                <span className="text-slate-400"> → </span>
+                <span className="text-muted"> → </span>
                 <span className="font-medium">{memberName(p.to_member)}</span>
-                <span className="text-slate-400"> · {p.date}</span>
+                <span className="block text-xs text-muted">{shortDate(p.date)}</span>
               </span>
-              <div className="flex items-center gap-3">
-                <span className="font-semibold">{fmt(Number(p.amount))}</span>
-                <IconButton label="Deshacer" onClick={() => undo(p.id)}>
-                    ✕
-                  </IconButton>
+              <div className="flex shrink-0 items-center gap-1">
+                <span className="font-semibold tabular-nums">{fmt(Number(p.amount))}</span>
+                <IconButton label="Deshacer" onClick={() => undo(p.id)} />
               </div>
             </Card>
           ))}

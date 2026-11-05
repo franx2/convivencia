@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { Pencil, Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { Button, Card, EmptyState, IconButton, Input, SectionTitle, Select, useConfirm } from '@/components/ui'
+import { Button, Card, Disclosure, EmptyState, IconButton, Input, SectionTitle, Select, shortDate, TextButton, useConfirm } from '@/components/ui'
 import { Donut, MonthlyBars } from '@/components/charts'
 import { formatMoney } from '@/lib/currencies'
 import { type CatMeta } from '@/lib/categories'
@@ -130,44 +131,48 @@ export function GastosTab({
 
   function expenseCard(e: Expense) {
     return (
-      <Card key={e.id} className="flex items-center justify-between">
-        <div>
-          <p className="font-medium">{e.title}</p>
-          <p className="mt-0.5 flex items-center gap-2 text-sm text-slate-500">
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${catMeta(e.category).color}`}>
-              {catMeta(e.category).symbol} {catMeta(e.category).label}
-            </span>
-            Pagó {memberName(e.paid_by)} · {e.date}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className="font-semibold">{formatMoney(Number(e.amount), e.currency)}</p>
+      <Card key={e.id} className="p-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <Link href={`/g/${group.id}/editar/${e.id}`} className="min-w-0 flex-1 break-words font-medium leading-snug">
+            {e.title}
+          </Link>
+          <div className="shrink-0 text-right">
+            <p className="font-semibold tabular-nums">{formatMoney(Number(e.amount), e.currency)}</p>
             {e.currency !== group.base_currency && (
-              <p className="text-xs text-slate-400">
+              <p className="text-xs tabular-nums text-muted">
                 ≈ {formatMoney(Number(e.amount) * Number(e.rate_to_base), group.base_currency)}
               </p>
             )}
           </div>
-          <Link
-            href={`/g/${group.id}/editar/${e.id}`}
-            className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 transition hover:border-emerald-400 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-900/50"
-            title="Editar"
-            aria-label={`Editar ${e.title}`}
-          >
-            <span aria-hidden="true">✎</span>
-            Editar
-          </Link>
-          <IconButton label="Borrar" onClick={() => remove(e.id)}>
-                    ✕
-                  </IconButton>
+        </div>
+        <div className="mt-1.5 flex items-center justify-between gap-2">
+          <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${catMeta(e.category).color}`}>
+              {catMeta(e.category).symbol} {catMeta(e.category).label}
+            </span>
+            <span>
+              {group.is_personal ? '' : `Pagó ${memberName(e.paid_by)} · `}
+              {shortDate(e.date)}
+            </span>
+          </p>
+          <div className="flex shrink-0 items-center">
+            <Link
+              href={`/g/${group.id}/editar/${e.id}`}
+              title="Editar"
+              aria-label={`Editar ${e.title}`}
+              className="-my-2 grid h-11 w-11 place-items-center rounded-full text-emerald-700 transition active:bg-emerald-50 dark:text-[#4ee6b0] dark:active:bg-[#173e32]"
+            >
+              <Pencil size={18} strokeWidth={2.2} aria-hidden="true" />
+            </Link>
+            <IconButton label="Borrar" onClick={() => remove(e.id)} />
+          </div>
         </div>
       </Card>
     )
   }
 
   return (
-    <div id="section-gastos" className="scroll-mt-24 space-y-3">
+    <div id="section-gastos" className={`scroll-mt-24 space-y-3 ${hasMembers ? 'pb-16' : ''}`}>
       {hasMembers && group.kind !== 'viaje' && (
         <RecurringExpenses
           group={group}
@@ -185,26 +190,23 @@ export function GastosTab({
         <Card>
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Gastos típicos</p>
-            <button
-              type="button"
-              onClick={() => setManagingTpl((v) => !v)}
-              className="text-xs font-medium text-slate-400 hover:text-slate-600"
-            >
+            <TextButton tone="muted" onClick={() => setManagingTpl((v) => !v)}>
               {managingTpl ? 'Listo' : 'Editar'}
-            </button>
+            </TextButton>
           </div>
 
           {templates.length === 0 && !managingTpl ? (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-muted">
               Creá atajos de un tap (Super, Delivery, Nafta) con “Editar”.
             </p>
           ) : (
-            <div className="flex flex-wrap gap-2">
+            // Una sola fila que se desliza: envueltos, los atajos empujaban la lista hacia abajo.
+            <div className={`-mx-4 flex gap-2 px-4 ${managingTpl ? 'flex-wrap' : 'no-scrollbar overflow-x-auto'}`}>
               {templates.map((t) => (
-                <div key={t.id} className="flex items-center">
+                <div key={t.id} className="flex shrink-0 items-center">
                   <Link
                     href={tplHref(t)}
-                    className={`rounded-full px-3 py-1 text-sm font-medium ${catMeta(t.category).color}`}
+                    className={`inline-flex min-h-11 items-center whitespace-nowrap rounded-full px-3.5 text-sm font-medium ${catMeta(t.category).color}`}
                   >
                     <span className="mr-1">{catMeta(t.category).symbol}</span>
                     {t.label}
@@ -213,9 +215,7 @@ export function GastosTab({
                     )}
                   </Link>
                   {managingTpl && (
-                    <IconButton label="Quitar plantilla" onClick={() => removeTemplate(t.id)} className="ml-1">
-                    ✕
-                  </IconButton>
+                    <IconButton label="Quitar plantilla" onClick={() => removeTemplate(t.id)} />
                   )}
                 </div>
               ))}
@@ -224,11 +224,12 @@ export function GastosTab({
 
           {managingTpl && (
             <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-              <div className="flex gap-2">
+              <div className="grid grid-cols-[minmax(0,1fr)_7.5rem] gap-2">
                 <Input
                   value={tplLabel}
                   onChange={(e) => setTplLabel(e.target.value)}
                   placeholder="Nombre (ej: Super)"
+                  enterKeyHint="next"
                 />
                 <Input
                   type="number"
@@ -236,11 +237,11 @@ export function GastosTab({
                   min="0"
                   value={tplAmount}
                   onChange={(e) => setTplAmount(e.target.value)}
-                  placeholder="Monto (opc.)"
-                  className="max-w-[130px]"
+                  placeholder="Monto"
+                  aria-label="Monto (opcional)"
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                 <Select value={tplCat} onChange={(e) => setTplCat(e.target.value)}>
                   {cats.map((c) => (
                     <option key={c.value} value={c.value}>
@@ -257,11 +258,15 @@ export function GastosTab({
         </Card>
       )}
 
-      <div className="flex items-center justify-between gap-3">
-        {expenses.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            <Select value={filter} onChange={(e) => setFilter(e.target.value)} className="max-w-[200px]">
-              <option value="all">Todas las categorías</option>
+      {expenses.length > 0 && (
+          <div className="grid grid-cols-2 gap-2">
+            <Select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              aria-label="Filtrar por categoría"
+              className={group.kind !== 'viaje' && availableMonths.length > 0 ? '' : 'col-span-2'}
+            >
+              <option value="all">Categorías</option>
               {usedCats.map((c) => (
                 <option key={c} value={c}>
                   {catMeta(c).symbol} {catMeta(c).label}
@@ -269,8 +274,8 @@ export function GastosTab({
               ))}
             </Select>
             {group.kind !== 'viaje' && availableMonths.length > 0 && (
-              <Select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} className="max-w-[180px]">
-                <option value="all">Todos los meses</option>
+              <Select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} aria-label="Filtrar por mes">
+                <option value="all">Meses</option>
                 {availableMonths.map((m) => (
                   <option key={m} value={m}>
                     {monthLabelEs(m)}
@@ -279,43 +284,45 @@ export function GastosTab({
               </Select>
             )}
           </div>
-        ) : (
-          <span />
-        )}
-        {hasMembers ? (
-          <div className="flex gap-2">
-            <Link href={`/g/${group.id}/nuevo`}>
-              <Button>+ Agregar gasto</Button>
-            </Link>
-          </div>
-        ) : (
-          <p className="text-sm text-amber-600">Agregá miembros antes de cargar gastos.</p>
-        )}
-      </div>
+      )}
+      {hasMembers ? (
+        // Cargar un gasto es lo más frecuente de la app: queda siempre al alcance del pulgar.
+        <Link
+          href={`/g/${group.id}/nuevo`}
+          className="fixed bottom-[calc(env(safe-area-inset-bottom)+6.25rem)] right-4 z-40 inline-flex h-14 items-center gap-2 rounded-full bg-emerald-700 pl-4 pr-5 font-semibold text-white shadow-[0_8px_24px_rgba(4,120,87,0.4)] transition active:scale-95 sm:right-[max(1rem,calc(50vw-23rem))] dark:bg-[#4ee6b0] dark:text-[#062419] dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+        >
+          <Plus size={22} strokeWidth={2.6} aria-hidden="true" />
+          Agregar gasto
+        </Link>
+      ) : (
+        <p className="text-sm text-amber-700 dark:text-amber-400">Agregá miembros antes de cargar gastos.</p>
+      )}
 
       {group.is_personal && expenses.length > 0 && (
-        <div className="space-y-3">
-          <Card>
-            <SectionTitle>Gastos por categoría · {chartMonthLbl}</SectionTitle>
+        <Disclosure summary={<span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Gráficos · {chartMonthLbl}</span>}>
+        <div className="space-y-5">
+          <div>
+            <SectionTitle>Gastos por categoría</SectionTitle>
             {categoryChart.length > 0 ? (
               <Donut data={categoryChart} format={(n) => formatMoney(n, group.base_currency)} />
             ) : (
-              <p className="text-sm text-slate-500">Sin gastos en {chartMonthLbl}.</p>
+              <p className="text-sm text-muted">Sin gastos en {chartMonthLbl}.</p>
             )}
-          </Card>
-          <Card>
-            <SectionTitle>Origen del gasto · {chartMonthLbl}</SectionTitle>
+          </div>
+          <div>
+            <SectionTitle>Origen del gasto</SectionTitle>
             {manualTotal > 0 || cardTotal > 0 ? (
               <Donut data={sourceChart} format={(n) => formatMoney(n, group.base_currency)} />
             ) : (
-              <p className="text-sm text-slate-500">Sin gastos en {chartMonthLbl}.</p>
+              <p className="text-sm text-muted">Sin gastos en {chartMonthLbl}.</p>
             )}
-          </Card>
-          <Card>
+          </div>
+          <div>
             <SectionTitle>Gasto por mes (todos)</SectionTitle>
             <MonthlyBars data={byMonth} format={(n) => formatMoney(n, group.base_currency)} />
-          </Card>
+          </div>
         </div>
+        </Disclosure>
       )}
 
       {expenses.length === 0 ? (
@@ -327,7 +334,7 @@ export function GastosTab({
           <section key={month.key} className="space-y-2">
             <div className="flex items-center gap-3 px-1 pt-2">
               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
-              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-center text-xs font-bold uppercase tracking-wide text-muted tabular-nums dark:bg-slate-800">
                 {month.label} · {formatMoney(month.total, group.base_currency)}
               </div>
               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />

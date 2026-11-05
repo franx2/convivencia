@@ -96,19 +96,19 @@ export default function LoginPage() {
     <div className="flex flex-1 items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="mb-1 text-center"><Brand centered /></div>
-        <p className="mb-6 text-center text-sm text-slate-500">Repartí gastos compartidos sin pelearte</p>
+        <p className="mb-6 text-center text-sm text-muted">Repartí gastos compartidos sin pelearte</p>
         <Card>
           {mode === 'forgot' ? (
             <div className="mb-4">
               <h2 className="text-base font-semibold text-slate-700 dark:text-slate-200">Recuperar contraseña</h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              <p className="mt-1 text-sm text-muted">
                 Ingresá tu email y te mandamos un link para crear una nueva contraseña.
               </p>
             </div>
           ) : (
-            <div className="mb-4 flex rounded-lg bg-slate-100 p-1 text-sm dark:bg-slate-800">
+            <div className="mb-4 flex rounded-xl bg-slate-100 p-1 text-sm dark:bg-slate-800">
               <button
-                className={`flex-1 rounded-md py-1.5 font-medium ${mode === 'signin' ? 'bg-white shadow-sm dark:bg-slate-700 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}`}
+                className={`min-h-11 flex-1 rounded-lg font-semibold ${mode === 'signin' ? 'bg-white shadow-sm dark:bg-slate-700 dark:text-slate-100' : 'text-muted'}`}
                 onClick={() => {
                   setMode('signin')
                   setError(null)
@@ -119,7 +119,7 @@ export default function LoginPage() {
                 Iniciar sesión
               </button>
               <button
-                className={`flex-1 rounded-md py-1.5 font-medium ${mode === 'signup' ? 'bg-white shadow-sm dark:bg-slate-700 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}`}
+                className={`min-h-11 flex-1 rounded-lg font-semibold ${mode === 'signup' ? 'bg-white shadow-sm dark:bg-slate-700 dark:text-slate-100' : 'text-muted'}`}
                 onClick={() => {
                   setMode('signup')
                   setError(null)
@@ -143,7 +143,7 @@ export default function LoginPage() {
                 <span className="grid h-5 w-5 place-items-center rounded-full bg-[#4285f4] text-xs font-black text-white">G</span>
                 {oauthBusy ? 'Conectando...' : 'Continuar con Google'}
               </button>
-              <div className="flex items-center gap-3 pt-1 text-xs text-slate-400 dark:text-[#94a19c]" aria-hidden="true">
+              <div className="flex items-center gap-3 pt-1 text-xs text-muted" aria-hidden="true">
                 <span className="h-px flex-1 bg-slate-200 dark:bg-[#26312d]" />
                 <span>o usá tu email</span>
                 <span className="h-px flex-1 bg-slate-200 dark:bg-[#26312d]" />
@@ -181,7 +181,7 @@ export default function LoginPage() {
                       setError(null)
                       setInfo(null)
                     }}
-                    className="mt-1.5 text-sm font-medium text-emerald-700 hover:underline"
+                    className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
                   >
                     ¿Olvidaste tu contraseña?
                   </button>
@@ -207,7 +207,7 @@ export default function LoginPage() {
                   setError(null)
                   setInfo(null)
                 }}
-                className="w-full text-center text-sm font-medium text-slate-500 hover:underline"
+                className="w-full text-center text-sm font-medium text-muted hover:underline"
               >
                 Volver a iniciar sesión
               </button>

@@ -110,7 +110,7 @@ export function IdentityPrompt({
             placeholder="Alias para cobrar (opcional)"
           />
         </div>
-        <Button type="button" onClick={saveIdentity} disabled={busy || (!selected && !creating)} className="sm:self-start">
+        <Button type="button" onClick={saveIdentity} disabled={busy || (!selected && !creating)} className="w-full sm:w-auto sm:self-start">
           {busy ? 'Guardando…' : 'Guardar'}
         </Button>
       </div>

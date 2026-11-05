@@ -7,9 +7,107 @@
   --font-sans: var(--font-geist-sans);
 }
 
+/* Texto secundario. Un solo token: slate-400 no llega a 3:1 sobre blanco y
+   slate-500 queda bajo en oscuro, y en la calle hay que poder leerlo igual. */
+@utility text-muted {
+  color: #5a687c;
+  &:where(.dark, .dark *) {
+    color: #94a19c;
+  }
+}
+
+/* Tiras horizontales (pestañas, atajos): se deslizan con el dedo, sin barra. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 html,
 body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  /* Celular en horizontal: el contenido no se mete abajo del notch. */
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+}
+
+/* Sin la demora de 300 ms del doble toque; el pellizco para ampliar sigue andando. */
+a,
+button,
+input,
+select,
+textarea,
+label,
+summary {
+  touch-action: manipulation;
+}
+
+/* Safari iOS ignora el ancho de los campos de fecha y rompe las grillas de dos columnas. */
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 46px;
+}
+
+::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
+.dark ::placeholder {
+  color: #7e8c86;
+}
+
+:focus-visible {
+  outline: 2px solid #059669;
+  outline-offset: 2px;
+}
+
+.dark :focus-visible {
+  outline-color: #4ee6b0;
+}
+
+::selection {
+  background: #a7f3d0;
+  color: #064e3b;
+}
+
+/* Los diálogos suben desde abajo: la única animación de la app. */
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.sheet-in {
+  animation: sheet-in 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.scrim-in {
+  animation: scrim-in 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-in,
+  .scrim-in {
+    animation: none;
+  }
 }
 
 /* Sistema visual del producto: fondo profundo, superficies verdes apagadas y acento menta. */

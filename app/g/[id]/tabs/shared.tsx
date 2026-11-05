@@ -14,8 +14,8 @@ export function monthLabelEs(key: string): string {
 export function MetricCard({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
     <Card>
-      <p className="text-xs text-slate-400">{label}</p>
-      <p className={`mt-1 text-xl font-bold ${tone}`}>{value}</p>
+      <p className="text-xs text-muted">{label}</p>
+      <p className={`mt-1 break-words text-xl font-bold tabular-nums ${tone}`}>{value}</p>
     </Card>
   )
 }

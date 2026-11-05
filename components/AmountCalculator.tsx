@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useBodyScrollLock } from '@/components/ui'
 import { ErrorText } from '@/components/ui'
 
 type Props = {
@@ -15,6 +16,7 @@ const ops = new Set(['+', '-', '×', '÷'])
 
 export function AmountCalculator({ value, currency, onChange, autoOpen = false }: Props) {
   const [open, setOpen] = useState(false)
+  useBodyScrollLock(open)
   const [expr, setExpr] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -73,25 +75,25 @@ export function AmountCalculator({ value, currency, onChange, autoOpen = false }
       <button
         type="button"
         onClick={openCalc}
-        className="flex min-h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-sm outline-none transition hover:border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#f4f7f6] dark:focus:ring-[#173e32]"
+        className="flex min-h-[46px] w-full min-w-0 items-center justify-between gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-base outline-none transition hover:border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-[#26312d] dark:bg-[#131816] dark:text-[#f4f7f6] dark:focus:ring-[#173e32]"
       >
-        <span className={value ? 'font-semibold text-slate-800 dark:text-slate-100' : 'text-slate-400'}>
+        <span className={`min-w-0 truncate tabular-nums ${value ? 'font-semibold text-slate-800 dark:text-slate-100' : 'text-muted'}`}>
           {value ? moneyPreview(Number(value), currency) : '0,00'}
         </span>
-        <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-600">
+        <span className="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-950 dark:text-rose-300">
           Calc
         </span>
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 px-0 sm:items-center sm:px-4">
-          <div className="w-full max-w-md overflow-hidden rounded-t-[28px] bg-white shadow-2xl dark:bg-[#0b0e0d] sm:rounded-[28px]">
-            <div className="bg-rose-400 px-6 pb-10 pt-7 text-white">
-              <div className="mb-8 flex items-center justify-between">
+        <div className="scrim-in fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 px-0 sm:items-center sm:px-4">
+          <div role="dialog" aria-modal="true" aria-label="Calculadora de monto" className="sheet-in max-h-[100dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[28px] bg-white shadow-2xl dark:bg-[#0b0e0d] sm:rounded-[28px]">
+            <div className="bg-rose-600 px-4 pb-8 pt-3 text-white dark:bg-rose-800">
+              <div className="mb-2 flex items-center justify-between">
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="text-3xl leading-none text-white/90"
+                  className="grid h-11 w-11 place-items-center rounded-full text-3xl leading-none text-white/90 active:bg-white/20"
                   aria-label="Cerrar calculadora"
                 >
                   ‹
@@ -100,7 +102,8 @@ export function AmountCalculator({ value, currency, onChange, autoOpen = false }
                 <button
                   type="button"
                   onClick={() => push('C')}
-                  className="rounded-full bg-white/25 px-3 py-1 text-sm font-bold"
+                  className="grid h-11 min-w-11 place-items-center rounded-full bg-white/25 px-3 text-sm font-bold active:bg-white/40"
+                  aria-label="Borrar todo"
                 >
                   C
                 </button>
@@ -112,7 +115,7 @@ export function AmountCalculator({ value, currency, onChange, autoOpen = false }
                 <button
                   type="button"
                   onClick={() => push('⌫')}
-                  className="shrink-0 rounded-full bg-white/25 px-3 py-1 text-xl font-bold"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/25 text-xl font-bold active:bg-white/40"
                   aria-label="Borrar dígito"
                 >
                   ⌫
@@ -120,17 +123,17 @@ export function AmountCalculator({ value, currency, onChange, autoOpen = false }
               </div>
             </div>
 
-            <div className="-mt-6 rounded-t-[28px] bg-white px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-6 dark:bg-[#0b0e0d]">
-              <div className="grid grid-cols-4 gap-4">
+            <div className="-mt-5 rounded-t-[28px] bg-white px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 dark:bg-[#0b0e0d]">
+              <div className="grid grid-cols-4 gap-2.5">
                 {['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '-', '0', ',', '=', '+'].map((key) => (
                   <button
                     key={key}
                     type="button"
                     onClick={() => (key === '=' ? equals() : push(key))}
-                    className={`aspect-square rounded-full text-3xl font-bold shadow-sm transition active:scale-95 ${
+                    className={`h-[clamp(3rem,9.5dvh,4.5rem)] rounded-[1.4rem] text-[1.7rem] font-bold shadow-sm transition active:scale-95 ${
                       ops.has(key) || key === '='
-                        ? 'bg-rose-400 text-white hover:bg-rose-500'
-                        : 'border border-slate-200 bg-white text-rose-400 hover:border-rose-200 dark:border-[#26312d] dark:bg-[#131816]'
+                        ? 'bg-rose-600 text-white hover:bg-rose-700 dark:bg-rose-700'
+                        : 'border border-slate-200 bg-white text-rose-700 hover:border-rose-200 dark:border-[#26312d] dark:bg-[#131816] dark:text-rose-300'
                     }`}
                   >
                     {key}
@@ -139,7 +142,7 @@ export function AmountCalculator({ value, currency, onChange, autoOpen = false }
               </div>
 
               {error && (
-                <div className="mt-4 text-center">
+                <div className="mt-3 text-center">
                   <ErrorText>{error}</ErrorText>
                 </div>
               )}
@@ -147,7 +150,7 @@ export function AmountCalculator({ value, currency, onChange, autoOpen = false }
               <button
                 type="button"
                 onClick={accept}
-                className="mt-6 w-full rounded-2xl bg-emerald-600 px-4 py-3 text-base font-bold text-white transition hover:bg-emerald-700"
+                className="mt-3 min-h-12 w-full rounded-2xl bg-emerald-700 px-4 py-3 text-base font-bold text-white transition hover:bg-emerald-800 active:scale-[0.99] dark:bg-[#4ee6b0] dark:text-[#062419]"
               >
                 Usar monto
               </button>

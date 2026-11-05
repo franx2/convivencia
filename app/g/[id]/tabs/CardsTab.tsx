@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { Button, Card, ErrorText, IconButton, Input, Select, useConfirm } from '@/components/ui'
+import { Button, Card, ErrorText, IconButton, Input, Select, TextButton, useConfirm } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { BANK_DISCOUNT_SOURCES, sourceIdsForBanks } from '@/lib/bank-discounts'
 import { type BankDiscount, type CreditCard, type Expense, type Group } from '@/lib/types'
@@ -255,7 +255,7 @@ export function CardsTab({
         <HistoryList title="Promos encontradas">
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-slate-500">{visibleDiscountCount} promociones vigentes</p>
+              <p className="text-sm text-muted">{visibleDiscountCount} promociones vigentes</p>
               <Select
                 value={discountRubricFilter}
                 onChange={(event) => setDiscountRubricFilter(event.target.value as DiscountRubricId | 'all')}
@@ -271,7 +271,7 @@ export function CardsTab({
               </Select>
             </div>
             {groupedDiscounts.length === 0 ? (
-              <p className="text-sm text-slate-500">No hay promociones vigentes para esta selección.</p>
+              <p className="text-sm text-muted">No hay promociones vigentes para esta selección.</p>
             ) : (
               groupedDiscounts.map((rubric) => (
                 <section key={rubric.id} className="space-y-2">
@@ -283,7 +283,7 @@ export function CardsTab({
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="font-medium">{discount.title}</p>
-                            <p className="mt-1 text-xs text-slate-500">
+                            <p className="mt-1 text-xs text-muted">
                               {discount.bank}
                               {discount.merchant ? ` · ${discount.merchant}` : ''}
                               {discount.category ? ` · ${discount.category}` : ''}
@@ -295,7 +295,7 @@ export function CardsTab({
                             </span>
                           )}
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
                           {discount.installments != null && <span>💳 {discount.installments} cuotas</span>}
                           {discount.weekdays.length > 0 && <span>📅 {discount.weekdays.join(', ')}</span>}
                           {discount.cap_amount != null && <span>Tope {formatMoney(discount.cap_amount, group.base_currency)}</span>}
@@ -310,7 +310,7 @@ export function CardsTab({
                           href={discount.source_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="mt-2 inline-block text-xs text-slate-400 underline hover:text-emerald-600"
+                          className="mt-2 inline-block text-xs text-muted underline hover:text-emerald-600"
                         >
                           Ver términos en el banco
                         </a>
@@ -330,15 +330,15 @@ export function CardsTab({
         <Card>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-emerald-800 dark:text-emerald-300">Crear tarjeta</h2>
-            <button type="button" onClick={() => setAdding(false)} className="text-sm text-slate-400 hover:text-slate-600">
+            <TextButton tone="muted" onClick={() => setAdding(false)}>
               Cancelar
-            </button>
+            </TextButton>
           </div>
           <form onSubmit={add} className="space-y-3">
             <div className="grid gap-2 sm:grid-cols-2">
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre (ej: Visa Galicia)" autoFocus />
               <div>
-                <label htmlFor="card-bank" className="mb-1 block text-xs font-medium text-slate-500">
+                <label htmlFor="card-bank" className="mb-1 block text-xs font-medium text-muted">
                   Banco manual (opcional)
                 </label>
                 <Input
@@ -349,10 +349,10 @@ export function CardsTab({
                   placeholder="Ej: Banco Patagonia"
                 />
               </div>
-              <Input value={last4} onChange={(e) => setLast4(e.target.value)} placeholder="Últimos 4" maxLength={4} />
+              <Input value={last4} onChange={(e) => setLast4(e.target.value)} placeholder="Últimos 4" maxLength={4} inputMode="numeric" />
               <div className="grid grid-cols-2 gap-2">
-                <Input type="number" min="1" max="31" value={closingDay} onChange={(e) => setClosingDay(e.target.value)} placeholder="Cierre" />
-                <Input type="number" min="1" max="31" value={dueDay} onChange={(e) => setDueDay(e.target.value)} placeholder="Vto." />
+                <Input type="number" inputMode="numeric" min="1" max="31" value={closingDay} onChange={(e) => setClosingDay(e.target.value)} placeholder="Cierre" aria-label="Día de cierre" />
+                <Input type="number" inputMode="numeric" min="1" max="31" value={dueDay} onChange={(e) => setDueDay(e.target.value)} placeholder="Vto." aria-label="Día de vencimiento" />
               </div>
             </div>
             <datalist id="supported-banks">
@@ -360,7 +360,7 @@ export function CardsTab({
                 <option key={source.id} value={source.bank} />
               ))}
             </datalist>
-            <Button type="submit" disabled={busy || !name.trim()}>
+            <Button type="submit" disabled={busy || !name.trim()} className="w-full">
               {busy ? 'Guardando…' : 'Guardar tarjeta'}
             </Button>
           </form>
@@ -374,7 +374,7 @@ export function CardsTab({
       <HistoryList title="Mis tarjetas">
         {cards.length === 0 ? (
           <div className="space-y-3">
-            <p className="text-sm text-slate-500">Todavía no hay tarjetas creadas.</p>
+            <p className="text-sm text-muted">Todavía no hay tarjetas creadas.</p>
             <Link href={`/g/${group.id}/importar`}>
               <Button variant="ghost">Importar resumen sin tarjeta</Button>
             </Link>
@@ -397,22 +397,18 @@ export function CardsTab({
               return (
                 <div key={card.id} className="rounded-xl border border-slate-100 p-3 dark:border-slate-800">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold">{card.name}</p>
-                      <p className="text-xs text-slate-400">
+                    <div className="min-w-0">
+                      <p className="break-words font-semibold">{card.name}</p>
+                      <p className="text-xs text-muted">
                         {[card.bank, card.last4 ? `•••• ${card.last4}` : null].filter(Boolean).join(' · ') || 'Sin datos extra'}
                       </p>
-                      <p className="mt-1 text-xs text-slate-500">{summaryLine}</p>
+                      <p className="mt-1 text-xs text-muted">{summaryLine}</p>
                     </div>
-                    <IconButton label="Borrar" onClick={() => remove(card.id)}>
-                    ✕
-                  </IconButton>
+                    <IconButton label="Borrar" onClick={() => remove(card.id)} />
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Link href={`/g/${group.id}/importar?cardId=${card.id}`}>
-                      <Button variant="ghost">Importar resumen</Button>
-                    </Link>
-                  </div>
+                  <Link href={`/g/${group.id}/importar?cardId=${card.id}`} className="mt-3 block">
+                    <Button variant="ghost" className="w-full">Importar resumen</Button>
+                  </Link>
                 </div>
               )
             })}

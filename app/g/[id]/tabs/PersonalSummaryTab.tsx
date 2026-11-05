@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Card, Select } from '@/components/ui'
+import { Select } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { type Expense, type Group, type Income, type Saving } from '@/lib/types'
 import { MetricCard, monthLabelEs } from './shared'
@@ -39,20 +39,18 @@ export function PersonalSummaryTab({
 
   return (
     <div className="space-y-4">
-      <Card className="flex items-center gap-2">
-        <Select value={month} onChange={(e) => setMonth(e.target.value)} className="max-w-[180px]">
+      <Select value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Mes">
           {months.map((m) => (
             <option key={m} value={m}>
               {monthLabelEs(m)}
             </option>
           ))}
         </Select>
-      </Card>
 
       <div className="grid gap-2 sm:grid-cols-3">
-        <MetricCard label="Ingresos" value={fmt(incomeTotal)} tone="text-emerald-600" />
+        <MetricCard label="Ingresos" value={fmt(incomeTotal)} tone="text-emerald-700 dark:text-emerald-400" />
         <MetricCard label="Gastos" value={fmt(expenseTotal)} tone="text-rose-600" />
-        <MetricCard label="Ahorros" value={fmt(savingTotal)} tone="text-amber-600" />
+        <MetricCard label="Ahorros" value={fmt(savingTotal)} tone="text-amber-700 dark:text-amber-400" />
       </div>
     </div>
   )

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Button, Card, EmptyState, ErrorText, IconButton, Input, SectionTitle, Select } from '@/components/ui'
+import { Button, Card, EmptyState, ErrorText, IconButton, Input, SectionTitle, Select, shortDate, TextButton } from '@/components/ui'
 import { Donut, MonthlyBars } from '@/components/charts'
 import { formatMoney } from '@/lib/currencies'
 import { type CatMeta } from '@/lib/categories'
@@ -153,9 +153,14 @@ export function BalancesTab({
   return (
     <div className="space-y-3">
       {/* Filtros */}
-      <Card className="flex flex-wrap items-center gap-2">
+      <div className="grid grid-cols-2 gap-2">
         {!isTrip && (
-          <Select value={month} onChange={(e) => setMonth(e.target.value)} className="max-w-[180px]">
+          <Select
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            aria-label="Mes"
+            className={!personal && members.length > 1 ? '' : 'col-span-2'}
+          >
             {months.map((m) => (
               <option key={m} value={m}>
                 {monthLabelEs(m)}
@@ -164,7 +169,7 @@ export function BalancesTab({
           </Select>
         )}
         {!personal && members.length > 1 && (
-          <Select value={who} onChange={(e) => setWho(e.target.value)} className="max-w-[160px]">
+          <Select value={who} onChange={(e) => setWho(e.target.value)} aria-label="Persona" className={isTrip ? 'col-span-2' : ''}>
             <option value="all">Todos</option>
             {members.map((m) => (
               <option key={m.id} value={m.id}>
@@ -173,7 +178,7 @@ export function BalancesTab({
             ))}
           </Select>
         )}
-      </Card>
+      </div>
 
       {/* Balance del mes */}
       <Card>
@@ -181,22 +186,22 @@ export function BalancesTab({
           Balance · {monthLbl}
           {whoLbl ? ` · ${whoLbl}` : ''}
         </p>
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div>
-            <p className="text-xs text-slate-400">Ingresos</p>
-            <p className="font-semibold text-emerald-600">{fmt(ingresosMes)}</p>
+        <dl className="space-y-1.5 text-sm">
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-muted">Ingresos</dt>
+            <dd className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{fmt(ingresosMes)}</dd>
           </div>
-          <div>
-            <p className="text-xs text-slate-400">Gastos</p>
-            <p className="font-semibold text-slate-700 dark:text-slate-200">{fmt(gastosMes)}</p>
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-muted">Gastos</dt>
+            <dd className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{fmt(gastosMes)}</dd>
           </div>
-          <div>
-            <p className="text-xs text-slate-400">Balance</p>
-            <p className={`font-semibold ${balanceMes >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+          <div className="flex items-baseline justify-between gap-3 border-t border-slate-100 pt-1.5 dark:border-[#26312d]">
+            <dt className="font-semibold">Balance</dt>
+            <dd className={`text-lg font-bold tabular-nums ${balanceMes >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
               {fmt(balanceMes)}
-            </p>
+            </dd>
           </div>
-        </div>
+        </dl>
       </Card>
 
       {/* Donut filtrado */}
@@ -216,18 +221,16 @@ export function BalancesTab({
 
       {/* Ingresos del mes */}
       <Card className="scroll-mt-24" id="section-ingresos">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Ingresos · {monthLbl}</p>
-          <button
-            type="button"
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="min-w-0 text-sm font-semibold text-slate-600 dark:text-slate-300">Ingresos · {monthLbl}</p>
+          <TextButton
             onClick={() => {
               setShowIncForm((v) => !v)
               setIncError(null)
             }}
-            className="text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
           >
             {showIncForm ? 'Cancelar' : '+ Agregar ingreso'}
-          </button>
+          </TextButton>
         </div>
 
         {showIncForm && (
@@ -254,30 +257,28 @@ export function BalancesTab({
             </div>
             <Input value={incNote} onChange={(e) => setIncNote(e.target.value)} placeholder="Nota (ej: Sueldo)" />
             <ErrorText>{incError}</ErrorText>
-            <Button type="button" onClick={addIncome} disabled={incBusy}>
+            <Button type="button" onClick={addIncome} disabled={incBusy} className="w-full">
               {incBusy ? 'Guardando…' : 'Guardar ingreso'}
             </Button>
           </div>
         )}
 
         {monthIncomes.length === 0 ? (
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted">
             {isTrip ? 'No hay ingresos cargados en el viaje.' : `No hay ingresos cargados en ${monthLbl}.`}
           </p>
         ) : (
           <div className="space-y-1.5">
             {monthIncomes.map((i) => (
-              <div key={i.id} className="flex items-center justify-between text-sm">
-                <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">
+              <div key={i.id} className="flex items-center justify-between gap-3 py-1 text-sm">
+                <span className="min-w-0 break-words text-slate-600 dark:text-slate-300">
                   {!personal && <span className="font-medium">{memberName(i.member_id)} · </span>}
                   {i.note || 'Ingreso'}
-                  <span className="text-slate-400"> · {i.date}</span>
+                  <span className="text-muted"> · {shortDate(i.date)}</span>
                 </span>
-                <span className="flex items-center gap-2">
-                  <span className="font-medium text-emerald-600">{fmt(Number(i.amount))}</span>
-                  <IconButton label="Quitar" onClick={() => removeIncome(i.id)}>
-                    ✕
-                  </IconButton>
+                <span className="flex shrink-0 items-center gap-1">
+                  <span className="font-medium tabular-nums text-emerald-700 dark:text-emerald-400">{fmt(Number(i.amount))}</span>
+                  <IconButton label="Quitar" onClick={() => removeIncome(i.id)} />
                 </span>
               </div>
             ))}
@@ -296,17 +297,13 @@ export function BalancesTab({
       <Card className="scroll-mt-24" id="section-presupuestos">
         <div className="mb-3 flex items-center justify-between">
           <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Presupuesto · {monthLbl}</p>
-          <button
-            type="button"
-            onClick={() => setEditingBudgets((v) => !v)}
-            className="text-xs font-medium text-slate-400 hover:text-slate-600"
-          >
+          <TextButton tone="muted" onClick={() => setEditingBudgets((v) => !v)}>
             {editingBudgets ? 'Listo' : 'Editar'}
-          </button>
+          </TextButton>
         </div>
 
         {budgets.length === 0 && !editingBudgets ? (
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted">
             Definí límites mensuales por categoría con “Editar” (ej: Super $80.000).
           </p>
         ) : (
@@ -317,21 +314,19 @@ export function BalancesTab({
               const ratio = limit > 0 ? spent / limit : 0
               const pct = Math.min(100, Math.round(ratio * 100))
               const barColor = ratio >= 1 ? 'bg-red-500' : ratio >= 0.8 ? 'bg-amber-500' : 'bg-emerald-500'
-              const txtColor = ratio >= 1 ? 'text-red-600' : ratio >= 0.8 ? 'text-amber-600' : 'text-slate-600'
+              const txtColor = ratio >= 1 ? 'text-red-600 dark:text-red-400' : ratio >= 0.8 ? 'text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-slate-300'
               return (
                 <div key={b.id}>
-                  <div className="mb-1 flex items-center justify-between text-sm">
+                  <div className="mb-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${catMeta(b.category).color}`}>
                       {catMeta(b.category).symbol} {catMeta(b.category).label}
                     </span>
                     <span className="flex items-center gap-2">
-                      <span className={txtColor}>
+                      <span className={`tabular-nums ${txtColor}`}>
                         {fmt(spent)} / {fmt(limit)}
                       </span>
                       {editingBudgets && (
-                        <IconButton label="Quitar" onClick={() => removeBudget(b.id)}>
-                    ✕
-                  </IconButton>
+                        <IconButton label="Quitar" onClick={() => removeBudget(b.id)} />
                       )}
                     </span>
                   </div>
@@ -341,7 +336,7 @@ export function BalancesTab({
                   {ratio >= 1 ? (
                     <p className="mt-0.5 text-xs text-red-600">Te pasaste del presupuesto.</p>
                   ) : ratio >= 0.8 ? (
-                    <p className="mt-0.5 text-xs text-amber-600">Vas {Math.round(ratio * 100)}% del presupuesto.</p>
+                    <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">Vas {Math.round(ratio * 100)}% del presupuesto.</p>
                   ) : null}
                 </div>
               )
@@ -350,8 +345,8 @@ export function BalancesTab({
         )}
 
         {editingBudgets && (
-          <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
-            <Select value={bCat} onChange={(e) => setBCat(e.target.value)}>
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2 border-t border-slate-100 pt-3 dark:border-[#26312d]">
+            <Select value={bCat} onChange={(e) => setBCat(e.target.value)} className="col-span-2">
               {cats.map((c) => (
                 <option key={c.value} value={c.value}>
                   {c.symbol} {c.label}
@@ -365,7 +360,6 @@ export function BalancesTab({
               value={bAmount}
               onChange={(e) => setBAmount(e.target.value)}
               placeholder="Límite"
-              className="max-w-[130px]"
             />
             <Button type="button" onClick={saveBudget} disabled={bBusy || !(Number(bAmount) > 0)}>
               Guardar
@@ -376,21 +370,21 @@ export function BalancesTab({
 
       {!personal && (
         <>
-          <p className="px-1 pt-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+          <p className="px-1 pt-1 text-xs font-medium uppercase tracking-wide text-muted">
             Saldos (acumulado)
           </p>
           {balances.map((b) => (
-            <Card key={b.memberId} className="flex items-center justify-between">
-              <div>
+            <Card key={b.memberId} className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
                 <p className="font-medium">{b.name}</p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-muted">
                   Puso {formatMoney(b.paid, group.base_currency)} · Le tocaba{' '}
                   {formatMoney(b.share, group.base_currency)}
                 </p>
               </div>
               <span
-                className={`font-semibold ${
-                  b.net > 0.005 ? 'text-emerald-600' : b.net < -0.005 ? 'text-red-600' : 'text-slate-400'
+                className={`shrink-0 font-semibold tabular-nums ${
+                  b.net > 0.005 ? 'text-emerald-700 dark:text-emerald-400' : b.net < -0.005 ? 'text-red-600 dark:text-red-400' : 'text-muted'
                 }`}
               >
                 {b.net > 0 ? '+' : ''}
@@ -398,7 +392,7 @@ export function BalancesTab({
               </span>
             </Card>
           ))}
-          <p className="px-1 text-xs text-slate-400">
+          <p className="px-1 text-xs text-muted">
             Verde = le deben · Rojo = debe. Todo en {group.base_currency}.
           </p>
         </>

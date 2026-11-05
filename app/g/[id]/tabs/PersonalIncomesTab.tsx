@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AmountCalculator } from '@/components/AmountCalculator'
-import { Button, Card, ErrorText, IconButton, Input } from '@/components/ui'
+import { Button, Card, ErrorText, IconButton, Input, shortDate, TextButton } from '@/components/ui'
 import { formatMoney } from '@/lib/currencies'
 import { type Group, type Income, type Member } from '@/lib/types'
 import { HistoryList } from './shared'
@@ -66,9 +66,9 @@ export function PersonalIncomesTab({
         <Card>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-emerald-800 dark:text-emerald-300">Agregar ingreso</h2>
-            <button type="button" onClick={() => setAdding(false)} className="text-sm text-slate-400 hover:text-slate-600">
+            <TextButton tone="muted" onClick={() => setAdding(false)}>
               Cancelar
-            </button>
+            </TextButton>
           </div>
           <form onSubmit={add} className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
@@ -77,7 +77,7 @@ export function PersonalIncomesTab({
             </div>
             <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (ej: Sueldo)" />
             <ErrorText>{error}</ErrorText>
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" disabled={busy} className="w-full">
               {busy ? 'Guardando…' : 'Guardar ingreso'}
             </Button>
           </form>
@@ -90,20 +90,18 @@ export function PersonalIncomesTab({
 
       <HistoryList title="Ingresos previos">
         {incomes.length === 0 ? (
-          <p className="text-sm text-slate-500">Todavía no hay ingresos cargados.</p>
+          <p className="text-sm text-muted">Todavía no hay ingresos cargados.</p>
         ) : (
           incomes.map((i) => (
             <div key={i.id} className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 text-sm last:border-0 dark:border-slate-800">
-              <span className="min-w-0 truncate">
+              <span className="min-w-0 break-words">
                 <span className="font-medium">{i.note || 'Ingreso'}</span>
-                <span className="text-slate-400"> · {i.date}</span>
-                {members.length > 1 && <span className="text-slate-400"> · {memberName(i.member_id)}</span>}
+                <span className="text-muted"> · {shortDate(i.date)}</span>
+                {members.length > 1 && <span className="text-muted"> · {memberName(i.member_id)}</span>}
               </span>
-              <span className="flex items-center gap-2">
-                <span className="font-semibold text-emerald-600">{formatMoney(Number(i.amount), group.base_currency)}</span>
-                <IconButton label="Quitar" onClick={() => remove(i.id)}>
-                    ✕
-                  </IconButton>
+              <span className="flex shrink-0 items-center gap-1">
+                <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{formatMoney(Number(i.amount), group.base_currency)}</span>
+                <IconButton label="Quitar" onClick={() => remove(i.id)} />
               </span>
             </div>
           ))
