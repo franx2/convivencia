@@ -29,6 +29,7 @@ export function PersonalDashboard({
   savings,
   budgets,
   catMeta,
+  finanzas = true,
   onOpenTab,
   onChanged,
 }: {
@@ -38,6 +39,8 @@ export function PersonalDashboard({
   savings: Saving[]
   budgets: Budget[]
   catMeta: (v: string) => CatMeta
+  /** Módulo "Finanzas personales": sin él no hay ingresos, así que no hay balance. */
+  finanzas?: boolean
   onOpenTab: (tab: PersonalTab) => void
   onChanged: () => void
 }) {
@@ -132,6 +135,7 @@ export function PersonalDashboard({
 
       <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-800 p-5 text-white shadow-sm dark:border-[#26312d] dark:bg-[#18201d] dark:shadow-none">
         <div className="flex items-start justify-between gap-4">
+          {finanzas ? (
           <button type="button" onClick={openBalanceInfo} className="min-w-0 text-left">
             <span className="flex items-center gap-1.5 text-sm text-emerald-100 dark:text-[#94a19c]">
               Balance acumulado <CircleHelp size={15} />
@@ -140,6 +144,14 @@ export function PersonalDashboard({
               {fmt(balance)}
             </span>
           </button>
+          ) : (
+          <button type="button" onClick={() => onOpenTab('gastos')} className="min-w-0 text-left">
+            <span className="block text-sm text-emerald-100 dark:text-[#94a19c]">Gastos de {monthLabelEs(selectedMonth)}</span>
+            <span className="mt-1.5 block break-words text-[clamp(1.5rem,7.6vw,2.25rem)] font-bold leading-tight tabular-nums">
+              {fmt(monthExpenseTotal)}
+            </span>
+          </button>
+          )}
           <Link
             href={`/g/${group.id}/nuevo`}
             aria-label="Agregar gasto"
@@ -148,12 +160,16 @@ export function PersonalDashboard({
             <Plus size={25} strokeWidth={2.7} />
           </Link>
         </div>
+        {finanzas && (
         <div className="mt-3 flex items-center gap-2 text-xs text-emerald-100 dark:text-[#94a19c]">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-200 dark:bg-[#4ee6b0]" />
           Disponible en todas tus cuentas
         </div>
+        )}
       </div>
 
+      {finanzas && (
+      <>
       <div className="space-y-2.5">
         <DashboardRow
           Icon={ArrowDownLeft}
@@ -215,6 +231,8 @@ export function PersonalDashboard({
           )}
         </button>
       </section>
+      </>
+      )}
 
       <section className="pt-2">
         <button

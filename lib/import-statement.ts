@@ -1,4 +1,4 @@
-import { suggestCategory } from './categories'
+import { suggestCategory } from './categories.ts'
 
 export type ParsedTx = {
   date: string // YYYY-MM-DD
@@ -232,6 +232,10 @@ export function parseTransactions(lines: string[], fallbackYear: number): Parsed
     } else {
       currency = 'ARS'
       amount = lastAmount(line)
+      // Dos columnas pesos/dólares (Supervielle): un consumo en pesos puede
+      // traer "0,00" en dólares al final; el importe es el anterior.
+      const ms = line.match(MONEY_RE)
+      if (amount === 0 && ms && ms.length >= 2) amount = parseMoney(ms[ms.length - 2])
     }
 
     if (amount === null || !Number.isFinite(amount) || amount === 0) continue
@@ -244,6 +248,12 @@ export function parseTransactions(lines: string[], fallbackYear: number): Parsed
       if (idx >= 0) title = title.slice(0, idx)
     }
     title = cleanTitle(title)
+    // Cuotas en Supervielle: el comercio va en la línea de arriba, sola
+    // ("AEROLINEAS ARGENTINAS S.A" / "04-09-26 003566 107.826,00" / "02/06").
+    const prev = lines[i - 1]
+    if (title === 'Gasto' && i > start && prev && !parseDate(prev, fallbackYear) && !prev.match(MONEY_RE)) {
+      title = cleanTitle(prev)
+    }
 
     out.push({
       date: d.date,

@@ -1,14 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/AuthProvider'
 import { createGroupWithOwner } from '@/lib/groups'
 import { PageShell } from '@/components/PageShell'
 import { Button, Card, Checkbox, ErrorText, Input, selectableBox, Spinner, TextButton } from '@/components/ui'
 import { SUPERMARKETS } from '@/lib/stores'
-import { userPaymentAlias, userPreferredStores } from '@/lib/profile'
+import { ALL_MODULES, MODULES, userModules, userPaymentAlias, userPreferredStores, type ModuleKey } from '@/lib/profile'
 import { House, UserRound, UsersRound, type LucideIcon } from 'lucide-react'
 
 type Uso = 'personal' | 'conviviente' | 'ambas'
@@ -21,14 +21,27 @@ const USO_OPTIONS: { key: Uso; Icon: LucideIcon; title: string; desc: string }[]
 
 /**
  * Onboarding post-registro (una sola vez por cuenta, marca user_metadata.onboarded):
- * uso previsto -> alias de cobro -> supermercados preferidos. Después de "uso":
- * hidrata con lo ya guardado, así a una cuenta existente no le repreguntamos.
+ * uso previsto -> módulos -> alias de cobro (si usa grupos) -> supermercados
+ * (si usa la lista). Hidrata con lo ya guardado. Con ?solo=modulos (cuentas de
+ * antes de los módulos) pregunta solo eso.
  */
 export default function OnboardingPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <Onboarding />
+    </Suspense>
+  )
+}
+
+type Step = 'uso' | 'modulos' | 'alias' | 'super'
+
+function Onboarding() {
   const { user, loading } = useRequireAuth()
   const router = useRouter()
+  const onlyModules = useSearchParams().get('solo') === 'modulos'
   const [hydrated, setHydrated] = useState(false)
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [step, setStep] = useState<Step>(onlyModules ? 'modulos' : 'uso')
+  const [modules, setModules] = useState<ModuleKey[]>(ALL_MODULES)
   const [uso, setUso] = useState<Uso | null>(null)
   const [alias, setAlias] = useState('')
   const [stores, setStores] = useState<string[]>([])
@@ -40,11 +53,38 @@ export default function OnboardingPage() {
     /* eslint-disable react-hooks/set-state-in-effect -- hidratar el form con lo ya guardado en la cuenta */
     setAlias(userPaymentAlias(user))
     setStores(userPreferredStores(user))
+    setModules(userModules(user))
     const existingUso = user.user_metadata?.intended_use
     if (existingUso === 'personal' || existingUso === 'conviviente' || existingUso === 'ambas') setUso(existingUso)
     setHydrated(true)
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [user])
+
+  const steps: Step[] = onlyModules
+    ? ['modulos']
+    : [
+        'uso',
+        'modulos',
+        ...(modules.includes('grupos') ? (['alias'] as Step[]) : []),
+        ...(modules.includes('super') ? (['super'] as Step[]) : []),
+      ]
+  const stepIdx = steps.indexOf(step)
+  const isLast = stepIdx === steps.length - 1
+  const next = () => (isLast ? void finish() : setStep(steps[stepIdx + 1]))
+  const back = () => setStep(steps[stepIdx - 1])
+  const nextLabel = isLast ? (busy ? 'Guardando…' : 'Empezar') : 'Continuar'
+
+  function chooseUso(u: Uso) {
+    setUso(u)
+    // "Solo personal" arranca sin grupos ni lista (la lista vive en la convivencia).
+    setModules(u === 'personal' ? ['finanzas'] : ALL_MODULES)
+  }
+
+  function toggleModule(k: ModuleKey) {
+    setModules((prev) =>
+      prev.includes(k) ? prev.filter((x) => x !== k) : ALL_MODULES.filter((x) => x === k || prev.includes(x)),
+    )
+  }
 
   function toggleStore(s: string) {
     setStores((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
@@ -56,16 +96,23 @@ export default function OnboardingPage() {
     setError(null)
     const cleanAlias = alias.trim()
     const { error: upErr } = await supabase.auth.updateUser({
-      data: {
-        onboarded: true,
-        intended_use: uso,
-        payment_alias: cleanAlias || null,
-        preferred_stores: stores,
-      },
+      data: onlyModules
+        ? { modules }
+        : {
+            onboarded: true,
+            intended_use: uso,
+            modules,
+            payment_alias: cleanAlias || null,
+            preferred_stores: stores,
+          },
     })
     if (upErr) {
       setBusy(false)
       setError(upErr.message)
+      return
+    }
+    if (onlyModules) {
+      router.replace('/')
       return
     }
 
@@ -91,7 +138,7 @@ export default function OnboardingPage() {
     }
 
     setBusy(false)
-    if (uso === 'personal' && personalId) router.replace(`/g/${personalId}`)
+    if ((uso === 'personal' || !modules.includes('grupos')) && personalId) router.replace(`/g/${personalId}`)
     else if (uso === 'conviviente') router.replace('/?nuevo=1')
     else router.replace('/')
   }
@@ -100,9 +147,14 @@ export default function OnboardingPage() {
 
   return (
     <PageShell width="narrow">
-      <p className="mb-4 text-sm font-semibold text-muted">Paso {step} de 3</p>
+      {steps.length > 1 && (
+        <p className="mb-4 text-sm font-semibold text-muted">
+          {/* El total depende de lo que elija en 'uso' y 'modulos': en el primer paso no lo prometemos. */}
+          Paso {stepIdx + 1}{step === 'uso' ? '' : ` de ${steps.length}`}
+        </p>
+      )}
 
-        {step === 1 && (
+        {step === 'uso' && (
           <Card>
             <h1 className="text-xl font-bold">¿Cómo vas a usar covivencia?</h1>
             <p className="mt-1 text-sm text-muted">Así te llevamos directo a lo que más vas a usar.</p>
@@ -111,7 +163,7 @@ export default function OnboardingPage() {
                 <button
                   key={o.key}
                   type="button"
-                  onClick={() => setUso(o.key)}
+                  onClick={() => chooseUso(o.key)}
                   className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left ${
                     uso === o.key
                       ? 'border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/40'
@@ -128,13 +180,55 @@ export default function OnboardingPage() {
                 </button>
               ))}
             </div>
-            <Button onClick={() => setStep(2)} disabled={!uso} className="mt-5 w-full">
+            <Button onClick={next} disabled={!uso} className="mt-5 w-full">
               Continuar
             </Button>
           </Card>
         )}
 
-        {step === 2 && (
+        {step === 'modulos' && (
+          <Card>
+            <h1 className="text-xl font-bold">¿Qué querés usar?</h1>
+            <p className="mt-1 text-sm text-muted">
+              Mostramos solo lo que elijas. Gastos y Tarjetas están siempre. Lo cambiás cuando quieras en Config.
+            </p>
+            <div className="mt-4 space-y-2">
+              {MODULES.map((m) => (
+                <label
+                  key={m.key}
+                  className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 ${selectableBox(modules.includes(m.key))}`}
+                >
+                  <span className="pt-0.5">
+                    <Checkbox checked={modules.includes(m.key)} onChange={() => toggleModule(m.key)} />
+                  </span>
+                  <span>
+                    <span className="block font-semibold">{m.title}</span>
+                    <span className="block text-xs text-muted">{m.desc}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {isLast && (
+              <div className="mt-3">
+                <ErrorText>{error}</ErrorText>
+              </div>
+            )}
+            <div className="mt-5 flex items-center justify-between">
+              {stepIdx > 0 ? (
+                <TextButton tone="muted" onClick={back}>
+                  ← Atrás
+                </TextButton>
+              ) : (
+                <span />
+              )}
+              <Button onClick={next} disabled={busy}>
+                {nextLabel}
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {step === 'alias' && (
           <Card>
             <h1 className="text-xl font-bold">Alias para cobrar</h1>
             <p className="mt-1 text-sm text-muted">
@@ -142,19 +236,20 @@ export default function OnboardingPage() {
             </p>
             <div className="mt-4">
               <Input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="tu.alias / CBU" autoFocus autoCapitalize="none" autoCorrect="off" enterKeyHint="next" />
+              {isLast && <div className="mt-3"><ErrorText>{error}</ErrorText></div>}
             </div>
             <div className="mt-5 flex items-center justify-between">
-              <TextButton tone="muted" onClick={() => setStep(1)}>
+              <TextButton tone="muted" onClick={back}>
                 ← Atrás
               </TextButton>
-              <Button onClick={() => setStep(3)} disabled={!alias.trim()}>
-                Continuar
+              <Button onClick={next} disabled={busy || !alias.trim()}>
+                {nextLabel}
               </Button>
             </div>
           </Card>
         )}
 
-        {step === 3 && (
+        {step === 'super' && (
           <Card>
             <h1 className="text-xl font-bold">¿Qué supermercados usás?</h1>
             <p className="mt-1 text-sm text-muted">
@@ -176,7 +271,7 @@ export default function OnboardingPage() {
               <ErrorText>{error}</ErrorText>
             </div>
             <div className="mt-5 flex items-center justify-between">
-              <TextButton tone="muted" onClick={() => setStep(2)}>
+              <TextButton tone="muted" onClick={back}>
                 ← Atrás
               </TextButton>
               <Button onClick={finish} disabled={busy}>

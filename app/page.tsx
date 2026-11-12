@@ -10,7 +10,7 @@ import { PageShell } from '@/components/PageShell'
 import { Badge, Button, Card, EmptyState, ErrorText, Input, Label, Select, Spinner, useConfirm } from '@/components/ui'
 import { CURRENCIES, formatMoney } from '@/lib/currencies'
 import { createGroupWithOwner } from '@/lib/groups'
-import { userDisplayName, userPaymentAlias } from '@/lib/profile'
+import { userDisplayName, userModules, userModulesChoice, userPaymentAlias } from '@/lib/profile'
 import type { Group } from '@/lib/types'
 import { currentMonth } from '@/lib/dates'
 
@@ -47,7 +47,10 @@ function HomePageInner() {
   // Onboarding pendiente (uso / alias / supermercados): se hace una sola vez
   // por cuenta, tanto para cuentas nuevas como para las que ya existían.
   useEffect(() => {
-    if (!loading && user && !user.user_metadata?.onboarded) router.replace('/onboarding')
+    if (loading || !user) return
+    if (!user.user_metadata?.onboarded) router.replace('/onboarding')
+    // Cuentas de antes de los módulos: se les pregunta una sola vez qué usan.
+    else if (userModulesChoice(user) === null) router.replace('/onboarding?solo=modulos')
   }, [user, loading, router])
 
   // Viene de terminar el onboarding eligiendo "conviviente": abrimos el form directo.
@@ -125,10 +128,19 @@ function HomePageInner() {
   // Convivencia tiene un único grupo. La navegación inferior ya apunta directo
   // a él; este redirect cubre links viejos y entradas manuales a esta URL.
   useEffect(() => {
-    if (loading || fetching || section !== 'convivencia') return
+    if (loading || fetching) return
+    // Con el onboarding pendiente manda el effect de arriba; sin esto ganaba este redirect.
+    if (!user?.user_metadata?.onboarded || userModulesChoice(user) === null) return
+    // Sin el módulo Grupos, esta pantalla no tiene nada: va a su espacio personal.
+    const personal = groups.find((group) => group.is_personal)
+    if (!userModules(user).includes('grupos') && personal) {
+      router.replace(`/g/${personal.id}`)
+      return
+    }
+    if (section !== 'convivencia') return
     const convivencia = groups.find((group) => !group.is_personal && group.kind === 'convivencia')
     if (convivencia) router.replace(`/g/${convivencia.id}`)
-  }, [fetching, groups, loading, router, section])
+  }, [fetching, groups, loading, router, section, user])
 
   async function createGroup(e: React.FormEvent) {
     e.preventDefault()

@@ -25,7 +25,8 @@ import type {
   ShoppingItem,
   Template,
 } from '@/lib/types'
-import { isPersonalTab, isSharedTab, type Tab } from './tabs-types'
+import type { Tab } from './tabs-types'
+import { userModules } from '@/lib/profile'
 import { BalancesTab } from './tabs/BalancesTab'
 import { CardsTab } from './tabs/CardsTab'
 import { GastosTab } from './tabs/GastosTab'
@@ -221,7 +222,14 @@ export default function GroupPage() {
   if (loading || !user || fetching) return <Spinner />
   if (notFound || !group) return <NotFoundScreen>No encontramos este grupo (o no tenés acceso).</NotFoundScreen>
 
-  const tabs: { key: Tab; label: string }[] = group.is_personal
+  const modules = userModules(user)
+  const hasFinanzas = modules.includes('finanzas')
+  const hasSuper = modules.includes('super')
+  const hiddenTabs: Tab[] = [
+    ...(hasFinanzas ? [] : (['ingresos', 'ahorros', 'presupuestos', 'resumen'] as Tab[])),
+    ...(hasSuper ? [] : (['lista'] as Tab[])),
+  ]
+  const allTabs: { key: Tab; label: string }[] = group.is_personal
     ? [
         { key: 'inicio', label: 'Inicio' },
         { key: 'ingresos', label: 'Ingresos' },
@@ -247,9 +255,9 @@ export default function GroupPage() {
           { key: 'liquidacion', label: 'Liquidación' },
           { key: 'miembros', label: 'Miembros' },
         ]
-  const activeTab: Tab = group.is_personal
-    ? (isPersonalTab(tab) ? tab : 'inicio')
-    : (isSharedTab(tab) ? tab : 'gastos')
+  const tabs = allTabs.filter((t) => !hiddenTabs.includes(t.key))
+  // Pestaña desconocida u oculta por módulo: cae a la primera (Inicio / Gastos).
+  const activeTab: Tab = tabs.some((t) => t.key === tab) ? tab : tabs[0].key
 
   return (
     <PageShell
@@ -269,7 +277,8 @@ export default function GroupPage() {
         )}
 
         {!group.is_personal && group.kind !== 'viaje' && (
-          <div className="mb-3 grid grid-cols-2 gap-2.5">
+          <div className={`mb-3 grid gap-2.5 ${hasSuper ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {hasSuper && (
             <button
               type="button"
               onClick={() => setTab('lista')}
@@ -283,6 +292,7 @@ export default function GroupPage() {
                 {pendingShopping > 0 ? `${pendingShopping} pendiente${pendingShopping === 1 ? '' : 's'}` : 'Todo listo ✓'}
               </span>
             </button>
+            )}
             <button
               type="button"
               onClick={() => setTab('gastos')}
@@ -356,7 +366,8 @@ export default function GroupPage() {
             savings={savings}
             budgets={budgets}
             catMeta={catMeta}
-            onOpenTab={(next) => setTab(next)}
+            finanzas={hasFinanzas}
+            onOpenTab={(next) => setTab(tabs.some((t) => t.key === next) ? next : 'gastos')}
             onChanged={load}
           />
         )}

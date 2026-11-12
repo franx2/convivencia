@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth, useRequireAuth } from '@/components/AuthProvider'
 import { PageShell } from '@/components/PageShell'
 import { Button, Card, Checkbox, ErrorText, Input, Label, PageTitle, Spinner, selectableBox, useDarkMode } from '@/components/ui'
-import { userDisplayName, userPaymentAlias, userPreferredStores } from '@/lib/profile'
+import { ALL_MODULES, MODULES, userDisplayName, userModules, userPaymentAlias, userPreferredStores, type ModuleKey } from '@/lib/profile'
 import { SUPERMARKETS } from '@/lib/stores'
 
 /**
@@ -24,6 +24,7 @@ export default function ConfiguracionPage() {
   const [name, setName] = useState('')
   const [alias, setAlias] = useState('')
   const [stores, setStores] = useState<string[]>([])
+  const [modules, setModules] = useState<ModuleKey[]>(ALL_MODULES)
   const { mode, setMode } = useDarkMode()
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -36,6 +37,7 @@ export default function ConfiguracionPage() {
     setName(userDisplayName(user))
     setAlias(userPaymentAlias(user))
     setStores(userPreferredStores(user))
+    setModules(userModules(user))
     setHydrated(true)
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [user])
@@ -48,7 +50,7 @@ export default function ConfiguracionPage() {
     const cleanName = name.trim()
     const cleanAlias = alias.trim()
     const { error: upErr } = await supabase.auth.updateUser({
-      data: { full_name: cleanName || null, payment_alias: cleanAlias || null, preferred_stores: stores },
+      data: { full_name: cleanName || null, payment_alias: cleanAlias || null, preferred_stores: stores, modules },
     })
     if (upErr) {
       setBusy(false)
@@ -73,6 +75,10 @@ export default function ConfiguracionPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  function toggleModule(k: ModuleKey) {
+    setModules((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : ALL_MODULES.filter((x) => x === k || prev.includes(x))))
+  }
+
   function toggleStore(s: string) {
     setStores((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
   }
@@ -89,6 +95,26 @@ export default function ConfiguracionPage() {
       <PageTitle subtitle="Datos de tu cuenta y preferencias.">Configuración</PageTitle>
 
       <Card className="space-y-4">
+        <div>
+          <Label>Qué usás</Label>
+          <div className="space-y-2">
+            {MODULES.map((m) => (
+              <label
+                key={m.key}
+                className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 ${selectableBox(modules.includes(m.key))}`}
+              >
+                <span className="pt-0.5">
+                  <Checkbox checked={modules.includes(m.key)} onChange={() => toggleModule(m.key)} />
+                </span>
+                <span>
+                  <span className="block text-sm font-semibold">{m.title}</span>
+                  <span className="block text-xs text-muted">{m.desc}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-muted">Lo que apagues se oculta de las pestañas y la barra. Gastos y Tarjetas están siempre.</p>
+        </div>
         <div>
           <Label>Nombre visible</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" />

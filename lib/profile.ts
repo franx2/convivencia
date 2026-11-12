@@ -24,3 +24,23 @@ export function userPreferredStores(user: User | null | undefined): string[] {
   const raw = user.user_metadata?.preferred_stores
   return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : []
 }
+
+// Módulos que cada usuario puede apagar. Gastos, Tarjetas y Config. van siempre.
+export const MODULES = [
+  { key: 'finanzas', title: 'Finanzas personales', desc: 'Ingresos, ahorro, presupuesto y resumen de tu espacio.' },
+  { key: 'super', title: 'Lista del súper', desc: 'Lista de compras compartida y buscador de precios.' },
+  { key: 'grupos', title: 'Grupos', desc: 'Convivencia y grupal: repartir gastos y saldar deudas.' },
+] as const
+export type ModuleKey = (typeof MODULES)[number]['key']
+export const ALL_MODULES: ModuleKey[] = MODULES.map((m) => m.key)
+
+/** null = nunca eligió (cuenta vieja): se le pregunta una vez y mientras tanto ve todo. */
+export function userModulesChoice(user: User | null | undefined): ModuleKey[] | null {
+  const raw = user?.user_metadata?.modules
+  if (!Array.isArray(raw)) return null
+  return ALL_MODULES.filter((k) => raw.includes(k))
+}
+
+export function userModules(user: User | null | undefined): ModuleKey[] {
+  return userModulesChoice(user) ?? ALL_MODULES
+}

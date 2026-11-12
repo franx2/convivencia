@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/components/AuthProvider'
 import { supabase } from '@/lib/supabase'
+import { userModules } from '@/lib/profile'
 import { House, PartyPopper, Settings, ShoppingBasket, UsersRound, type LucideIcon } from 'lucide-react'
 
 type BottomNavProps = {
@@ -23,6 +24,10 @@ export function BottomNav({ active, personalHref }: BottomNavProps) {
   const [fetchedConvivenciaHref, setFetchedConvivenciaHref] = useState<string | null>(cached?.convivencia ?? null)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const resolvedPersonalHref = personalHref ?? fetchedPersonalHref
+  const modules = userModules(user)
+  const hasGrupos = modules.includes('grupos')
+  const hasSuper = modules.includes('super')
+  const cols = 2 + (hasGrupos ? 2 : 0) + (hasSuper ? 1 : 0)
 
   // En iOS el teclado empuja hacia arriba los elementos `position: fixed` y la
   // barra "se levanta" tapando el contenido. Mientras hay teclado, la ocultamos.
@@ -60,7 +65,7 @@ export function BottomNav({ active, personalHref }: BottomNavProps) {
   }, [personalHref, user])
 
   useEffect(() => {
-    if (!user) return
+    if (!user || !hasGrupos) return
 
     let cancelled = false
     supabase
@@ -80,13 +85,15 @@ export function BottomNav({ active, personalHref }: BottomNavProps) {
     return () => {
       cancelled = true
     }
-  }, [user])
+  }, [user, hasGrupos])
 
   if (keyboardOpen) return null
 
   return (
     <nav className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-50 px-2">
-      <div className="mx-auto grid max-w-lg grid-cols-5 gap-0.5 rounded-[1.75rem] border border-slate-200/90 bg-white/95 p-1.5 shadow-[0_12px_35px_rgba(15,23,42,0.22)] backdrop-blur dark:border-[#26312d] dark:bg-[#111513]/95 dark:shadow-[0_14px_38px_rgba(0,0,0,0.5)]">
+      <div className="mx-auto grid max-w-lg gap-0.5 rounded-[1.75rem] border border-slate-200/90 bg-white/95 p-1.5 shadow-[0_12px_35px_rgba(15,23,42,0.22)] backdrop-blur dark:border-[#26312d] dark:bg-[#111513]/95 dark:shadow-[0_14px_38px_rgba(0,0,0,0.5)]"
+        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+      >
         <NavItem
           active={active === 'personal'}
           disabled={!resolvedPersonalHref}
@@ -94,14 +101,16 @@ export function BottomNav({ active, personalHref }: BottomNavProps) {
           Icon={House}
           label="Personal"
         />
+        {hasGrupos && (
         <NavItem
           active={active === 'convivencia'}
           href={fetchedConvivenciaHref ?? '/?section=convivencia'}
           Icon={UsersRound}
           label="Convivencia"
         />
-        <NavItem active={active === 'super'} href="/super" Icon={ShoppingBasket} label="Super" />
-        <NavItem active={active === 'viajes'} href="/?section=viajes" Icon={PartyPopper} label="Grupal" />
+        )}
+        {hasSuper && <NavItem active={active === 'super'} href="/super" Icon={ShoppingBasket} label="Super" />}
+        {hasGrupos && <NavItem active={active === 'viajes'} href="/?section=viajes" Icon={PartyPopper} label="Grupal" />}
         <NavItem active={active === 'settings'} href="/configuracion" Icon={Settings} label="Config." />
       </div>
     </nav>
